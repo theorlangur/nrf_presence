@@ -5557,7 +5557,7 @@
 	)
 	(wire
 		(pts
-			(xy 223.52 83.82) (xy 231.14 83.82)
+			(xy 223.52 83.82) (xy 229.87 83.82)
 		)
 		(stroke
 			(width 0)
@@ -5977,6 +5977,16 @@
 	)
 	(wire
 		(pts
+			(xy 229.87 92.71) (xy 231.14 92.71)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "6fda7e6d-b515-4834-bed1-6f38ed163065")
+	)
+	(wire
+		(pts
 			(xy 186.69 161.29) (xy 195.58 161.29)
 		)
 		(stroke
@@ -6057,7 +6067,7 @@
 	)
 	(wire
 		(pts
-			(xy 231.14 83.82) (xy 231.14 95.25)
+			(xy 229.87 83.82) (xy 229.87 92.71)
 		)
 		(stroke
 			(width 0)
@@ -6117,13 +6127,13 @@
 	)
 	(wire
 		(pts
-			(xy 231.14 82.55) (xy 236.22 82.55)
+			(xy 226.06 88.9) (xy 231.14 88.9)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "7f927a61-b43f-4168-b9b8-6f78562b94b9")
+		(uuid "80797e08-6dcf-40c8-b190-5c1b46260d80")
 	)
 	(wire
 		(pts
@@ -6157,6 +6167,16 @@
 	)
 	(wire
 		(pts
+			(xy 236.22 90.17) (xy 236.22 95.25)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "85abd0dc-6830-4673-bc53-c641645008b3")
+	)
+	(wire
+		(pts
 			(xy 133.35 91.44) (xy 130.81 91.44)
 		)
 		(stroke
@@ -6184,16 +6204,6 @@
 			(type default)
 		)
 		(uuid "874bb02c-cb11-401d-b98e-054125255b2c")
-	)
-	(wire
-		(pts
-			(xy 226.06 85.09) (xy 226.06 95.25)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "877fb805-70a1-4ec4-8d42-e71dec7f6a2d")
 	)
 	(wire
 		(pts
@@ -6307,7 +6317,7 @@
 	)
 	(wire
 		(pts
-			(xy 220.98 85.09) (xy 226.06 85.09)
+			(xy 220.98 90.17) (xy 236.22 90.17)
 		)
 		(stroke
 			(width 0)
@@ -6447,13 +6457,23 @@
 	)
 	(wire
 		(pts
-			(xy 220.98 77.47) (xy 220.98 85.09)
+			(xy 220.98 77.47) (xy 220.98 90.17)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
 		(uuid "a8aff2a3-177e-4a8b-9214-b23390c30828")
+	)
+	(wire
+		(pts
+			(xy 231.14 92.71) (xy 231.14 95.25)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "aaac9ff8-d289-4184-a4c4-5cc505e20030")
 	)
 	(wire
 		(pts
@@ -6767,7 +6787,7 @@
 	)
 	(wire
 		(pts
-			(xy 231.14 77.47) (xy 231.14 82.55)
+			(xy 231.14 77.47) (xy 231.14 88.9)
 		)
 		(stroke
 			(width 0)
@@ -6784,6 +6804,16 @@
 			(type default)
 		)
 		(uuid "d9e30b25-2b0b-4704-b3e1-3ad0feb33ba5")
+	)
+	(wire
+		(pts
+			(xy 226.06 88.9) (xy 226.06 95.25)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "dc13dc17-68db-44c6-b14e-a68101436177")
 	)
 	(wire
 		(pts
@@ -6987,16 +7017,6 @@
 	)
 	(wire
 		(pts
-			(xy 236.22 82.55) (xy 236.22 95.25)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "f8aa6ab9-df38-4edf-9bb2-3858f250616f")
-	)
-	(wire
-		(pts
 			(xy 288.29 167.64) (xy 304.8 167.64)
 		)
 		(stroke
@@ -7086,12 +7106,12 @@
 		(uuid "0bbe5cb3-09db-4aa0-9b30-41992ba989e9")
 	)
 	(label "I2C20_SDA"
-		(at 231.14 95.25 90)
+		(at 228.6 83.82 180)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
-			(justify left bottom)
+			(justify right bottom)
 		)
 		(uuid "0bf729e8-bded-4b0c-9d18-2525e240580a")
 	)
@@ -7166,7 +7186,7 @@
 		(uuid "420431a3-425a-4739-a56e-9e2478ed0817")
 	)
 	(label "I_AIR1"
-		(at 236.22 93.98 90)
+		(at 231.14 81.28 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7296,12 +7316,12 @@
 		(uuid "c9d34876-0963-46fd-9bdf-e560b040b9fb")
 	)
 	(label "I2C20_SCL"
-		(at 226.06 95.25 90)
+		(at 220.98 88.9 180)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
-			(justify left bottom)
+			(justify right bottom)
 		)
 		(uuid "cc4eb48f-5b9e-4433-99b6-7eeb525b00dc")
 	)
@@ -10694,7 +10714,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical"
+		(property "Footprint" "Connector_JST:JST_PH_B5B-PH-K_1x05_P2.00mm_Vertical"
 			(at 309.88 115.57 0)
 			(effects
 				(font
@@ -11329,7 +11349,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical"
+		(property "Footprint" "Connector_JST:JST_PH_B5B-PH-K_1x05_P2.00mm_Vertical"
 			(at 309.88 138.43 0)
 			(effects
 				(font

@@ -482,7 +482,7 @@
       {
         "bus_width": 12,
         "name": "EXT",
-        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "pcb_color": "rgb(100, 24, 255)",
         "priority": 0,
         "schematic_color": "rgb(100, 24, 255)",
         "wire_width": 6
@@ -490,7 +490,7 @@
       {
         "bus_width": 12,
         "name": "I2C",
-        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "pcb_color": "rgb(0, 186, 255)",
         "priority": 1,
         "schematic_color": "rgb(0, 186, 255)",
         "wire_width": 6
@@ -498,7 +498,7 @@
       {
         "bus_width": 14,
         "name": "PWR",
-        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "pcb_color": "rgb(255, 0, 6)",
         "priority": 4,
         "schematic_color": "rgb(255, 0, 6)",
         "wire_width": 8
@@ -506,7 +506,7 @@
       {
         "bus_width": 12,
         "name": "SENSOR_INTS",
-        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "pcb_color": "rgb(255, 0, 219)",
         "priority": 2,
         "schematic_color": "rgb(255, 0, 219)",
         "wire_width": 6
@@ -514,7 +514,7 @@
       {
         "bus_width": 12,
         "name": "SWD",
-        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "pcb_color": "rgb(49, 49, 49)",
         "priority": 3,
         "schematic_color": "rgb(49, 49, 49)",
         "wire_width": 6
@@ -522,7 +522,7 @@
       {
         "bus_width": 12,
         "name": "UART",
-        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "pcb_color": "rgb(255, 132, 1)",
         "priority": 5,
         "schematic_color": "rgb(255, 132, 1)",
         "wire_width": 6
@@ -530,7 +530,7 @@
       {
         "bus_width": 12,
         "name": "USB",
-        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "pcb_color": "rgb(1, 255, 0)",
         "priority": 6,
         "schematic_color": "rgb(1, 255, 0)",
         "wire_width": 6
