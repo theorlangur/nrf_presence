@@ -1,0 +1,78 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Ezurio LLVM",
+            "type": "shell",
+            "command": "./e.sh cmake --build build_ezurio_llvm",
+            "group": { "kind": "build" }
+        },
+        {
+            "label": "West Build Ezurio LLVM",
+            "type": "shell",
+            "command": "./e.sh ./build-ezurio-llvm.sh",
+            "group": { "kind": "build" }
+        },
+        {
+            "label": "West Build Ezurio LLVM Log",
+            "type": "shell",
+            "command": "./e.sh ./build-ezurio-llvm-log.sh",
+            "group": { "kind": "build" }
+        },
+        {
+            "label": "Build Ezurio LLVM with libc++",
+            "type": "shell",
+            "command": "./lcxx.sh cmake --build build_ezurio_llvm",
+            "group": { "kind": "build" }
+        },
+        {
+            "label": "West Build Ezurio LLVM Log with libc++",
+            "type": "shell",
+            "command": "./lcxx.sh ./build-ezurio-llvm-log-lcxx.sh",
+            "group": { "kind": "build" }
+        },
+        {
+            "label": "Flash Ezurio LLVM over JLINK-EDU (Erase)",
+            "type": "shell",
+            "command": "./e.sh west flash -d build_ezurio_llvm --dev-id 802005000 --erase"
+        },
+        {
+            "label": "Flash Ezurio LLVM over JLINK-EDU",
+            "type": "shell",
+            "command": "./e.sh west flash -d build_ezurio_llvm --dev-id 802005000"
+        },
+        {
+            "label": "NRFUtil Reset",
+            "type": "shell",
+            "command": "nrfutil device reset"
+        },
+        {
+            "label": "Flash OpenOCD",
+            "type": "shell",
+            "command": "./flash.exp"
+        },
+        {
+            "label": "Bootloader Flash OpenOCD",
+            "type": "shell",
+            "command": "./flash_boot.exp"
+        },
+        {
+            "label": "Reset Halt OpenOCD",
+            "type": "shell",
+            "command": "./reset_halt.exp"
+        },
+        {
+            "label": "Reset OpenOCD",
+            "type": "shell",
+            "command": "./reset.exp"
+        },
+        {
+            "label": "Kill Screen",
+            "type": "shell",
+            "options": {
+                "detached": true
+            },
+            "command": "killall cat"
+        }
+    ]
+}
