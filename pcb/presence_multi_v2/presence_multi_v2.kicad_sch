@@ -5014,7 +5014,7 @@
 	)
 	(rectangle
 		(start 306.07 26.035)
-		(end 357.505 57.15)
+		(end 357.505 71.12)
 		(stroke
 			(width 0)
 			(type default)
@@ -5113,6 +5113,12 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "04821b8e-8eb6-49d8-afc1-8b3dd7836939")
+	)
+	(junction
+		(at 313.69 58.42)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "07285d92-5831-4c15-b98b-6d34ef5b7722")
 	)
 	(junction
 		(at 97.79 62.23)
@@ -5295,6 +5301,10 @@
 		(uuid "f5fca6d5-fcd8-44c8-a932-79602ea03fd7")
 	)
 	(no_connect
+		(at 337.82 58.42)
+		(uuid "0afa63ca-8616-4ce0-bc96-5f8d26c7ab15")
+	)
+	(no_connect
 		(at 337.82 48.26)
 		(uuid "1088c32d-1207-4e89-9989-1a1f5750ddd3")
 	)
@@ -5375,12 +5385,12 @@
 		(uuid "da4afb63-75d2-4d81-b3fd-743e8533c635")
 	)
 	(no_connect
-		(at 215.9 95.25)
-		(uuid "efbef8c6-9555-4c69-a082-ca806bef7b42")
-	)
-	(no_connect
 		(at 163.83 149.86)
 		(uuid "f1bd5e68-7995-4a14-809c-72e698fe842d")
+	)
+	(no_connect
+		(at 205.74 86.36)
+		(uuid "f82036da-3a44-460e-b0d6-a7a1870442db")
 	)
 	(wire
 		(pts
@@ -5481,6 +5491,16 @@
 			(type default)
 		)
 		(uuid "05d0222d-e9d8-4332-9186-bfde8055bba5")
+	)
+	(wire
+		(pts
+			(xy 205.74 86.36) (xy 205.74 88.9)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "076e12df-ebfd-4045-9e83-f50cbd5a529f")
 	)
 	(wire
 		(pts
@@ -5611,6 +5631,16 @@
 			(type default)
 		)
 		(uuid "16b54f19-dade-40d4-8c4a-f76a17c12a57")
+	)
+	(wire
+		(pts
+			(xy 220.98 66.04) (xy 220.98 90.17)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "16f5bebb-5db2-4d66-a1fc-1024bc3740c2")
 	)
 	(wire
 		(pts
@@ -6154,6 +6184,16 @@
 	)
 	(wire
 		(pts
+			(xy 313.69 58.42) (xy 318.77 58.42)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5be3ffc1-b3f1-4afc-9368-ab7f94477461")
+	)
+	(wire
+		(pts
 			(xy 82.55 91.44) (xy 87.63 91.44)
 		)
 		(stroke
@@ -6464,6 +6504,16 @@
 	)
 	(wire
 		(pts
+			(xy 215.9 95.25) (xy 215.9 88.9)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8e50075b-5b5b-43d0-9c83-ce14b49cea7d")
+	)
+	(wire
+		(pts
 			(xy 82.55 86.36) (xy 82.55 88.9)
 		)
 		(stroke
@@ -6724,16 +6774,6 @@
 	)
 	(wire
 		(pts
-			(xy 220.98 66.04) (xy 220.98 90.17)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a8aff2a3-177e-4a8b-9214-b23390c30828")
-	)
-	(wire
-		(pts
 			(xy 231.14 92.71) (xy 231.14 95.25)
 		)
 		(stroke
@@ -6751,6 +6791,16 @@
 			(type default)
 		)
 		(uuid "aabcdf21-a0c6-4d52-b9e3-5f661e34abcc")
+	)
+	(wire
+		(pts
+			(xy 313.69 58.42) (xy 313.69 62.23)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ab6be7ee-c720-47da-b005-8c9fc1137210")
 	)
 	(wire
 		(pts
@@ -6891,6 +6941,16 @@
 			(type default)
 		)
 		(uuid "bf3426fb-e8de-495b-a968-8b4b62edf9e9")
+	)
+	(wire
+		(pts
+			(xy 215.9 88.9) (xy 205.74 88.9)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c1ecf4b3-3601-4c2d-b579-76290ff86681")
 	)
 	(wire
 		(pts
@@ -7084,7 +7144,7 @@
 	)
 	(wire
 		(pts
-			(xy 313.69 48.26) (xy 313.69 52.07)
+			(xy 313.69 48.26) (xy 313.69 58.42)
 		)
 		(stroke
 			(width 0)
@@ -7291,6 +7351,16 @@
 			(type default)
 		)
 		(uuid "f25333ce-af95-4c63-95e6-42cf4369f517")
+	)
+	(wire
+		(pts
+			(xy 328.93 58.42) (xy 337.82 58.42)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f255bb69-0d06-4b91-8e37-64556513dde3")
 	)
 	(wire
 		(pts
@@ -7682,6 +7752,16 @@
 		)
 		(uuid "bb996a9a-cd21-401a-9a98-42f0d40cdbdd")
 	)
+	(label "BTN_ZB"
+		(at 330.2 58.42 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "bddd50fa-5af4-49b3-a97c-fc8b00b4b09b")
+	)
 	(label "XL2"
 		(at 246.38 87.63 0)
 		(effects
@@ -7693,7 +7773,7 @@
 		(uuid "c9d34876-0963-46fd-9bdf-e560b040b9fb")
 	)
 	(label "I2C20_SCL"
-		(at 220.98 88.9 180)
+		(at 220.98 86.36 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7741,6 +7821,16 @@
 			(justify left bottom)
 		)
 		(uuid "d76d5db7-104f-44b8-bf2e-bf8ae970d51c")
+	)
+	(label "BTN_ZB"
+		(at 205.74 88.9 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "e708c32c-3d11-47a7-b830-7d2aeff76c75")
 	)
 	(label "I_PRESENCE1"
 		(at 278.13 115.57 0)
@@ -10984,7 +11074,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 313.69 52.07 0)
+		(at 313.69 62.23 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -10993,7 +11083,7 @@
 		(fields_autoplaced yes)
 		(uuid "94f25305-ec01-4ce3-a0a0-bb44ee14a996")
 		(property "Reference" "#PWR027"
-			(at 313.69 58.42 0)
+			(at 313.69 68.58 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11002,7 +11092,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 313.6899 55.88 90)
+			(at 313.6899 66.04 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11012,7 +11102,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 313.69 52.07 0)
+			(at 313.69 62.23 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11021,7 +11111,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 313.69 52.07 0)
+			(at 313.69 62.23 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11030,7 +11120,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 313.69 52.07 0)
+			(at 313.69 62.23 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11904,6 +11994,74 @@
 			(project "presence_multi_v2"
 				(path "/c83d98d1-41ba-4e6e-b42b-963b3259de31"
 					(reference "#PWR034")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Switch:SW_Push")
+		(at 323.85 58.42 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "d1409415-f885-40e8-a44c-8cf4c683a4cd")
+		(property "Reference" "BTN3"
+			(at 323.85 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "ZigbeeBtn"
+			(at 323.85 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Button_Switch_SMD:SW_SPST_TS-1088-xR020"
+			(at 323.85 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 323.85 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Push button switch, generic, two pins"
+			(at 323.85 58.42 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "033343a8-2bc7-4a52-bf8e-97035729d190")
+		)
+		(pin "2"
+			(uuid "6af00453-6112-4763-b90a-a489ff820ad6")
+		)
+		(instances
+			(project "presence_multi_v2"
+				(path "/c83d98d1-41ba-4e6e-b42b-963b3259de31"
+					(reference "BTN3")
 					(unit 1)
 				)
 			)
