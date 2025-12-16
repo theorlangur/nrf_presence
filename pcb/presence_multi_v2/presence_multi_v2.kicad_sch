@@ -11609,7 +11609,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Crystal:Crystal_SMD_2012-2Pin_2.0x1.2mm"
+		(property "Footprint" "theorlangur:Wurth-XTAL-830050789"
 			(at 250.19 81.28 0)
 			(effects
 				(font
