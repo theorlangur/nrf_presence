@@ -1,8 +1,17 @@
 # cmake/CustomLibcxx.cmake
 
+if(NOT DEFINED OPT_USE_CUSTOM_LIBCXX)
+    if(NOT DEFINED ENV{USE_CUSTOM_LIBCXX} OR NOT "$ENV{USE_CUSTOM_LIBCXX}" MATCHES "^(1|ON|TRUE|YES)$")
+	message(STATUS "Custom Libc++: Disabled (Env var USE_CUSTOM_LIBCXX not set)")
+	set(OPT_USE_CUSTOM_LIBCXX OFF CACHE BOOL "Custom Libc++")
+	return()
+    else()
+	set(OPT_USE_CUSTOM_LIBCXX ON CACHE BOOL "Custom Libc++")
+    endif()
+endif()
 # 1. Check for the Environment Variable
 # We only define the function/logic if the env var is present and set to "1" or "ON"
-if(NOT DEFINED ENV{USE_CUSTOM_LIBCXX} OR NOT "$ENV{USE_CUSTOM_LIBCXX}" MATCHES "^(1|ON|TRUE|YES)$")
+if(NOT ${OPT_USE_CUSTOM_LIBCXX})
     message(STATUS "Custom Libc++: Disabled (Env var USE_CUSTOM_LIBCXX not set)")
     return()
 endif()
