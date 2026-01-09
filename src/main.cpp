@@ -319,6 +319,13 @@ int main(void)
     }else
     {
 	printk("C4001 not found\r\n");
+	int val = 1;
+	while(true)
+	{
+	    gpio_pin_set_dt(&led, val);
+	    k_msleep(1000);
+	    val ^= 1;
+	}
 	return 0;
     }
 
