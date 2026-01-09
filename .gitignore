@@ -1,4 +1,6 @@
 build*/
+pcb/*/production
+pcb/*/fabrication-toolkit-options.json
 .cache/
 compile_commands.json
 fp-info-cache
