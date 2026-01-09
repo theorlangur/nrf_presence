@@ -325,6 +325,7 @@ int main(void)
 	    gpio_pin_set_dt(&led, val);
 	    k_msleep(1000);
 	    val ^= 1;
+	    printk("C4001 not found; led: %d\r\n", val);
 	}
 	return 0;
     }
@@ -392,6 +393,7 @@ int configure_c4001_out_pin()
 	printk("gpio_pin_interrupt_configure_dt: %d\r\n", err);
 	return err;
     }
+
     gpio_init_callback(&g_cb, presence_triggered, BIT(presence.pin));
     return gpio_add_callback_dt(&presence, &g_cb);
 }
