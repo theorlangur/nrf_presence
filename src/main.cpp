@@ -316,6 +316,10 @@ int main(void)
 	dev_ctx.c4001.sensitivity_hold = pC4001->GetSensitivityHold();
 	dev_ctx.c4001.sw_ver = pC4001->GetSWVer().m_Version;
 	dev_ctx.c4001.hw_ver = pC4001->GetHWVer().m_Version;
+    }else
+    {
+	printk("C4001 not found\r\n");
+	return 0;
     }
 
     /* Register callback for handling ZCL commands. */
