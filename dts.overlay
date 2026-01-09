@@ -4,6 +4,7 @@
 	chosen {
 		ncs,zigbee-timer = &timer20;
 		zephyr,code-partition = &slot0_partition;
+		zephyr,console = &uart00;
 	};
 
 	leds {
@@ -72,6 +73,15 @@
 	pinctrl-1 = <&uart30_sleep>;
 	pinctrl-names = "default", "sleep";
 };
+
 &gpio2 {
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
 	status = "okay";
 };
