@@ -2,8 +2,6 @@
 
 cmake_minimum_required(VERSION 3.20.0)
 
-set(mcuboot_DTC_OVERLAY_FILE "app.overlay;sysbuild/mcuboot/mcuboot.overlay")
-
 if(NOT DEFINED ENV{USE_NRF52})
     set(EXTRA_DTC_OVERLAY_FILE "dts.overlay")
 else()

@@ -1,16 +1,29 @@
+#include "partitions.dtsi"
 / {
 	chosen {
 		ncs,zigbee-timer = &timer20;
 		zephyr,code-partition = &slot0_partition;
 		zephyr,console = &uart00;
-		zephyr,cdc-acm-uart = &uart00;
 	};
 
 	leds {
 		compatible = "gpio-leds";
 		led0: led_0 {
 			gpios = <&gpio2 9 GPIO_ACTIVE_HIGH>;
-			label = "Red LED 0";
+			label = "Blue LED 0";
+		};
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+
+		button0: button_0 {
+			gpios = <&gpio0 0 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "Boot";
+		};
+		button1: button_1 {
+			gpios = <&gpio0 1 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "Zigbee";
 		};
 	};
 
@@ -32,53 +45,7 @@
     };
 };
 
-/delete-node/ &code_partition;
-&cpuapp_rram {
-	status = "okay";
-	partitions {
-		compatible = "fixed-partitions";
-		#address-cells = <1>;
-		#size-cells = <1>;
-		boot_partition: partition@0 {
-			label = "mcuboot";
-			reg = <0x0 DT_SIZE_K(64)>;
-		};
-		slot0_partition: partition@10000 {
-			label = "image-0";
-			reg = <0x10000 DT_SIZE_K(500)>;
-		};
-		slot1_partition: partition@8D000 {
-			label = "image-1";
-			reg = <0x8D000 DT_SIZE_K(500)>;
-		};
-	};
-};
-
 &pinctrl {
-	/omit-if-no-ref/ uart20_default: uart20_default {
-		group1 {
-			psels = <NRF_PSEL(UART_TX, 1, 7)>;
-		};
-	};
-
-	/omit-if-no-ref/ uart20_sleep: uart20_sleep {
-		group1 {
-			psels = <NRF_PSEL(UART_TX, 1, 7)>;
-			low-power-enable;
-		};
-	};
-	/* /omit-if-no-ref/ uart22_default: uart22_default { */
-	/* 	group1 { */
-	/* 		psels = <NRF_PSEL(UART_RX, 1, 6)>; */
-	/* 	}; */
-	/* }; */
-
-	/* /omit-if-no-ref/ uart22_sleep: uart22_sleep { */
-	/* 	group1 { */
-	/* 		psels = <NRF_PSEL(UART_RX, 1, 6)>; */
-	/* 		low-power-enable; */
-	/* 	}; */
-	/* }; */
 	/omit-if-no-ref/ uart30_default: uart30_default {
 		group1 {
 			psels = <NRF_PSEL(UART_TX, 0, 1)>, <NRF_PSEL(UART_RX, 0, 2)>;
@@ -110,20 +77,6 @@
 	status = "okay";
 };
 
-&uart20 {
-	status = "okay";
-	current-speed = <115200>;
-	/* pinctrl-0 = <&uart20_default>; */
-	/* pinctrl-1 = <&uart20_sleep>; */
-	/* pinctrl-names = "default", "sleep"; */
-};
-/* &uart22 { */
-/* 	status = "okay"; */
-/* 	current-speed = <115200>; */
-/* 	pinctrl-0 = <&uart22_default>; */
-/* 	pinctrl-1 = <&uart22_sleep>; */
-/* 	pinctrl-names = "default", "sleep"; */
-/* }; */
 &uart30 {
 	status = "okay";
 	current-speed = <9600>;
