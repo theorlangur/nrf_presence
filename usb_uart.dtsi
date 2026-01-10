@@ -14,8 +14,9 @@
 };
 &uart00 { 
 	status = "okay"; 
-	/* current-speed = <14400>; => 115200 */
+	//current-speed = <14400>;/*115200*/
 	current-speed = <115200>;/*921600*/
+	//current-speed = <57600>;/*460800*/
 	pinctrl-0 = <&uart00_default>;
 	pinctrl-1 = <&uart00_sleep>;
 	pinctrl-names = "default", "sleep";
