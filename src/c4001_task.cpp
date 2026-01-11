@@ -82,6 +82,11 @@ K_THREAD_DEFINE(c4001_thread, C4001_THREAD_STACK_SIZE,
     constinit upd_callback_t g_upd = nullptr;
     dfr::C4001* setup(err_callback_t err, upd_callback_t upd)
     {
+	if (!device_is_ready(c4001_uart))
+	{
+	    printk("uart for c4001 is not ready\r\n");
+	    return nullptr;
+	}
 	auto r = c4001.Init();
 	if (!r)
 	    return nullptr;

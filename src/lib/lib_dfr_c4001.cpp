@@ -115,6 +115,7 @@ namespace dfr
 
     C4001::ExpectedResult C4001::ReloadConfig()
     {
+        //m_Dbg = true;
         auto cfg = GetConfigurator();
         TRY_CFG(cfg.UpdateHWVersion(), "ReloadConfig.HW");
         TRY_CFG(cfg.UpdateSWVersion(), "ReloadConfig.SW");
