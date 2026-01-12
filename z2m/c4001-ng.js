@@ -1,7 +1,7 @@
 const { Buffer } = require('node:buffer');
 const util = require('node:util');
 const {Zcl} = require('zigbee-herdsman');
-const {enumLookup,numeric,deviceAddCustomCluster,onOff,binary,occupancy} = require('zigbee-herdsman-converters/lib/modernExtend');
+const {enumLookup,numeric,deviceAddCustomCluster,onOff,binary,occupancy,setupConfigureForReading,setupConfigureForReporting} = require('zigbee-herdsman-converters/lib/modernExtend');
 const fz = require('zigbee-herdsman-converters/converters/fromZigbee');
 const tz = require('zigbee-herdsman-converters/converters/toZigbee');
 const exposes = require('zigbee-herdsman-converters/lib/exposes');
@@ -128,11 +128,10 @@ const orlangurC4001Extended = {
         const configure = [];
 
         configure.push(
-            setupConfigureForReading("customStatus", ['range_min', 'range_max', 'range_trig', 'sw_ver', 'hw_ver', 'inhibit_duration'
-            , 'sensitivity_detect' 
-            , 'sensitivity_hold' 
-            , 'detect_delay' 
-            , 'clear_delay' ]),
+            setupConfigureForReading("c40001Config", ['range_min', 'range_max', 'range_trig'])
+            , setupConfigureForReading("c40001Config", [ 'sw_ver', 'hw_ver'])
+            , setupConfigureForReading("c40001Config", [ 'inhibit_duration', 'sensitivity_detect', 'sensitivity_hold'])
+            , setupConfigureForReading("c40001Config", [ 'detect_delay', 'clear_delay'])
         );
 
         return {
