@@ -37,7 +37,7 @@ static bool g_ZigbeeReady = false;
 
 
 /* Button used to enter the Bulb into the Identify mode. */
-#define IDENTIFY_MODE_BUTTON            DK_BTN1_MSK
+#define IDENTIFY_MODE_BUTTON            DK_BTN2_MSK
 
 /* Button to start Factory Reset */
 #define FACTORY_RESET_BUTTON IDENTIFY_MODE_BUTTON
@@ -353,6 +353,20 @@ int main(void)
 {
     int err = settings_subsys_init();
     err = settings_load();
+
+    led::setup();
+
+
+    //configure button handler
+    err = dk_buttons_init(button_changed);
+    if (dk_get_buttons() & FACTORY_RESET_BUTTON)
+    {
+	//zigbee button is pressed
+	zigbee_erase_persistent_storage(true);
+	led::show_pattern(led::kPATTERN_4_BLIPS_NORMED, 500);
+    }
+    //assign a button for a factory reset procedure
+    register_factory_reset_button(FACTORY_RESET_BUTTON);
 
     printk("main\r\n");
 
