@@ -459,6 +459,11 @@ int configure_c4001_out_pin()
 	return err;
     }
 
+    {
+	int val = gpio_pin_get_dt(&presence);
+	dev_ctx.occupancy.occupancy = val;
+    }
+
     gpio_init_callback(&g_cb, presence_triggered, BIT(presence.pin));
     return gpio_add_callback_dt(&presence, &g_cb);
 }
