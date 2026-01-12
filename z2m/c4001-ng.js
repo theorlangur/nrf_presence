@@ -100,7 +100,7 @@ const orlangurC4001Extended = {
                 },
             },
             {
-                key: "cmd_restart",
+                key: ["cmd_restart"],
                 convertSet: async (entity, key, value, meta) => {
                     await entity.command("c40001Config", "restartC4001", {}, {
                         disableDefaultResponse: true,
@@ -109,10 +109,21 @@ const orlangurC4001Extended = {
             }
         ];
 
+        const configure = [];
+
+        configure.push(
+            setupConfigureForReading("customStatus", ['range_min', 'range_max', 'range_trig', 'sw_ver', 'hw_ver', 'inhibit_duration'
+            , 'sensitivity_detect' 
+            , 'sensitivity_hold' 
+            , 'detect_delay' 
+            , 'clear_delay' ]),
+        );
+
         return {
             exposes,
             fromZigbee,
             toZigbee,
+            configure,
             isModernExtend: true,
         };
     },
@@ -150,10 +161,29 @@ const orlangurC4001Extended = {
             }
         ];
 
+        const configure = [];
+
+        configure.push(
+            setupConfigureForReading("customStatus", ["status1", "status2", "status3"]),
+            setupConfigureForReporting("customStatus", "status1", {
+                config: {min: "1_SECOND", max: "MAX", change: 1},
+                access: ea.STATE_GET,
+            }),
+            setupConfigureForReporting("customStatus", "status2", {
+                config: {min: "1_SECOND", max: "MAX", change: 1},
+                access: ea.STATE_GET,
+            }),
+            setupConfigureForReporting("customStatus", "status3", {
+                config: {min: "1_SECOND", max: "MAX", change: 1},
+                access: ea.STATE_GET,
+            }),
+        );
+
         return {
             exposes,
             fromZigbee,
             toZigbee,
+            configure,
             isModernExtend: true,
         };
     },
@@ -202,49 +232,8 @@ const definition = {
         }),
         orlangurC4001Extended.c4001Config(),
         orlangurC4001Extended.extendedStatus(),
-        occupancy({/*pirConfig:["otu_delay", "uto_delay"],ultrasonicConfig:["otu_delay", "uto_delay"]*/})
-    ],
-    configure: async (device, coordinatorEndpoint) => {
-        const endpoint = device.getEndpoint(1);
-        await reporting.bind(endpoint, coordinatorEndpoint, ['customStatus']);
-        await endpoint.read('c40001Config', ['range_min', 'range_max', 'range_trig']);
-        await endpoint.read('c40001Config', ['sw_ver', 'hw_ver']);
-        await endpoint.read('c40001Config', ['inhibit_duration'
-            , 'sensitivity_detect' 
-            , 'sensitivity_hold' 
-            , 'detect_delay' 
-            , 'clear_delay' 
-        ]);
-        await endpoint.read('customStatus', [ 'status1', 'status2', 'status3']);
-
-        await endpoint.configureReporting('customStatus', [
-            {
-                attribute: 'status1',
-                minimumReportInterval: 30,
-                maximumReportInterval: constants.repInterval.HOUR,
-                reportableChange: 1,
-            },
-        ]);
-
-        await endpoint.configureReporting('customStatus', [
-            {
-                attribute: 'status2',
-                minimumReportInterval: 30,
-                maximumReportInterval: constants.repInterval.HOUR,
-                reportableChange: 1,
-            },
-        ]);
-
-        await endpoint.configureReporting('customStatus', [
-            {
-                attribute: 'status3',
-                minimumReportInterval: 30,
-                maximumReportInterval: constants.repInterval.HOUR,
-                reportableChange: 1,
-            },
-        ]);
-    },
-
+        occupancy({ultrasonicConfig:["otu_delay", "uto_delay"]})
+    ]
 };
 
 module.exports = definition;
