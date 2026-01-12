@@ -26,6 +26,8 @@ namespace zb
         ZigbeeStr<32> sw_ver;
         ZigbeeStr<32> hw_ver;
         cmd_in_t<1> cmd_restart;
+        cmd_in_t<2> cmd_save_config;
+        cmd_in_t<3> cmd_reset_config;
     };
 
     template<> struct zcl_description_t<zb_zcl_c4001_t> {
@@ -47,7 +49,7 @@ namespace zb
                     ,attribute_t{.m = &T::clear_delay,        .id = 0x0009, .a=Access::RW}
                 >{},
                 commands_t<
-                    &T::cmd_restart
+                    &T::cmd_restart, &T::cmd_save_config, &T::cmd_reset_config
                 >{}
             >{};
         }

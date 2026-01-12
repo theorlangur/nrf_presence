@@ -70,6 +70,12 @@ const orlangurC4001Extended = {
             e.enum("cmd_restart", ea.SET, ["Restart"])
                 .withDescription("Restart C4001")
                 .withCategory("config"),
+            e.enum("cmd_save_config", ea.SET, ["Save Config"])
+                .withDescription("Save Configuration on C4001")
+                .withCategory("config"),
+            e.enum("cmd_reset_config", ea.SET, ["Reset Config"])
+                .withDescription("Reset Configuration on C4001")
+                .withCategory("config"),
         ];
         const attributes = ['range_min', 'range_max', 'range_trig', 'inhibit_duration', 'sensitivity_detect', 'sensitivity_hold', 'sw_ver', 'hw_ver', 'detect_delay', 'clear_delay'];
         const fromZigbee = [
@@ -102,9 +108,19 @@ const orlangurC4001Extended = {
             {
                 key: ["cmd_restart"],
                 convertSet: async (entity, key, value, meta) => {
-                    await entity.command("c40001Config", "restartC4001", {}, {
-                        disableDefaultResponse: true,
-                    });
+                    await entity.command("c40001Config", "restartC4001", {}, { disableDefaultResponse: true, });
+                },
+            }
+            ,{
+                key: ["cmd_save_config"],
+                convertSet: async (entity, key, value, meta) => {
+                    await entity.command("c40001Config", "saveConfigC4001", {}, { disableDefaultResponse: true, });
+                },
+            }
+            ,{
+                key: ["cmd_reset_config"],
+                convertSet: async (entity, key, value, meta) => {
+                    await entity.command("c40001Config", "resetConfigC4001", {}, { disableDefaultResponse: true, });
                 },
             }
         ];
@@ -223,10 +239,9 @@ const definition = {
                 clear_delay:          {ID: 0x0009, type: Zcl.DataType.SINGLE_PREC},
             },
             commands: {
-                restartC4001: {
-                    ID: 0x01,
-                    parameters: [],
-                },
+                restartC4001:     { ID: 0x01, parameters: [], },
+                saveConfigC4001:  { ID: 0x02, parameters: [], },
+                resetConfigC4001: { ID: 0x03, parameters: [], },
             },
             commandsResponse: {}
         }),

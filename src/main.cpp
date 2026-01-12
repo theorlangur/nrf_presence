@@ -11,6 +11,8 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/settings/settings.h>
 #include "c4001_task.hpp"
+#include <dk_buttons_and_leds.h>
+#include <nrf_general/led.h>
 
 /**********************************************************************/
 /* Zigbee                                                             */
@@ -75,13 +77,17 @@ constexpr auto kAttrSHold = &zb::zb_zcl_c4001_t::sensitivity_hold;
 /* Occupancy attribute shortcuts                                      */
 /**********************************************************************/
 constexpr auto kAttrOccupancy = &zb::zb_zcl_occupancy_ultrasonic_t::occupancy;
-constexpr auto kAttrDetectToClearDelay = &zb::zb_zcl_c4001_t::clear_delay; //&zb::zb_zcl_occupancy_ultrasonic_t::UltrasonicOccupiedToUnoccupiedDelay;
-constexpr auto kAttrClearToDetectDelay = &zb::zb_zcl_c4001_t::detect_delay;//&zb::zb_zcl_occupancy_ultrasonic_t::UltrasonicUnoccupiedToOccupiedDelay;
+constexpr auto kAttrDetectToClearDelay = &zb::zb_zcl_occupancy_ultrasonic_t::UltrasonicOccupiedToUnoccupiedDelay;
+constexpr auto kAttrClearToDetectDelay = &zb::zb_zcl_occupancy_ultrasonic_t::UltrasonicUnoccupiedToOccupiedDelay;
+//constexpr auto kAttrDetectToClearDelay = &zb::zb_zcl_c4001_t::clear_delay; //&zb::zb_zcl_occupancy_ultrasonic_t::UltrasonicOccupiedToUnoccupiedDelay;
+//constexpr auto kAttrClearToDetectDelay = &zb::zb_zcl_c4001_t::detect_delay;//&zb::zb_zcl_occupancy_ultrasonic_t::UltrasonicUnoccupiedToOccupiedDelay;
 
 constexpr auto kCmdOn = &zb::zb_zcl_on_off_attrs_client_t::on;
 constexpr auto kCmdOff = &zb::zb_zcl_on_off_attrs_client_t::off;
 
 zb::CmdHandlingResult on_cmd_restart();
+zb::CmdHandlingResult on_cmd_save_config();
+zb::CmdHandlingResult on_cmd_reset_config();
 
 /* Zigbee device application context storage. */
 static constinit device_ctx_t dev_ctx{
@@ -94,7 +100,9 @@ static constinit device_ctx_t dev_ctx{
 	/*.model =*/ INIT_BASIC_MODEL_ID,
     },
     .c4001{
-	.cmd_restart = {.cb = on_cmd_restart}
+	.cmd_restart = {.cb = on_cmd_restart},
+	.cmd_save_config = {.cb = on_cmd_save_config},
+	.cmd_reset_config = {.cb = on_cmd_reset_config}
     }
 };
 
@@ -130,7 +138,7 @@ constinit static auto &zb_ep = zb_ctx.ep<kMMW_EP>();
  * A build error on this line means your board is unsupported.
  * See the sample documentation for information on how to fix this.
  */
-static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
+static const struct gpio_dt_spec led0 = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
 ///* Get the node from the alias */
 #define SENSOR_NODE DT_ALIAS(presence)
@@ -151,7 +159,7 @@ void presence_triggered(const struct device *port,
 {
     int val = gpio_pin_get_dt(&presence);
     //TODO: remove me
-    gpio_pin_set_dt(&led, val);
+    gpio_pin_set_dt(&led0, val);
 
     if (g_ZigbeeReady) //post to zigbee and shoot commands
 	zb_schedule_app_callback(&send_on_off, val);
@@ -165,6 +173,20 @@ zb::CmdHandlingResult on_cmd_restart()
 {
     printk("c4001::restart\r\n");
     c4001::restart();
+    return {};
+}
+
+zb::CmdHandlingResult on_cmd_save_config()
+{
+    printk("c4001::save_config\r\n");
+    c4001::save_config();
+    return {};
+}
+
+zb::CmdHandlingResult on_cmd_reset_config()
+{
+    printk("c4001::reset_config\r\n");
+    c4001::reset_config();
     return {};
 }
 
@@ -295,6 +317,38 @@ void zboss_signal_handler(zb_bufid_t bufid)
     }							
 }
 
+zb::ZbTimerExt g_FactoryResetDoneChecker;
+/**@brief Callback for button events.
+ *
+ * @param[in]   button_state  Bitmask containing the state of the buttons.
+ * @param[in]   has_changed   Bitmask containing buttons that have changed their state.
+ */
+static void button_changed(uint32_t button_state, uint32_t has_changed)
+{
+    if (FACTORY_RESET_BUTTON & has_changed) {
+	if (FACTORY_RESET_BUTTON & button_state) {
+	    /* Button changed its state to pressed */
+	    g_FactoryResetDoneChecker.Setup([]{
+		    if (was_factory_reset_done()) {
+			/* The long press was for Factory Reset */
+			led::show_pattern(led::kPATTERN_2_BLIPS_NORMED, 2000);
+			return false;
+		    }
+		    return true;
+	    }, 1000);
+	} else {
+	    /* Button changed its state to released */
+	    if (!was_factory_reset_done()) {
+		/* Button released before Factory Reset */
+		g_FactoryResetDoneChecker.Cancel();
+		led::show_pattern(led::kPATTERN_2_BLIPS_NORMED, 500);
+	    }
+	}
+	check_factory_reset_button(button_state, has_changed);
+    }
+}
+
+
 int main(void)
 {
     int err = settings_subsys_init();
@@ -319,7 +373,7 @@ int main(void)
 	int val = 1;
 	while(true)
 	{
-	    gpio_pin_set_dt(&led, val);
+	    gpio_pin_set_dt(&led0, val);
 	    k_msleep(1000);
 	    val ^= 1;
 	    printk("C4001 not found; led: %d\r\n", val);
@@ -375,14 +429,14 @@ int main(void)
 
 int configure_c4001_out_pin()
 {
-    gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
+    gpio_pin_configure_dt(&led0, GPIO_OUTPUT_ACTIVE);
     int err = gpio_pin_configure_dt(&presence, GPIO_INPUT);
     if (err != 0)
     {
 	printk("gpio_pin_configure_dt: %d\r\n", err);
 	return err;
     }
-    gpio_pin_set_dt(&led, 0);
+    gpio_pin_set_dt(&led0, 0);
 
     err = gpio_pin_interrupt_configure_dt(&presence, GPIO_INT_EDGE_BOTH);
     if (err != 0)
