@@ -301,11 +301,8 @@ int main(void)
     err = settings_load();
 
     printk("main\r\n");
-    k_msleep(2000);
 
     pC4001 = c4001::setup(&on_c4001_error, &on_c4001_upd);
-    printk("pC4001\r\n");
-    k_msleep(2000);
     if (pC4001)
     {
 	dev_ctx.c4001.range_min = pC4001->GetRangeFrom();
