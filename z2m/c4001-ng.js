@@ -1,7 +1,18 @@
 const { Buffer } = require('node:buffer');
 const util = require('node:util');
 const {Zcl} = require('zigbee-herdsman');
-const {enumLookup,numeric,deviceAddCustomCluster,onOff,binary,occupancy,setupConfigureForReading,setupConfigureForReporting} = require('zigbee-herdsman-converters/lib/modernExtend');
+const {enumLookup
+    ,numeric
+    ,deviceAddCustomCluster
+    ,onOff
+    ,binary
+    ,occupancy
+    ,temperature
+    ,humidity
+    ,co2
+    ,setupConfigureForReading
+    ,setupConfigureForReporting
+} = require('zigbee-herdsman-converters/lib/modernExtend');
 const fz = require('zigbee-herdsman-converters/converters/fromZigbee');
 const tz = require('zigbee-herdsman-converters/converters/toZigbee');
 const exposes = require('zigbee-herdsman-converters/lib/exposes');
@@ -142,6 +153,56 @@ const orlangurC4001Extended = {
             isModernExtend: true,
         };
     },
+    ens160AirQ: () => {
+        const aqi_lookup = {
+            "Excellent"  : 1,
+            "Good"       : 2,
+            "Moderate"   : 3,
+            "Poor"       : 4,
+            "Unhealthy"  : 5,
+        };
+        const exposes = [
+            e.numeric('tvoc', ea.STATE_GET).withLabel('TVOC').withCategory('diagnostic'),
+            e.enum('aqi', ea.STATE_GET, Object.keys(aqi_lookup)).withLabel('AQI').withCategory('diagnostic'),
+        ];
+
+        const fromZigbee = [
+            {
+                cluster: 'ens160airQuality',
+                type: ['attributeReport', 'readResponse'],
+                convert: (model, msg, publish, options, meta) => {
+                    const result = {};
+                    const data = msg.data;
+                    if (data['tvoc'] !== undefined) 
+                        result['tvoc'] = data['tvoc'];
+                    if (data['aqi'] !== undefined) 
+                    {
+                        const v = data['aqi']
+                        const entry = Object.entries(aqi_lookup).find(([_,val])=> val == v)
+                        if (entry)
+                            result['aqi'] = entry[0];//key
+                    }
+                    return result
+                }
+            }
+        ];
+
+        const toZigbee = [
+            {
+                key: ['tvoc', 'aqi'],
+                convertGet: async (entity, key, meta) => {
+                    await entity.read('ens160airQuality', [key]);
+                },
+            }
+        ];
+
+        return {
+            exposes,
+            fromZigbee,
+            toZigbee,
+            isModernExtend: true,
+        };
+    },
     extendedStatus: () => {
         const exposes = [
             e.numeric('status1', ea.STATE_GET).withLabel('Status1').withCategory('diagnostic'),
@@ -244,9 +305,47 @@ const definition = {
             },
             commandsResponse: {}
         }),
+        deviceAddCustomCluster('ens160airQuality', {
+            ID: 0xfc08,
+            attributes: {
+                tvoc: {ID: 0x0000, type: Zcl.DataType.SINGLE_PREC},
+                aqi:  {ID: 0x0001, type: Zcl.DataType.ENUM8},
+            },
+            commands: {},
+            commandsResponse: {}
+        }),
         orlangurC4001Extended.c4001Config(),
         orlangurC4001Extended.extendedStatus(),
-        occupancy({ultrasonicConfig:["otu_delay", "uto_delay"]})
+        occupancy({ultrasonicConfig:["otu_delay", "uto_delay"]}),
+        co2(),
+        temperature(),
+        humidity(),
+        enumLookup({
+            cluster: "ens160airQuality",
+            attribute: "aqi",
+            name: "aqi",
+            lookup: {
+                "Excellent"  : 1,
+                "Good"       : 2,
+                "Moderate"   : 3,
+                "Poor"       : 4,
+                "Unhealthy"  : 5,
+            },
+            access: "STATE_GET",
+            reporting: {min: 5, max: 120, change: 1},
+            entityCategory: "diagnostic",
+            label: "AQI"
+        }),
+        numeric({
+            cluster: "ens160airQuality",
+            attribute: "tvoc",
+            name: "tvoc",
+            access: "STATE_GET",
+            reporting: {min: 5, max: 120, change: 1},
+            entityCategory: "diagnostic",
+            label: "TVOC",
+            precision: 0
+        }),
     ]
 };
 
