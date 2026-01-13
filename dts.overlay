@@ -63,6 +63,20 @@
 			low-power-enable;
 		};
 	};
+	/omit-if-no-ref/ i2c20_default: i2c20_default {
+		group1 {
+			psels = <NRF_PSEL(TWIM_SDA, 1, 6)>,
+				<NRF_PSEL(TWIM_SCL, 1, 5)>;
+		};
+	};
+
+	/omit-if-no-ref/ i2c20_sleep: i2c20_sleep {
+		group1 {
+			psels = <NRF_PSEL(TWIM_SDA, 1, 6)>,
+				<NRF_PSEL(TWIM_SCL, 1, 5)>;
+			low-power-enable;
+		};
+	};
 };
 
 
@@ -76,6 +90,26 @@
 	pinctrl-0 = <&uart20_default>;
 	pinctrl-1 = <&uart20_sleep>;
 	pinctrl-names = "default", "sleep";
+};
+
+&i2c21 {
+	status = "okay";
+	pinctrl-0 = <&i2c20_default>;
+	pinctrl-1 = <&i2c20_sleep>;
+	pinctrl-names = "default", "sleep";
+
+	eco2sensor: ens160@53{
+		compatible="sciosense,ens160";
+		reg = <0x53>;
+		status = "okay";
+		//zephyr,deferred-init;
+	};
+	rht2sensor: aht21@38{
+		compatible="aosong,dht20";
+		reg = <0x38>;
+		status = "okay";
+		//zephyr,deferred-init;
+	};
 };
 
 &gpio2 {

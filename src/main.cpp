@@ -14,6 +14,8 @@
 #include <dk_buttons_and_leds.h>
 #include <nrf_general/led.h>
 
+#include <zephyr/drivers/sensor.h>
+#include <zephyr/drivers/sensor/ens160.h>
 /**********************************************************************/
 /* Zigbee                                                             */
 /**********************************************************************/
@@ -21,6 +23,10 @@
 #include <nrfzbcpp/zb_std_cluster_desc.hpp>
 #include <nrfzbcpp/zb_status_cluster_desc.hpp>
 #include <nrfzbcpp/zb_occupancy_sensing_cluster_desc.hpp>
+#include <nrfzbcpp/zb_humid_cluster_desc.hpp>
+#include <nrfzbcpp/zb_temp_cluster_desc.hpp>
+#include <nrfzbcpp/zb_co2_cluster_desc.hpp>
+#include <nrfzbcpp/zb_nstd_air_q_cluster_desc.hpp>
 #include "zb/zb_c4001_cluster_desc.hpp"
 
 /**********************************************************************/
@@ -52,6 +58,10 @@ struct device_ctx_t{
     zb::zb_zcl_occupancy_pir_and_ultrasonic_t occupancy;
     zb::zb_zcl_on_off_attrs_client_t on_off_client;
     zb::zb_zcl_c4001_t c4001;
+    zb::zb_zcl_rel_humid_basic_t humidity;
+    zb::zb_zcl_temp_basic_t temperature;
+    zb::zb_zcl_co2_basic_t co2;
+    zb::zb_zcl_air_q_t airq;
 };
 
 //attribute shortcuts for template arguments
@@ -72,6 +82,29 @@ constexpr auto kAttrRTrig = &zb::zb_zcl_c4001_t::range_trig;
 constexpr auto kAttrInhibitDuration = &zb::zb_zcl_c4001_t::inhibit_duration;
 constexpr auto kAttrSTrig = &zb::zb_zcl_c4001_t::sensitivity_detect;
 constexpr auto kAttrSHold = &zb::zb_zcl_c4001_t::sensitivity_hold;
+
+
+/**********************************************************************/
+/* Humidity                                                           */
+/**********************************************************************/
+constexpr auto kAttrHumid = &zb::zb_zcl_rel_humid_basic_t::measured_value;
+
+
+/**********************************************************************/
+/* Temperature                                                        */
+/**********************************************************************/
+constexpr auto kAttrTemp = &zb::zb_zcl_temp_basic_t::measured_value;
+
+/**********************************************************************/
+/* CO2                                                                */
+/**********************************************************************/
+constexpr auto kAttrCO2 = &zb::zb_zcl_co2_basic_t::measured_value;
+
+/**********************************************************************/
+/* Air quality                                                        */
+/**********************************************************************/
+constexpr auto kAttrTVOC = &zb::zb_zcl_air_q_t::tvoc;
+constexpr auto kAttrAQI = &zb::zb_zcl_air_q_t::aqi;
 
 /**********************************************************************/
 /* Occupancy attribute shortcuts                                      */
@@ -112,6 +145,10 @@ constinit static auto zb_ctx = zb::make_device(
 	    , dev_ctx.status_attr
 	    , dev_ctx.occupancy
 	    , dev_ctx.c4001
+	    , dev_ctx.humidity
+	    , dev_ctx.temperature
+	    , dev_ctx.co2
+	    , dev_ctx.airq
 	    , dev_ctx.on_off_client
 	    )
 	);
@@ -148,6 +185,9 @@ constinit static dfr::C4001 *pC4001 = nullptr;
 /* Get the GPIO spec directly from the node */
 /* Note: We look for the property "gpios" inside the node */
 static const struct gpio_dt_spec presence = GPIO_DT_SPEC_GET(SENSOR_NODE, gpios);
+
+static const struct device *const eco2sensor = DEVICE_DT_GET(DT_NODELABEL(eco2sensor));
+static const struct device *const rht2sensor = DEVICE_DT_GET(DT_NODELABEL(rht2sensor));
 
 void send_on_off(uint8_t val);
 
@@ -285,11 +325,38 @@ void on_otu_delay_changed(uint16_t d)
 
 int configure_c4001_out_pin();
 
+zb::ZbTimerExt g_EnvironmentSensorFetcher;
+
+bool update_environment_sensors()
+{
+    if (device_is_ready(rht2sensor))
+    {
+	sensor_sample_fetch(rht2sensor);
+	sensor_value v;
+	sensor_channel_get(rht2sensor, sensor_channel::SENSOR_CHAN_AMBIENT_TEMP, &v);
+        sensor_attr_set(eco2sensor, SENSOR_CHAN_ALL, (sensor_attribute)SENSOR_ATTR_ENS160_TEMP, &v);
+	zb_ep.attr<kAttrTemp>() = zb::zb_zcl_temp_basic_t::FromC(float(v.val1) + float(v.val2) / 1000'000.f);
+
+	sensor_channel_get(rht2sensor, sensor_channel::SENSOR_CHAN_HUMIDITY, &v);
+        sensor_attr_set(eco2sensor, SENSOR_CHAN_ALL, (sensor_attribute)SENSOR_ATTR_ENS160_RH, &v);
+	zb_ep.attr<kAttrHumid>() = zb::zb_zcl_rel_humid_basic_t::FromRelH(float(v.val1) + float(v.val2) / 1000'000.f);
+
+	sensor_sample_fetch(eco2sensor);
+	sensor_channel_get(eco2sensor, sensor_channel::SENSOR_CHAN_CO2, &v);
+	zb_ep.attr<kAttrCO2>() = float(v.val1) / 1000'000.f;
+	sensor_channel_get(eco2sensor, sensor_channel::SENSOR_CHAN_VOC, &v);
+	zb_ep.attr<kAttrTVOC>() = float(v.val1) / 1000'000.f;
+	sensor_channel_get(eco2sensor, (sensor_channel)SENSOR_CHAN_ENS160_AQI, &v);
+	zb_ep.attr<kAttrAQI>() = (zb::zb_zcl_air_q_t::AQI)v.val1;
+    }
+    return true;
+}
+
 void on_zigbee_start()
 {
     printk("on_zigbee_start\r\n");
     g_ZigbeeReady = true;
-    //TODO: stuff...
+    g_EnvironmentSensorFetcher.Setup(update_environment_sensors, 15000);
 }
 
 /**@brief Zigbee stack event handler.
