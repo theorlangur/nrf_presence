@@ -422,6 +422,7 @@ int main(void)
     err = settings_load();
 
     led::setup();
+    led::start();
 
 
     //configure button handler
@@ -431,6 +432,7 @@ int main(void)
 	//zigbee button is pressed
 	zigbee_erase_persistent_storage(true);
 	led::show_pattern(led::kPATTERN_4_BLIPS_NORMED, 500);
+	k_msleep(2000);
     }
     //assign a button for a factory reset procedure
     register_factory_reset_button(FACTORY_RESET_BUTTON);
