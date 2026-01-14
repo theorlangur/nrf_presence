@@ -6,6 +6,35 @@
     "version": "0.2.0",
     "configurations": [
         {
+          "name": "Cortex-Debug Start",
+          "cwd": "${workspaceRoot}",
+          "executable": "${workspaceFolder}/build_ezurio_llvm/presence_multi_v2/zephyr/zephyr.elf",
+          "request": "launch",
+          "type": "cortex-debug",
+          "servertype": "jlink",
+          "interface": "swd",
+          "device": "cortex-m33",
+          "rtos": "Zephyr",
+          "runToMain": true,
+          "preRestartCommands": [
+            "enable breakpoint"
+          ]
+        },
+        {
+          "name": "Cortex-Debug Attach",
+          "cwd": "${workspaceRoot}",
+          "executable": "${workspaceFolder}/build_ezurio_llvm/presence_multi_v2/zephyr/zephyr.elf",
+          "request": "attach",
+          "type": "cortex-debug",
+          "servertype": "jlink",
+          "interface": "swd",
+          "device": "cortex-m33",
+          "rtos": "Zephyr",
+          "preRestartCommands": [
+            "enable breakpoint"
+          ]
+        },
+        {
             "name": "Launch",
             "type": "cppdbg",
             "request": "launch",
@@ -14,8 +43,8 @@
             "miDebuggerPath": "/home/theorlangur/ncs/toolchains/7cbc0036f4/opt/zephyr-sdk/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
             "miDebuggerServerAddress": "localhost:44477",
             "useExtendedRemote": true,
-            "stopAtConnect": true,
-            "stopAtEntry": true,
+            "stopAtConnect": false,
+            "stopAtEntry": false,
             "MIMode": "gdb"
         },
         {
