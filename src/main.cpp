@@ -70,6 +70,7 @@ static bool g_ZigbeeReady = false;
 
 /* Device endpoint, used to receive light controlling commands. */
 constexpr uint8_t kMMW_EP = 1;
+constexpr uint8_t kMMW_AUX_EP = 2;
 constexpr uint16_t kDEV_ID = 0xBAAD;
 
 struct device_ctx_t{
@@ -78,6 +79,7 @@ struct device_ctx_t{
     zb::zb_zcl_occupancy_pir_and_ultrasonic_t occupancy;
     zb::zb_zcl_on_off_attrs_client_t on_off_client;
     zb::zb_zcl_c4001_t c4001;
+    zb::zb_zcl_c4001_t c4001_aux;
     zb::zb_zcl_rel_humid_basic_t humidity;
     zb::zb_zcl_temp_basic_t temperature;
     zb::zb_zcl_co2_basic_t co2;
@@ -159,6 +161,11 @@ static constinit device_ctx_t dev_ctx{
 	.cmd_restart = {.cb = on_cmd_restart<c4001_1>},
 	.cmd_save_config = {.cb = on_cmd_save_config<c4001_1>},
 	.cmd_reset_config = {.cb = on_cmd_reset_config<c4001_1>}
+    },
+    .c4001_aux{
+	.cmd_restart = {.cb = on_cmd_restart<c4001_2>},
+	.cmd_save_config = {.cb = on_cmd_save_config<c4001_2>},
+	.cmd_reset_config = {.cb = on_cmd_reset_config<c4001_2>}
     }
 };
 
@@ -173,6 +180,9 @@ constinit static auto zb_ctx = zb::make_device(
 	    , dev_ctx.co2
 	    , dev_ctx.airq
 	    , dev_ctx.on_off_client
+	    ),
+	zb::make_ep_args<{.ep=kMMW_AUX_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
+	    dev_ctx.c4001_aux
 	    )
 	);
 
@@ -187,6 +197,7 @@ struct zb::global_device
 
 //a shortcut for a convenient access
 constinit static auto &zb_ep = zb_ctx.ep<kMMW_EP>();
+//constinit static auto &zb_ep_aux = zb_ctx.ep<kMMW_EP_AUX>();
 
 /**********************************************************************/
 /* Device defines                                                     */
@@ -277,6 +288,19 @@ zb::CmdHandlingResult on_cmd_reset_config()
     i.reset_config();
     return {};
 }
+
+void on_set_detect_to_clear_delay(uint16_t OtoU)
+{
+    c4001_1.set_clear_delay(OtoU);
+    c4001_2.set_clear_delay(OtoU);
+}
+
+void on_set_clear_to_detect_delay(uint16_t UtoO)
+{
+    c4001_1.set_detect_delay(UtoO);
+    c4001_2.set_detect_delay(UtoO);
+}
+
 
 void send_on_off(uint8_t val)
 {
@@ -517,11 +541,43 @@ int main(void)
 	return 0;
     }
 
+    pC4001_2 = c4001_2.setup(&on_c4001_error<c4001_2>, &on_c4001_upd<c4001_2>);
+    if (pC4001_2)
+    {
+	dev_ctx.c4001_aux.range_min = pC4001_2->GetRangeFrom();
+	dev_ctx.c4001_aux.range_max = pC4001_2->GetRangeTo();
+	dev_ctx.c4001_aux.range_trig = pC4001_2->GetTriggerDistance();
+	dev_ctx.c4001_aux.inhibit_duration = pC4001_2->GetInhibitDuration();
+	dev_ctx.c4001_aux.sensitivity_detect = pC4001_2->GetSensitivityTrig();
+	dev_ctx.c4001_aux.sensitivity_hold = pC4001_2->GetSensitivityHold();
+	dev_ctx.c4001_aux.sw_ver = pC4001_2->GetSWVer().m_Version;
+	dev_ctx.c4001_aux.hw_ver = pC4001_2->GetHWVer().m_Version;
+    }else
+    {
+	printk("C4001(2) not found\r\n");
+	int val = 1;
+	while(true)
+	{
+	    gpio_pin_set_dt(&led0, val);
+	    k_msleep(500);
+	    val ^= 1;
+	    printk("C4001(2) not found; led: %d\r\n", val);
+	}
+	return 0;
+    }
+
     /* Register callback for handling ZCL commands. */
     auto dev_cb = zb::tpl_device_cb<
 	zb::dev_cb_handlers_desc{ .error_handler = on_dev_cb_error }
-	, zb::handle_set_for<kAttrDetectToClearDelay, method_fwd<c4001_1, &c4001::Instance::set_clear_delay>>(zb_ep)
-	, zb::handle_set_for<kAttrClearToDetectDelay, method_fwd<c4001_1, &c4001::Instance::set_detect_delay>>(zb_ep)
+	, zb::handle_set_for<kAttrDetectToClearDelay, on_set_detect_to_clear_delay>(zb_ep)
+	, zb::handle_set_for<kAttrClearToDetectDelay, on_set_clear_to_detect_delay>(zb_ep)
+	, zb::handle_set_for<kAttrRMin,               method_fwd<c4001_1, &c4001::Instance::set_range_from>>(zb_ep)
+	, zb::handle_set_for<kAttrRMax,               method_fwd<c4001_1, &c4001::Instance::set_range_to>>(zb_ep)
+	, zb::handle_set_for<kAttrRTrig,              method_fwd<c4001_1, &c4001::Instance::set_range_trig>>(zb_ep)
+	, zb::handle_set_for<kAttrInhibitDuration,    method_fwd<c4001_1, &c4001::Instance::set_inhibit_duration>>(zb_ep)
+	, zb::handle_set_for<kAttrSTrig,              method_fwd<c4001_1, &c4001::Instance::set_detect_sensitivity>>(zb_ep)
+	, zb::handle_set_for<kAttrSHold,              method_fwd<c4001_1, &c4001::Instance::set_hold_sensitivity>>(zb_ep)
+
 	, zb::handle_set_for<kAttrRMin,               method_fwd<c4001_1, &c4001::Instance::set_range_from>>(zb_ep)
 	, zb::handle_set_for<kAttrRMax,               method_fwd<c4001_1, &c4001::Instance::set_range_to>>(zb_ep)
 	, zb::handle_set_for<kAttrRTrig,              method_fwd<c4001_1, &c4001::Instance::set_range_trig>>(zb_ep)
