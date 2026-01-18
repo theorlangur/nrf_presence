@@ -179,8 +179,7 @@ static const struct gpio_dt_spec led0 = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
 ///* Get the node from the alias */
 #define SENSOR_NODE DT_ALIAS(presence)
-
-constinit static dfr::C4001 *pC4001 = nullptr;
+#define SENSOR_NODE2 DT_ALIAS(presence2)
 
 /* Get the GPIO spec directly from the node */
 /* Note: We look for the property "gpios" inside the node */
@@ -188,6 +187,48 @@ static const struct gpio_dt_spec presence = GPIO_DT_SPEC_GET(SENSOR_NODE, gpios)
 
 static const struct device *const eco2sensor = DEVICE_DT_GET(DT_NODELABEL(eco2sensor));
 static const struct device *const rht2sensor = DEVICE_DT_GET(DT_NODELABEL(rht2sensor));
+
+/**********************************************************************/
+/* Template helper. TODO: move to some generic lib                    */
+/**********************************************************************/
+template<class T>
+struct method_1st_arg_t;
+
+template<class T, class Arg>
+struct method_1st_arg_t<void(T::*)(Arg)>
+{
+    using type = Arg;
+};
+
+template<auto pM>
+using arg1_type_t = method_1st_arg_t<decltype(pM)>::type;
+
+template<auto &inst, auto M>
+void method_fwd(arg1_type_t<M> a)
+{
+    (inst.*M)(a);
+}
+
+/**********************************************************************/
+/* C4001 presence sensor configurations/data                          */
+/**********************************************************************/
+#define DFR_UART_NODE DT_ALIAS(dfr_uart)
+#define DFR_UART_NODE2 DT_ALIAS(dfr_uart2)
+constinit const struct device *c4001_uart1 = DEVICE_DT_GET(DFR_UART_NODE);
+constinit const struct device *c4001_uart2 = DEVICE_DT_GET(DFR_UART_NODE2);
+
+
+K_MSGQ_DEFINE_TYPED(c4001::Instance::C4001Q, c4001q_1);
+C4001_THREAD(c4001_thread_1);
+
+K_MSGQ_DEFINE_TYPED(c4001::Instance::C4001Q, c4001q_2);
+C4001_THREAD(c4001_thread_2);
+
+c4001::Instance c4001_1(c4001_thread_1, c4001q_1, c4001_uart1);
+c4001::Instance c4001_2(c4001_thread_2, c4001q_2, c4001_uart2);
+
+constinit static dfr::C4001 *pC4001_1 = nullptr;
+constinit static dfr::C4001 *pC4001_2 = nullptr;
 
 void send_on_off(uint8_t val);
 
@@ -212,21 +253,21 @@ void presence_triggered(const struct device *port,
 zb::CmdHandlingResult on_cmd_restart()
 {
     printk("c4001::restart\r\n");
-    c4001::restart();
+    c4001_1.restart();
     return {};
 }
 
 zb::CmdHandlingResult on_cmd_save_config()
 {
     printk("c4001::save_config\r\n");
-    c4001::save_config();
+    c4001_1.save_config();
     return {};
 }
 
 zb::CmdHandlingResult on_cmd_reset_config()
 {
     printk("c4001::reset_config\r\n");
-    c4001::reset_config();
+    c4001_1.reset_config();
     return {};
 }
 
@@ -250,26 +291,26 @@ void zb_c4001_update(uint8_t e)
     cfg_id_t id = (cfg_id_t)e;
     if (id & cfg_id_t::Range)
     {
-	zb_ep.attr<kAttrRMin>() = pC4001->GetRangeFrom();
-	zb_ep.attr<kAttrRMax>() = pC4001->GetRangeTo();
+	zb_ep.attr<kAttrRMin>() = pC4001_1->GetRangeFrom();
+	zb_ep.attr<kAttrRMax>() = pC4001_1->GetRangeTo();
     }
     if (id & cfg_id_t::RangeTrig)
     {
-	zb_ep.attr<kAttrRTrig>() = pC4001->GetTriggerDistance();
+	zb_ep.attr<kAttrRTrig>() = pC4001_1->GetTriggerDistance();
     }
     if (id & cfg_id_t::Delay)
     {
-	zb_ep.attr<kAttrClearToDetectDelay>() = pC4001->GetDetectLatency();
-	zb_ep.attr<kAttrDetectToClearDelay>() = pC4001->GetClearLatency();
+	zb_ep.attr<kAttrClearToDetectDelay>() = pC4001_1->GetDetectLatency();
+	zb_ep.attr<kAttrDetectToClearDelay>() = pC4001_1->GetClearLatency();
     }
     if (id & cfg_id_t::InhibitDuration)
     {
-	zb_ep.attr<kAttrInhibitDuration>() = pC4001->GetInhibitDuration();
+	zb_ep.attr<kAttrInhibitDuration>() = pC4001_1->GetInhibitDuration();
     }
     if (id & cfg_id_t::Sensitivity)
     {
-	zb_ep.attr<kAttrSTrig>() = pC4001->GetSensitivityTrig();
-	zb_ep.attr<kAttrSHold>() = pC4001->GetSensitivityHold();
+	zb_ep.attr<kAttrSTrig>() = pC4001_1->GetSensitivityTrig();
+	zb_ep.attr<kAttrSHold>() = pC4001_1->GetSensitivityHold();
     }
 }
 
@@ -314,12 +355,12 @@ void on_c4001_upd(c4001::cfg_id_t id)
 
 void on_uto_delay_changed(uint16_t d)
 {
-    c4001::set_detect_delay(d);
+    c4001_1.set_detect_delay(d);
 }
 
 void on_otu_delay_changed(uint16_t d)
 {
-    c4001::set_clear_delay(d);
+    c4001_1.set_clear_delay(d);
 }
 
 
@@ -415,7 +456,6 @@ static void button_changed(uint32_t button_state, uint32_t has_changed)
     }
 }
 
-
 int main(void)
 {
     int err = settings_subsys_init();
@@ -438,17 +478,17 @@ int main(void)
 
     printk("main\r\n");
 
-    pC4001 = c4001::setup(&on_c4001_error, &on_c4001_upd);
-    if (pC4001)
+    pC4001_1 = c4001_1.setup(&on_c4001_error, &on_c4001_upd);
+    if (pC4001_1)
     {
-	dev_ctx.c4001.range_min = pC4001->GetRangeFrom();
-	dev_ctx.c4001.range_max = pC4001->GetRangeTo();
-	dev_ctx.c4001.range_trig = pC4001->GetTriggerDistance();
-	dev_ctx.c4001.inhibit_duration = pC4001->GetInhibitDuration();
-	dev_ctx.c4001.sensitivity_detect = pC4001->GetSensitivityTrig();
-	dev_ctx.c4001.sensitivity_hold = pC4001->GetSensitivityHold();
-	dev_ctx.c4001.sw_ver = pC4001->GetSWVer().m_Version;
-	dev_ctx.c4001.hw_ver = pC4001->GetHWVer().m_Version;
+	dev_ctx.c4001.range_min = pC4001_1->GetRangeFrom();
+	dev_ctx.c4001.range_max = pC4001_1->GetRangeTo();
+	dev_ctx.c4001.range_trig = pC4001_1->GetTriggerDistance();
+	dev_ctx.c4001.inhibit_duration = pC4001_1->GetInhibitDuration();
+	dev_ctx.c4001.sensitivity_detect = pC4001_1->GetSensitivityTrig();
+	dev_ctx.c4001.sensitivity_hold = pC4001_1->GetSensitivityHold();
+	dev_ctx.c4001.sw_ver = pC4001_1->GetSWVer().m_Version;
+	dev_ctx.c4001.hw_ver = pC4001_1->GetHWVer().m_Version;
     }else
     {
 	printk("C4001 not found\r\n");
@@ -466,14 +506,14 @@ int main(void)
     /* Register callback for handling ZCL commands. */
     auto dev_cb = zb::tpl_device_cb<
 	zb::dev_cb_handlers_desc{ .error_handler = on_dev_cb_error }
-	, zb::handle_set_for<kAttrDetectToClearDelay, c4001::set_clear_delay>(zb_ep)
-	, zb::handle_set_for<kAttrClearToDetectDelay, c4001::set_detect_delay>(zb_ep)
-	, zb::handle_set_for<kAttrRMin,               c4001::set_range_from>(zb_ep)
-	, zb::handle_set_for<kAttrRMax,               c4001::set_range_to>(zb_ep)
-	, zb::handle_set_for<kAttrRTrig,              c4001::set_range_trig>(zb_ep)
-	, zb::handle_set_for<kAttrInhibitDuration,    c4001::set_inhibit_duration>(zb_ep)
-	, zb::handle_set_for<kAttrSTrig,              c4001::set_detect_sensitivity>(zb_ep)
-	, zb::handle_set_for<kAttrSHold,              c4001::set_hold_sensitivity>(zb_ep)
+	, zb::handle_set_for<kAttrDetectToClearDelay, method_fwd<c4001_1, &c4001::Instance::set_clear_delay>>(zb_ep)
+	, zb::handle_set_for<kAttrClearToDetectDelay, method_fwd<c4001_1, &c4001::Instance::set_detect_delay>>(zb_ep)
+	, zb::handle_set_for<kAttrRMin,               method_fwd<c4001_1, &c4001::Instance::set_range_from>>(zb_ep)
+	, zb::handle_set_for<kAttrRMax,               method_fwd<c4001_1, &c4001::Instance::set_range_to>>(zb_ep)
+	, zb::handle_set_for<kAttrRTrig,              method_fwd<c4001_1, &c4001::Instance::set_range_trig>>(zb_ep)
+	, zb::handle_set_for<kAttrInhibitDuration,    method_fwd<c4001_1, &c4001::Instance::set_inhibit_duration>>(zb_ep)
+	, zb::handle_set_for<kAttrSTrig,              method_fwd<c4001_1, &c4001::Instance::set_detect_sensitivity>>(zb_ep)
+	, zb::handle_set_for<kAttrSHold,              method_fwd<c4001_1, &c4001::Instance::set_hold_sensitivity>>(zb_ep)
     >;
 
     ZB_ZCL_REGISTER_DEVICE_CB(dev_cb);
@@ -494,13 +534,13 @@ int main(void)
 
     printk("Main: sleep forever\r\n");
     {
-	printk("C4001; HW=%s\r\n", pC4001->GetHWVer().m_Version);
-	printk("C4001; SW=%s\r\n", pC4001->GetSWVer().m_Version);
-	printk("C4001; Range=%.1f to %.1fm\r\n", (double)pC4001->GetRangeFrom(), (double)pC4001->GetRangeTo());
-	printk("C4001; Latency; to detect=%.1fs; to clear=%.1fs\r\n", (double)pC4001->GetDetectLatency(), (double)pC4001->GetClearLatency());
-	printk("C4001; Trig Range=%.1fm\r\n", (double)pC4001->GetTriggerDistance());
-	printk("C4001; Sensitivity Detect=%d; Hold=%d;\r\n", pC4001->GetSensitivityTrig(), pC4001->GetSensitivityHold());
-	printk("C4001; Inhibut Duration=%.1fs\r\n", (double)pC4001->GetInhibitDuration());
+	printk("C4001(1); HW=%s\r\n", pC4001_1->GetHWVer().m_Version);
+	printk("C4001(1); SW=%s\r\n", pC4001_1->GetSWVer().m_Version);
+	printk("C4001(1); Range=%.1f to %.1fm\r\n", (double)pC4001_1->GetRangeFrom(), (double)pC4001_1->GetRangeTo());
+	printk("C4001(1); Latency; to detect=%.1fs; to clear=%.1fs\r\n", (double)pC4001_1->GetDetectLatency(), (double)pC4001_1->GetClearLatency());
+	printk("C4001(1); Trig Range=%.1fm\r\n", (double)pC4001_1->GetTriggerDistance());
+	printk("C4001(1); Sensitivity Detect=%d; Hold=%d;\r\n", pC4001_1->GetSensitivityTrig(), pC4001_1->GetSensitivityHold());
+	printk("C4001(1); Inhibut Duration=%.1fs\r\n", (double)pC4001_1->GetInhibitDuration());
     }
     while (1) {
 	k_sleep(K_FOREVER);

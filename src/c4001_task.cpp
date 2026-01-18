@@ -4,11 +4,6 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 #include "c4001_task.hpp"
-#include <variant>
-
-#include <nrf_general/lib_msgq_typed.hpp>
-
-#define DFR_UART_NODE DT_ALIAS(dfr_uart)
 
 namespace c4001
 {
@@ -21,66 +16,16 @@ namespace c4001
 	template<class... O>
 	overloaded(O... o)->overloaded<O...>;
     };
-    constinit const struct device *c4001_uart = DEVICE_DT_GET(DFR_UART_NODE);
-    static dfr::C4001 c4001(c4001_uart);
 
-    /**********************************************************************/
-    /* Message Queue definitions + commands                               */
-    /**********************************************************************/
-    struct range_t
+    Instance::Instance(k_tid_t thread, C4001Q &q, const struct device *uart):
+	c4001_thread(thread),
+	c4001q(q),
+	c4001_uart(uart),
+	c4001(c4001_uart)
     {
-	float from;
-	float to;
-    };
-    struct range_trig_t
-    {
-	float trig;
-    };
-    struct delay_t
-    {
-	float detect;
-	float clear;
-    };
-    struct sensitivity_t
-    {
-	uint8_t detect;
-	uint8_t hold;
-    };
-    struct inhibit_duration_t
-    {
-	float duration;
-    };
-    struct save_cfg_t{};
-    struct reset_cfg_t{};
-    struct restart_cfg_t{};
-    struct reload_cfg_t{};
+    }
 
-    using QueueItem = std::variant<
-			      range_t
-			    , range_trig_t
-			    , delay_t
-			    , sensitivity_t
-			    , inhibit_duration_t
-			    , save_cfg_t
-			    , reset_cfg_t
-			    , restart_cfg_t
-			    , reload_cfg_t
-			>;
-
-    using C4001Q = msgq::Queue<QueueItem,4>;
-    K_MSGQ_DEFINE_TYPED(C4001Q, c4001q);
-
-    void c4001_thread_entry(void *, void *, void *);
-    constexpr size_t C4001_THREAD_STACK_SIZE = 1024 * 2;
-    constexpr size_t C4001_THREAD_PRIORITY=7;
-
-K_THREAD_DEFINE(c4001_thread, C4001_THREAD_STACK_SIZE,
-	c4001_thread_entry, NULL, NULL, NULL,
-	C4001_THREAD_PRIORITY, 0, -1);
-
-    constinit err_callback_t g_err = nullptr;
-    constinit upd_callback_t g_upd = nullptr;
-    dfr::C4001* setup(err_callback_t err, upd_callback_t upd)
+    dfr::C4001* Instance::setup(err_callback_t err, upd_callback_t upd)
     {
 	if (!device_is_ready(c4001_uart))
 	{
@@ -92,81 +37,88 @@ K_THREAD_DEFINE(c4001_thread, C4001_THREAD_STACK_SIZE,
 	    return nullptr;
 	g_err = err;
 	g_upd = upd;
+	c4001_thread->entry.parameter1 = this;
 	k_thread_start(c4001_thread);
 	return &c4001;
     }
 
-    void set_range(float from, float to)
+    void Instance::set_range(float from, float to)
     {
 	c4001q << range_t{.from = from, .to = to};
     }
 
-    void set_range_from(float v)
+    void Instance::set_range_from(float v)
     {
 	c4001q << range_t{.from = v, .to = c4001.GetRangeTo()};
     }
 
-    void set_range_to(float v)
+    void Instance::set_range_to(float v)
     {
 	c4001q << range_t{.from = c4001.GetRangeFrom(), .to = v};
     }
 
-    void set_range_trig(float trig)
+    void Instance::set_range_trig(float trig)
     {
 	c4001q << range_trig_t{.trig = trig};
     }
 
-    void set_detect_delay(float v)
+    void Instance::set_detect_delay(float v)
     {
 	c4001q << delay_t{.detect = v, .clear = c4001.GetClearLatency()};
     }
 
-    void set_clear_delay(float v)
+    void Instance::set_clear_delay(float v)
     {
 	c4001q << delay_t{.detect = c4001.GetDetectLatency(), .clear = v};
     }
 
-    void set_detect_clear_delay(float detect, float clear)
+    void Instance::set_detect_clear_delay(float detect, float clear)
     {
 	c4001q << delay_t{.detect = detect, .clear = clear};
     }
 
-    void set_detect_sensitivity(uint8_t s)
+    void Instance::set_detect_sensitivity(uint8_t s)
     {
 	c4001q << sensitivity_t{.detect = s, .hold = 255};
     }
 
-    void set_hold_sensitivity(uint8_t s)
+    void Instance::set_hold_sensitivity(uint8_t s)
     {
 	c4001q << sensitivity_t{.detect = 255, .hold = s};
     }
 
-    void set_sensitivity(uint8_t detect, uint8_t hold)
+    void Instance::set_sensitivity(uint8_t detect, uint8_t hold)
     {
 	c4001q << sensitivity_t{.detect = detect, .hold = hold};
     }
 
-    void set_inhibit_duration(float dur)
+    void Instance::set_inhibit_duration(float dur)
     {
 	c4001q << inhibit_duration_t{.duration = dur};
     }
 
-    void save_config()
+    void Instance::save_config()
     {
 	c4001q << save_cfg_t{};
     }
 
-    void reset_config()
+    void Instance::reset_config()
     {
 	c4001q << reset_cfg_t{};
     }
 
-    void restart()
+    void Instance::restart()
     {
 	c4001q << restart_cfg_t{};
     }
 
-    void c4001_thread_entry(void *, void *, void *)
+    void Instance::c4001_thread_entry(void *_pThis, void *, void *)
+    {
+	Instance *pThis = (Instance*)(_pThis);
+	return pThis->c4001_mainloop();
+    }
+
+    void Instance::c4001_mainloop()
     {
 	QueueItem q;
 	using Cfg = dfr::C4001::Configurator;
@@ -175,7 +127,7 @@ K_THREAD_DEFINE(c4001_thread, C4001_THREAD_STACK_SIZE,
 	    c4001q >> q;
 	    std::visit(
 		overloaded{
-		    [](range_t const& v){ 
+		    [&](range_t const& v){ 
 			if (auto r = c4001
 				.GetConfigurator()
 				.SetRange(v.from, v.to)
@@ -187,7 +139,7 @@ K_THREAD_DEFINE(c4001_thread, C4001_THREAD_STACK_SIZE,
 			else if (g_upd)
 			    g_upd(cfg_id_t::Range);
 		    }
-		    ,[](range_trig_t const& v){  
+		    ,[&](range_trig_t const& v){  
 			if (auto r = c4001
 				.GetConfigurator()
 				.SetTrigRange(v.trig)
@@ -199,7 +151,7 @@ K_THREAD_DEFINE(c4001_thread, C4001_THREAD_STACK_SIZE,
 			else if (g_upd)
 			    g_upd(cfg_id_t::RangeTrig);
 		    }
-		    ,[](delay_t const& v){  
+		    ,[&](delay_t const& v){  
 			if (auto r = c4001
 				.GetConfigurator()
 				.SetLatency(v.detect, v.clear)
@@ -211,7 +163,7 @@ K_THREAD_DEFINE(c4001_thread, C4001_THREAD_STACK_SIZE,
 			else if (g_upd)
 			    g_upd(cfg_id_t::Delay);
 		    }
-		    ,[](sensitivity_t const& v){  
+		    ,[&](sensitivity_t const& v){  
 			if (auto r = c4001
 				.GetConfigurator()
 				.SetSensitivity(v.detect, v.hold)
@@ -223,7 +175,7 @@ K_THREAD_DEFINE(c4001_thread, C4001_THREAD_STACK_SIZE,
 			else if (g_upd)
 			    g_upd(cfg_id_t::Sensitivity);
 		    }
-		    ,[](inhibit_duration_t const& v){  
+		    ,[&](inhibit_duration_t const& v){  
 			if (auto r = c4001
 				.GetConfigurator()
 				.SetInhibit(v.duration)
@@ -235,13 +187,13 @@ K_THREAD_DEFINE(c4001_thread, C4001_THREAD_STACK_SIZE,
 			else if (g_upd)
 			    g_upd(cfg_id_t::InhibitDuration);
 		    }
-		    ,[](save_cfg_t const& v){  
+		    ,[&](save_cfg_t const& v){  
 			if (auto r = c4001
 				.GetConfigurator()
 				.SaveConfig(); !r && g_err)
 			    g_err(err_t::SaveConfig);
 		    }
-		    ,[](reset_cfg_t const& v){  
+		    ,[&](reset_cfg_t const& v){  
 			if (auto r = c4001
 				.GetConfigurator()
 				.ResetConfig(); !r)
@@ -251,7 +203,7 @@ K_THREAD_DEFINE(c4001_thread, C4001_THREAD_STACK_SIZE,
 			else if (g_upd)
 			    g_upd(cfg_id_t::All);
 		    }
-		    ,[](restart_cfg_t const& v){  
+		    ,[&](restart_cfg_t const& v){  
 			if (auto r = c4001
 				.GetConfigurator()
 				.Restart(); !r)
@@ -261,7 +213,7 @@ K_THREAD_DEFINE(c4001_thread, C4001_THREAD_STACK_SIZE,
 			else if (g_upd)
 			    g_upd(cfg_id_t::All);
 		    }
-		    ,[](reload_cfg_t const& v){  
+		    ,[&](reload_cfg_t const& v){  
 			if (auto r = c4001
 				.GetConfigurator()
 				.ReloadConfig(); !r)
