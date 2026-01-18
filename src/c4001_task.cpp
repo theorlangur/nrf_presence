@@ -30,16 +30,28 @@ namespace c4001
 	if (!device_is_ready(c4001_uart))
 	{
 	    printk("uart for c4001 is not ready\r\n");
+	    c4001_thread = nullptr;
 	    return nullptr;
 	}
 	auto r = c4001.Init();
 	if (!r)
+	{
+	    c4001_thread = nullptr;
 	    return nullptr;
+	}
 	g_err = err;
 	g_upd = upd;
 	c4001_thread->entry.parameter1 = this;
 	k_thread_start(c4001_thread);
 	return &c4001;
+    }
+
+    dfr::C4001* Instance::sensor()
+    {
+	if (c4001_thread)
+	    return &c4001;
+	else
+	    return nullptr;
     }
 
     void Instance::set_range(float from, float to)

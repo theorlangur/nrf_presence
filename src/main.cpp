@@ -30,6 +30,26 @@
 #include "zb/zb_c4001_cluster_desc.hpp"
 
 /**********************************************************************/
+/* C4001 presence sensor configurations/data                          */
+/**********************************************************************/
+#define DFR_UART_NODE DT_ALIAS(dfr_uart)
+#define DFR_UART_NODE2 DT_ALIAS(dfr_uart2)
+constinit const struct device *c4001_uart1 = DEVICE_DT_GET(DFR_UART_NODE);
+constinit const struct device *c4001_uart2 = DEVICE_DT_GET(DFR_UART_NODE2);
+
+K_MSGQ_DEFINE_TYPED(c4001::Instance::C4001Q, c4001q_1);
+C4001_THREAD(c4001_thread_1);
+
+K_MSGQ_DEFINE_TYPED(c4001::Instance::C4001Q, c4001q_2);
+C4001_THREAD(c4001_thread_2);
+
+c4001::Instance c4001_1(c4001_thread_1, c4001q_1, c4001_uart1);
+c4001::Instance c4001_2(c4001_thread_2, c4001q_2, c4001_uart2);
+
+constinit static dfr::C4001 *pC4001_1 = nullptr;
+constinit static dfr::C4001 *pC4001_2 = nullptr;
+
+/**********************************************************************/
 /* Zigbee Declarations and Definitions                                */
 /**********************************************************************/
 static bool g_ZigbeeReady = false;
@@ -118,8 +138,11 @@ constexpr auto kAttrClearToDetectDelay = &zb::zb_zcl_occupancy_ultrasonic_t::Ult
 constexpr auto kCmdOn = &zb::zb_zcl_on_off_attrs_client_t::on;
 constexpr auto kCmdOff = &zb::zb_zcl_on_off_attrs_client_t::off;
 
+template<c4001::Instance &i>
 zb::CmdHandlingResult on_cmd_restart();
+template<c4001::Instance &i>
 zb::CmdHandlingResult on_cmd_save_config();
+template<c4001::Instance &i>
 zb::CmdHandlingResult on_cmd_reset_config();
 
 /* Zigbee device application context storage. */
@@ -133,9 +156,9 @@ static constinit device_ctx_t dev_ctx{
 	/*.model =*/ INIT_BASIC_MODEL_ID,
     },
     .c4001{
-	.cmd_restart = {.cb = on_cmd_restart},
-	.cmd_save_config = {.cb = on_cmd_save_config},
-	.cmd_reset_config = {.cb = on_cmd_reset_config}
+	.cmd_restart = {.cb = on_cmd_restart<c4001_1>},
+	.cmd_save_config = {.cb = on_cmd_save_config<c4001_1>},
+	.cmd_reset_config = {.cb = on_cmd_reset_config<c4001_1>}
     }
 };
 
@@ -209,26 +232,6 @@ void method_fwd(arg1_type_t<M> a)
     (inst.*M)(a);
 }
 
-/**********************************************************************/
-/* C4001 presence sensor configurations/data                          */
-/**********************************************************************/
-#define DFR_UART_NODE DT_ALIAS(dfr_uart)
-#define DFR_UART_NODE2 DT_ALIAS(dfr_uart2)
-constinit const struct device *c4001_uart1 = DEVICE_DT_GET(DFR_UART_NODE);
-constinit const struct device *c4001_uart2 = DEVICE_DT_GET(DFR_UART_NODE2);
-
-
-K_MSGQ_DEFINE_TYPED(c4001::Instance::C4001Q, c4001q_1);
-C4001_THREAD(c4001_thread_1);
-
-K_MSGQ_DEFINE_TYPED(c4001::Instance::C4001Q, c4001q_2);
-C4001_THREAD(c4001_thread_2);
-
-c4001::Instance c4001_1(c4001_thread_1, c4001q_1, c4001_uart1);
-c4001::Instance c4001_2(c4001_thread_2, c4001q_2, c4001_uart2);
-
-constinit static dfr::C4001 *pC4001_1 = nullptr;
-constinit static dfr::C4001 *pC4001_2 = nullptr;
 
 void send_on_off(uint8_t val);
 
@@ -250,24 +253,28 @@ void presence_triggered(const struct device *port,
 	dev_ctx.occupancy.occupancy = val;
     }
 }
+
+template<c4001::Instance &i>
 zb::CmdHandlingResult on_cmd_restart()
 {
     printk("c4001::restart\r\n");
-    c4001_1.restart();
+    i.restart();
     return {};
 }
 
+template<c4001::Instance &i>
 zb::CmdHandlingResult on_cmd_save_config()
 {
     printk("c4001::save_config\r\n");
-    c4001_1.save_config();
+    i.save_config();
     return {};
 }
 
+template<c4001::Instance &i>
 zb::CmdHandlingResult on_cmd_reset_config()
 {
     printk("c4001::reset_config\r\n");
-    c4001_1.reset_config();
+    i.reset_config();
     return {};
 }
 
@@ -285,35 +292,38 @@ void on_dev_cb_error(int err)
     printk("on_dev_cb_error: %d\r\n", err);
 }
 
+template<c4001::Instance &i>
 void zb_c4001_update(uint8_t e)
 {
     using namespace c4001; 
     cfg_id_t id = (cfg_id_t)e;
+    auto *pC4001 = i.sensor();
     if (id & cfg_id_t::Range)
     {
-	zb_ep.attr<kAttrRMin>() = pC4001_1->GetRangeFrom();
-	zb_ep.attr<kAttrRMax>() = pC4001_1->GetRangeTo();
+	zb_ep.attr<kAttrRMin>() = pC4001->GetRangeFrom();
+	zb_ep.attr<kAttrRMax>() = pC4001->GetRangeTo();
     }
     if (id & cfg_id_t::RangeTrig)
     {
-	zb_ep.attr<kAttrRTrig>() = pC4001_1->GetTriggerDistance();
+	zb_ep.attr<kAttrRTrig>() = pC4001->GetTriggerDistance();
     }
     if (id & cfg_id_t::Delay)
     {
-	zb_ep.attr<kAttrClearToDetectDelay>() = pC4001_1->GetDetectLatency();
-	zb_ep.attr<kAttrDetectToClearDelay>() = pC4001_1->GetClearLatency();
+	zb_ep.attr<kAttrClearToDetectDelay>() = pC4001->GetDetectLatency();
+	zb_ep.attr<kAttrDetectToClearDelay>() = pC4001->GetClearLatency();
     }
     if (id & cfg_id_t::InhibitDuration)
     {
-	zb_ep.attr<kAttrInhibitDuration>() = pC4001_1->GetInhibitDuration();
+	zb_ep.attr<kAttrInhibitDuration>() = pC4001->GetInhibitDuration();
     }
     if (id & cfg_id_t::Sensitivity)
     {
-	zb_ep.attr<kAttrSTrig>() = pC4001_1->GetSensitivityTrig();
-	zb_ep.attr<kAttrSHold>() = pC4001_1->GetSensitivityHold();
+	zb_ep.attr<kAttrSTrig>() = pC4001->GetSensitivityTrig();
+	zb_ep.attr<kAttrSHold>() = pC4001->GetSensitivityHold();
     }
 }
 
+template<c4001::Instance &i>
 void zb_c4001_error(uint8_t e)
 {
     using namespace c4001;
@@ -321,19 +331,19 @@ void zb_c4001_error(uint8_t e)
     switch(err_t(e))
     {
 	case err_t::Range:
-	    zb_c4001_update((uint8_t)cfg_id_t::Range);
+	    zb_c4001_update<i>((uint8_t)cfg_id_t::Range);
 	    break;
 	case err_t::RangeTrig:
-	    zb_c4001_update((uint8_t)cfg_id_t::RangeTrig);
+	    zb_c4001_update<i>((uint8_t)cfg_id_t::RangeTrig);
 	    break;
 	case err_t::Delay:
-	    zb_c4001_update((uint8_t)cfg_id_t::Delay);
+	    zb_c4001_update<i>((uint8_t)cfg_id_t::Delay);
 	    break;
 	case err_t::InhibitDuration:
-	    zb_c4001_update((uint8_t)cfg_id_t::InhibitDuration);
+	    zb_c4001_update<i>((uint8_t)cfg_id_t::InhibitDuration);
 	    break;
 	case err_t::Sensitivity:
-	    zb_c4001_update((uint8_t)cfg_id_t::Sensitivity);
+	    zb_c4001_update<i>((uint8_t)cfg_id_t::Sensitivity);
 	    break;
 	default:
 	break;
@@ -341,26 +351,30 @@ void zb_c4001_error(uint8_t e)
     zb_ep.attr<kAttrStatus1>() = e;
 }
 
+template<c4001::Instance &i>
 void on_c4001_error(c4001::err_t e)
 {
     if (g_ZigbeeReady)
-	zb_schedule_app_callback(&zb_c4001_error, (uint8_t)e);
+	zb_schedule_app_callback(&zb_c4001_error<i>, (uint8_t)e);
 }
 
+template<c4001::Instance &i>
 void on_c4001_upd(c4001::cfg_id_t id)
 {
     if (g_ZigbeeReady)
-	zb_schedule_app_callback(&zb_c4001_update, (uint8_t)id);
+	zb_schedule_app_callback(&zb_c4001_update<i>, (uint8_t)id);
 }
 
+template<c4001::Instance &i>
 void on_uto_delay_changed(uint16_t d)
 {
-    c4001_1.set_detect_delay(d);
+    i.set_detect_delay(d);
 }
 
+template<c4001::Instance &i>
 void on_otu_delay_changed(uint16_t d)
 {
-    c4001_1.set_clear_delay(d);
+    i.set_clear_delay(d);
 }
 
 
@@ -478,7 +492,7 @@ int main(void)
 
     printk("main\r\n");
 
-    pC4001_1 = c4001_1.setup(&on_c4001_error, &on_c4001_upd);
+    pC4001_1 = c4001_1.setup(&on_c4001_error<c4001_1>, &on_c4001_upd<c4001_1>);
     if (pC4001_1)
     {
 	dev_ctx.c4001.range_min = pC4001_1->GetRangeFrom();
