@@ -17,8 +17,8 @@ namespace c4001
 	overloaded(O... o)->overloaded<O...>;
     };
 
-    Instance::Instance(k_tid_t thread, C4001Q &q, const struct device *uart):
-	c4001_thread(thread),
+    Instance::Instance(C4001Q &q, const struct device *uart, const char* thread_name):
+	c4001_thread_name(thread_name),
 	c4001q(q),
 	c4001_uart(uart),
 	c4001(c4001_uart)
@@ -41,8 +41,18 @@ namespace c4001
 	}
 	g_err = err;
 	g_upd = upd;
-	c4001_thread->entry.parameter1 = this;
-	k_thread_start(c4001_thread);
+
+	c4001_thread = k_thread_create(&c4001_thread_e 
+	    ,c4001_thread_stack
+	    ,sizeof(c4001_thread_stack)
+	    ,c4001_thread_entry
+	    ,this, nullptr, nullptr
+	    ,C4001_THREAD_PRIORITY
+	    , 0
+	    , {0});
+	if (!c4001_thread)
+	    return nullptr;
+	k_thread_name_set(c4001_thread, c4001_thread_name);
 	return &c4001;
     }
 

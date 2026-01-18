@@ -38,13 +38,10 @@ constinit const struct device *c4001_uart1 = DEVICE_DT_GET(DFR_UART_NODE);
 constinit const struct device *c4001_uart2 = DEVICE_DT_GET(DFR_UART_NODE2);
 
 K_MSGQ_DEFINE_TYPED(c4001::Instance::C4001Q, c4001q_1);
-C4001_THREAD(c4001_thread_1);
-
 K_MSGQ_DEFINE_TYPED(c4001::Instance::C4001Q, c4001q_2);
-C4001_THREAD(c4001_thread_2);
 
-c4001::Instance c4001_1(c4001_thread_1, c4001q_1, c4001_uart1);
-c4001::Instance c4001_2(c4001_thread_2, c4001q_2, c4001_uart2);
+c4001::Instance c4001_1(c4001q_1, c4001_uart1, "c4001_1");
+c4001::Instance c4001_2(c4001q_2, c4001_uart2, "c4001_2");
 
 constinit static dfr::C4001 *pC4001_1 = nullptr;
 constinit static dfr::C4001 *pC4001_2 = nullptr;

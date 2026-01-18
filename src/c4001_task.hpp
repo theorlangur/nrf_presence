@@ -32,13 +32,6 @@ namespace c4001
         ReloadConfig,
     };
 
-    constexpr size_t C4001_THREAD_STACK_SIZE = 1024 * 2;
-    constexpr size_t C4001_THREAD_PRIORITY=7;
-
-#define C4001_THREAD(name) K_THREAD_DEFINE(name, c4001::C4001_THREAD_STACK_SIZE, \
-        c4001::Instance::c4001_thread_entry, NULL, NULL, NULL, \
-        c4001::C4001_THREAD_PRIORITY, 0, -1);
-
     class Instance
     {
     public:
@@ -90,7 +83,7 @@ namespace c4001
 
         using C4001Q = msgq::Queue<QueueItem,4>;
 
-        Instance(k_tid_t thread, C4001Q &q, const struct device *uart);
+        Instance(C4001Q &q, const struct device *uart, const char* thread_name);
 
         dfr::C4001* setup(err_callback_t err, upd_callback_t upd);
 
@@ -115,7 +108,14 @@ namespace c4001
     private:
         void c4001_mainloop();
 
-        k_tid_t c4001_thread;
+
+        static constexpr size_t C4001_THREAD_STACK_SIZE = 1024 * 2;
+        static constexpr size_t C4001_THREAD_PRIORITY=7;
+        alignas(16) k_thread_stack_t c4001_thread_stack[C4001_THREAD_STACK_SIZE];
+        k_thread c4001_thread_e;
+        const char *c4001_thread_name = nullptr;
+
+        k_tid_t c4001_thread = nullptr;
         C4001Q &c4001q;
         err_callback_t g_err = nullptr;
         upd_callback_t g_upd = nullptr;
