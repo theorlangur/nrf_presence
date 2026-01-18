@@ -197,7 +197,7 @@ struct zb::global_device
 
 //a shortcut for a convenient access
 constinit static auto &zb_ep = zb_ctx.ep<kMMW_EP>();
-//constinit static auto &zb_ep_aux = zb_ctx.ep<kMMW_EP_AUX>();
+constinit static auto &zb_ep_aux = zb_ctx.ep<kMMW_AUX_EP>();
 
 /**********************************************************************/
 /* Device defines                                                     */
@@ -218,6 +218,7 @@ static const struct gpio_dt_spec led0 = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 /* Get the GPIO spec directly from the node */
 /* Note: We look for the property "gpios" inside the node */
 static const struct gpio_dt_spec presence = GPIO_DT_SPEC_GET(SENSOR_NODE, gpios);
+static const struct gpio_dt_spec presence2 = GPIO_DT_SPEC_GET(SENSOR_NODE2, gpios);
 
 static const struct device *const eco2sensor = DEVICE_DT_GET(DT_NODELABEL(eco2sensor));
 static const struct device *const rht2sensor = DEVICE_DT_GET(DT_NODELABEL(rht2sensor));
@@ -246,22 +247,32 @@ void method_fwd(arg1_type_t<M> a)
 
 void send_on_off(uint8_t val);
 
-gpio_callback g_cb;
+gpio_callback g_on_presence_triggered_cb;
+gpio_callback g_on_presence_triggered_cb2;
 
+int g_state_presence1 = 0;
+int g_state_presence2 = 0;
+
+template<gpio_dt_spec const& pin, int &state, int const& state_aux>
 void presence_triggered(const struct device *port,
 					struct gpio_callback *cb,
 					gpio_port_pins_t pins)
 {
-    int val = gpio_pin_get_dt(&presence);
-    //TODO: remove me
-    gpio_pin_set_dt(&led0, val);
-
-    if (g_ZigbeeReady) //post to zigbee and shoot commands
-	zb_schedule_app_callback(&send_on_off, val);
-    else
+    int old_val = state || state_aux;
+    state = gpio_pin_get_dt(&pin);
+    int val = state || state_aux;
+    if (val != old_val)
     {
-	//write latest state directly
-	dev_ctx.occupancy.occupancy = val;
+	//TODO: remove me
+	gpio_pin_set_dt(&led0, val);
+
+	if (g_ZigbeeReady) //post to zigbee and shoot commands
+	    zb_schedule_app_callback(&send_on_off, val);
+	else
+	{
+	    //write latest state directly
+	    dev_ctx.occupancy.occupancy = val;
+	}
     }
 }
 
@@ -316,7 +327,7 @@ void on_dev_cb_error(int err)
     printk("on_dev_cb_error: %d\r\n", err);
 }
 
-template<c4001::Instance &i>
+template<c4001::Instance &i, auto &zb>
 void zb_c4001_update(uint8_t e)
 {
     using namespace c4001; 
@@ -324,12 +335,12 @@ void zb_c4001_update(uint8_t e)
     auto *pC4001 = i.sensor();
     if (id & cfg_id_t::Range)
     {
-	zb_ep.attr<kAttrRMin>() = pC4001->GetRangeFrom();
-	zb_ep.attr<kAttrRMax>() = pC4001->GetRangeTo();
+	zb.template attr<kAttrRMin>() = pC4001->GetRangeFrom();
+	zb.template attr<kAttrRMax>() = pC4001->GetRangeTo();
     }
     if (id & cfg_id_t::RangeTrig)
     {
-	zb_ep.attr<kAttrRTrig>() = pC4001->GetTriggerDistance();
+	zb.template attr<kAttrRTrig>() = pC4001->GetTriggerDistance();
     }
     if (id & cfg_id_t::Delay)
     {
@@ -338,16 +349,16 @@ void zb_c4001_update(uint8_t e)
     }
     if (id & cfg_id_t::InhibitDuration)
     {
-	zb_ep.attr<kAttrInhibitDuration>() = pC4001->GetInhibitDuration();
+	zb.template attr<kAttrInhibitDuration>() = pC4001->GetInhibitDuration();
     }
     if (id & cfg_id_t::Sensitivity)
     {
-	zb_ep.attr<kAttrSTrig>() = pC4001->GetSensitivityTrig();
-	zb_ep.attr<kAttrSHold>() = pC4001->GetSensitivityHold();
+	zb.template attr<kAttrSTrig>() = pC4001->GetSensitivityTrig();
+	zb.template attr<kAttrSHold>() = pC4001->GetSensitivityHold();
     }
 }
 
-template<c4001::Instance &i>
+template<c4001::Instance &i, auto &zb>
 void zb_c4001_error(uint8_t e)
 {
     using namespace c4001;
@@ -355,19 +366,19 @@ void zb_c4001_error(uint8_t e)
     switch(err_t(e))
     {
 	case err_t::Range:
-	    zb_c4001_update<i>((uint8_t)cfg_id_t::Range);
+	    zb_c4001_update<i, zb>((uint8_t)cfg_id_t::Range);
 	    break;
 	case err_t::RangeTrig:
-	    zb_c4001_update<i>((uint8_t)cfg_id_t::RangeTrig);
+	    zb_c4001_update<i, zb>((uint8_t)cfg_id_t::RangeTrig);
 	    break;
 	case err_t::Delay:
-	    zb_c4001_update<i>((uint8_t)cfg_id_t::Delay);
+	    zb_c4001_update<i, zb>((uint8_t)cfg_id_t::Delay);
 	    break;
 	case err_t::InhibitDuration:
-	    zb_c4001_update<i>((uint8_t)cfg_id_t::InhibitDuration);
+	    zb_c4001_update<i, zb>((uint8_t)cfg_id_t::InhibitDuration);
 	    break;
 	case err_t::Sensitivity:
-	    zb_c4001_update<i>((uint8_t)cfg_id_t::Sensitivity);
+	    zb_c4001_update<i, zb>((uint8_t)cfg_id_t::Sensitivity);
 	    break;
 	default:
 	break;
@@ -375,18 +386,18 @@ void zb_c4001_error(uint8_t e)
     zb_ep.attr<kAttrStatus1>() = e;
 }
 
-template<c4001::Instance &i>
+template<c4001::Instance &i, auto &zb>
 void on_c4001_error(c4001::err_t e)
 {
     if (g_ZigbeeReady)
-	zb_schedule_app_callback(&zb_c4001_error<i>, (uint8_t)e);
+	zb_schedule_app_callback(&zb_c4001_error<i, zb>, (uint8_t)e);
 }
 
-template<c4001::Instance &i>
+template<c4001::Instance &i, auto &zb>
 void on_c4001_upd(c4001::cfg_id_t id)
 {
     if (g_ZigbeeReady)
-	zb_schedule_app_callback(&zb_c4001_update<i>, (uint8_t)id);
+	zb_schedule_app_callback(&zb_c4001_update<i, zb>, (uint8_t)id);
 }
 
 template<c4001::Instance &i>
@@ -516,7 +527,7 @@ int main(void)
 
     printk("main\r\n");
 
-    pC4001_1 = c4001_1.setup(&on_c4001_error<c4001_1>, &on_c4001_upd<c4001_1>);
+    pC4001_1 = c4001_1.setup(&on_c4001_error<c4001_1, zb_ep>, &on_c4001_upd<c4001_1, zb_ep>);
     if (pC4001_1)
     {
 	dev_ctx.c4001.range_min = pC4001_1->GetRangeFrom();
@@ -541,7 +552,7 @@ int main(void)
 	return 0;
     }
 
-    pC4001_2 = c4001_2.setup(&on_c4001_error<c4001_2>, &on_c4001_upd<c4001_2>);
+    pC4001_2 = c4001_2.setup(&on_c4001_error<c4001_2, zb_ep_aux>, &on_c4001_upd<c4001_2, zb_ep_aux>);
     if (pC4001_2)
     {
 	dev_ctx.c4001_aux.range_min = pC4001_2->GetRangeFrom();
@@ -566,6 +577,8 @@ int main(void)
 	return 0;
     }
 
+    dev_ctx.occupancy.occupancy = false;
+
     /* Register callback for handling ZCL commands. */
     auto dev_cb = zb::tpl_device_cb<
 	zb::dev_cb_handlers_desc{ .error_handler = on_dev_cb_error }
@@ -578,12 +591,12 @@ int main(void)
 	, zb::handle_set_for<kAttrSTrig,              method_fwd<c4001_1, &c4001::Instance::set_detect_sensitivity>>(zb_ep)
 	, zb::handle_set_for<kAttrSHold,              method_fwd<c4001_1, &c4001::Instance::set_hold_sensitivity>>(zb_ep)
 
-	, zb::handle_set_for<kAttrRMin,               method_fwd<c4001_1, &c4001::Instance::set_range_from>>(zb_ep)
-	, zb::handle_set_for<kAttrRMax,               method_fwd<c4001_1, &c4001::Instance::set_range_to>>(zb_ep)
-	, zb::handle_set_for<kAttrRTrig,              method_fwd<c4001_1, &c4001::Instance::set_range_trig>>(zb_ep)
-	, zb::handle_set_for<kAttrInhibitDuration,    method_fwd<c4001_1, &c4001::Instance::set_inhibit_duration>>(zb_ep)
-	, zb::handle_set_for<kAttrSTrig,              method_fwd<c4001_1, &c4001::Instance::set_detect_sensitivity>>(zb_ep)
-	, zb::handle_set_for<kAttrSHold,              method_fwd<c4001_1, &c4001::Instance::set_hold_sensitivity>>(zb_ep)
+	, zb::handle_set_for<kAttrRMin,               method_fwd<c4001_2, &c4001::Instance::set_range_from>>(zb_ep_aux)
+	, zb::handle_set_for<kAttrRMax,               method_fwd<c4001_2, &c4001::Instance::set_range_to>>(zb_ep_aux)
+	, zb::handle_set_for<kAttrRTrig,              method_fwd<c4001_2, &c4001::Instance::set_range_trig>>(zb_ep_aux)
+	, zb::handle_set_for<kAttrInhibitDuration,    method_fwd<c4001_2, &c4001::Instance::set_inhibit_duration>>(zb_ep_aux)
+	, zb::handle_set_for<kAttrSTrig,              method_fwd<c4001_2, &c4001::Instance::set_detect_sensitivity>>(zb_ep_aux)
+	, zb::handle_set_for<kAttrSHold,              method_fwd<c4001_2, &c4001::Instance::set_hold_sensitivity>>(zb_ep_aux)
     >;
 
     ZB_ZCL_REGISTER_DEVICE_CB(dev_cb);
@@ -612,6 +625,15 @@ int main(void)
 	printk("C4001(1); Sensitivity Detect=%d; Hold=%d;\r\n", pC4001_1->GetSensitivityTrig(), pC4001_1->GetSensitivityHold());
 	printk("C4001(1); Inhibut Duration=%.1fs\r\n", (double)pC4001_1->GetInhibitDuration());
     }
+    {
+	printk("C4001(2); HW=%s\r\n", pC4001_2->GetHWVer().m_Version);
+	printk("C4001(2); SW=%s\r\n", pC4001_2->GetSWVer().m_Version);
+	printk("C4001(2); Range=%.1f to %.1fm\r\n", (double)pC4001_2->GetRangeFrom(), (double)pC4001_2->GetRangeTo());
+	printk("C4001(2); Latency; to detect=%.1fs; to clear=%.1fs\r\n", (double)pC4001_2->GetDetectLatency(), (double)pC4001_2->GetClearLatency());
+	printk("C4001(2); Trig Range=%.1fm\r\n", (double)pC4001_2->GetTriggerDistance());
+	printk("C4001(2); Sensitivity Detect=%d; Hold=%d;\r\n", pC4001_2->GetSensitivityTrig(), pC4001_2->GetSensitivityHold());
+	printk("C4001(2); Inhibut Duration=%.1fs\r\n", (double)pC4001_2->GetInhibitDuration());
+    }
     while (1) {
 	k_sleep(K_FOREVER);
     }
@@ -636,13 +658,26 @@ int configure_c4001_out_pin()
 	printk("gpio_pin_interrupt_configure_dt: %d\r\n", err);
 	return err;
     }
+    g_state_presence1 = gpio_pin_get_dt(&presence);
 
+    err = gpio_pin_interrupt_configure_dt(&presence2, GPIO_INT_EDGE_BOTH);
+    if (err != 0)
     {
-	int val = gpio_pin_get_dt(&presence);
-	dev_ctx.occupancy.occupancy = val;
+	printk("gpio_pin_interrupt_configure_dt(2): %d\r\n", err);
+	return err;
     }
+    g_state_presence2 = gpio_pin_get_dt(&presence2);
 
-    gpio_init_callback(&g_cb, presence_triggered, BIT(presence.pin));
-    return gpio_add_callback_dt(&presence, &g_cb);
+    if (g_state_presence1 || g_state_presence2)
+	dev_ctx.occupancy.occupancy = true;
+
+    gpio_init_callback(&g_on_presence_triggered_cb, presence_triggered<presence, g_state_presence1, g_state_presence2>, BIT(presence.pin));
+    err = gpio_add_callback_dt(&presence, &g_on_presence_triggered_cb);
+    if (!err)
+    {
+	gpio_init_callback(&g_on_presence_triggered_cb2, presence_triggered<presence2, g_state_presence2, g_state_presence1>, BIT(presence.pin));
+	err = gpio_add_callback_dt(&presence2, &g_on_presence_triggered_cb2);
+    }
+    return err;
 }
 
