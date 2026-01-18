@@ -2,7 +2,4 @@
     "nrf-connect.applications": [
         "${workspaceFolder}"
     ],
-    "cortex-debug.JLinkGDBServerPath": "/opt/SEGGER/JLink/JLinkGDBServerCLExe",
-    "cortex-debug.armToolchainPrefix": "arm-zephyr-eabi",
-    "cortex-debug.armToolchainPath": "/home/theorlangur/ncs/toolchains/7cbc0036f4/opt/zephyr-sdk/arm-zephyr-eabi/bin"
 }
