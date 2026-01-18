@@ -2,7 +2,9 @@ const { Buffer } = require('node:buffer');
 const util = require('node:util');
 const {Zcl} = require('zigbee-herdsman');
 const {enumLookup
+    ,text
     ,numeric
+    ,deviceEndpoints
     ,deviceAddCustomCluster
     ,onOff
     ,binary
@@ -29,127 +31,48 @@ const ea = exposes.access;
 const NS = 'zhc:orlangur';
 
 const orlangurC4001Extended = {
-    c4001Config: () => {
+    c4001Cmds: (endpointName) => {
         const exposes = [
-            e.numeric('range_min', ea.ALL)
-                .withLabel('Range From')
-                .withValueMin(0.6)
-                .withValueMax(25)
-                .withCategory('config'),
-            e.numeric('range_max', ea.ALL)
-                .withLabel('Range To')
-                .withValueMin(0.6)
-                .withValueMax(25)
-                .withCategory('config'),
-            e.numeric('detect_delay', ea.ALL)
-                .withLabel('Detect Delay')
-                .withValueMin(0)
-                .withValueStep(0.1)
-                .withValueMax(2)
-                .withCategory('config'),
-            e.numeric('clear_delay', ea.ALL)
-                .withLabel('Clear Delay')
-                .withValueMin(0)
-                .withValueMax(20)
-                .withCategory('config'),
-            e.numeric('range_trig', ea.ALL)
-                .withLabel('Trigger Distance')
-                .withValueMin(0.6)
-                .withValueMax(25)
-                .withCategory('config'),
-            e.numeric('inhibit_duration', ea.ALL)
-                .withLabel('Inhibit Duration')
-                .withCategory('config'),
-            e.numeric('sensitivity_detect', ea.ALL)
-                .withLabel('Sensitivity Detect')
-                .withValueMin(1)
-                .withValueMax(9)
-                .withValueStep(1)
-                .withCategory('config'),
-            e.numeric('sensitivity_hold', ea.ALL)
-                .withLabel('Sensitivity Hold')
-                .withValueMin(1)
-                .withValueMax(9)
-                .withValueStep(1)
-                .withCategory('config'),
-            e.numeric('sw_ver', ea.STATE_GET)
-                .withLabel('Software Version')
-                .withCategory('diagnostic'),
-            e.numeric('hw_ver', ea.STATE_GET)
-                .withLabel('Hardware Version')
-                .withCategory('diagnostic'),
             e.enum("cmd_restart", ea.SET, ["Restart"])
-                .withDescription("Restart C4001")
+                .withDescription("Restart C4001 ("+endpointName+")")
+                .withEndpoint(endpointName)
                 .withCategory("config"),
             e.enum("cmd_save_config", ea.SET, ["Save Config"])
-                .withDescription("Save Configuration on C4001")
+                .withDescription("Save Configuration on C4001 ("+endpointName+")")
+                .withEndpoint(endpointName)
                 .withCategory("config"),
             e.enum("cmd_reset_config", ea.SET, ["Reset Config"])
-                .withDescription("Reset Configuration on C4001")
+                .withDescription("Reset Configuration on C4001 ("+endpointName+")")
+                .withEndpoint(endpointName)
                 .withCategory("config"),
         ];
-        const attributes = ['range_min', 'range_max', 'range_trig', 'inhibit_duration', 'sensitivity_detect', 'sensitivity_hold', 'sw_ver', 'hw_ver', 'detect_delay', 'clear_delay'];
-        const fromZigbee = [
-            {
-                cluster: 'c40001Config',
-                type: ['attributeReport', 'readResponse'],
-                convert: (model, msg, publish, options, meta) => {
-                    const result = {};
-                    const data = msg.data;
-                    for (const attr of attributes) {
-                        if (data[attr] !== undefined) 
-                            result[attr] = data[attr];
-                    }
-                    return result;
-                }
-            }
-        ];
-
         const toZigbee = [
-            {
-                key: attributes,
-                convertGet: async (entity, key, meta) => {
-                    await entity.read('c40001Config', [key]);
-                },
-                convertSet: async (entity, key, value, meta) => {
-                    await entity.write('c40001Config', {[key]: value});
-                    return {state: {[key]: value}};
-                },
-            },
             {
                 key: ["cmd_restart"],
                 convertSet: async (entity, key, value, meta) => {
-                    await entity.command("c40001Config", "restartC4001", {}, { disableDefaultResponse: true, });
+                    await determineEndpoint(entity, meta, "c40001Config")
+                        .command("c40001Config", "restartC4001", {}, { disableDefaultResponse: true, });
                 },
             }
             ,{
                 key: ["cmd_save_config"],
                 convertSet: async (entity, key, value, meta) => {
-                    await entity.command("c40001Config", "saveConfigC4001", {}, { disableDefaultResponse: true, });
+                    await determineEndpoint(entity, meta, "c40001Config")
+                        .command("c40001Config", "saveConfigC4001", {}, { disableDefaultResponse: true, });
                 },
             }
             ,{
                 key: ["cmd_reset_config"],
                 convertSet: async (entity, key, value, meta) => {
-                    await entity.command("c40001Config", "resetConfigC4001", {}, { disableDefaultResponse: true, });
+                    await determineEndpoint(entity, meta, "c40001Config")
+                        .command("c40001Config", "resetConfigC4001", {}, { disableDefaultResponse: true, });
                 },
             }
         ];
 
-        const configure = [];
-
-        configure.push(
-            setupConfigureForReading("c40001Config", ['range_min', 'range_max', 'range_trig'])
-            , setupConfigureForReading("c40001Config", [ 'sw_ver', 'hw_ver'])
-            , setupConfigureForReading("c40001Config", [ 'inhibit_duration', 'sensitivity_detect', 'sensitivity_hold'])
-            , setupConfigureForReading("c40001Config", [ 'detect_delay', 'clear_delay'])
-        );
-
         return {
             exposes,
-            fromZigbee,
             toZigbee,
-            configure,
             isModernExtend: true,
         };
     },
@@ -272,6 +195,7 @@ const definition = {
     vendor: 'SFINAE',
     description: 'C4001-NG',
     extend: [
+        deviceEndpoints({endpoints: {main: 1, aux: 2}}),
         deviceAddCustomCluster('customStatus', {
             ID: 0xfc80,
             attributes: {
@@ -314,7 +238,6 @@ const definition = {
             commands: {},
             commandsResponse: {}
         }),
-        orlangurC4001Extended.c4001Config(),
         orlangurC4001Extended.extendedStatus(),
         occupancy({ultrasonicConfig:["otu_delay", "uto_delay"]}),
         co2(),
@@ -346,6 +269,117 @@ const definition = {
             label: "TVOC",
             precision: 0
         }),
+        numeric({
+            cluster: "c40001Config",
+            attribute: "range_min",
+            name: "range_min",
+            access: "ALL",
+            entityCategory: "config",
+            label: "Range From",
+            unit: "m",
+            valueMin: 0.6,
+            valueMax: 25,
+            precision: 1,
+            endpointNames: ["main", "aux"]
+        }),
+        numeric({
+            cluster: "c40001Config",
+            attribute: "range_max",
+            name: "range_max",
+            access: "ALL",
+            entityCategory: "config",
+            label: "Range To",
+            unit: "m",
+            valueMin: 0.6,
+            valueMax: 25,
+            precision: 1,
+            endpointNames: ["main", "aux"]
+        }),
+        numeric({
+            cluster: "c40001Config",
+            attribute: "range_trig",
+            name: "range_trig",
+            access: "ALL",
+            entityCategory: "config",
+            label: "Trigger Distance",
+            unit: "m",
+            valueMin: 0.6,
+            valueMax: 25,
+            precision: 1,
+            endpointNames: ["main", "aux"]
+        }),
+        numeric({
+            cluster: "c40001Config",
+            attribute: "inhibit_duration",
+            name: "inhibit_duration",
+            access: "ALL",
+            entityCategory: "config",
+            label: "Inhibit Duration",
+            unit: "s",
+            endpointNames: ["main", "aux"],
+        }),
+        numeric({
+            cluster: "c40001Config",
+            attribute: "sensitivity_detect",
+            name: "sensitivity_detect",
+            access: "ALL",
+            entityCategory: "config",
+            label: "Sensitivity Detect",
+            endpointNames: ["main", "aux"],
+            valueMin: 1,
+            valueMax: 9,
+            valueStep: 1,
+        }),
+        numeric({
+            cluster: "c40001Config",
+            attribute: "sensitivity_hold",
+            name: "sensitivity_hold",
+            access: "ALL",
+            entityCategory: "config",
+            label: "Sensitivity Hold",
+            endpointNames: ["main", "aux"],
+            valueMin: 1,
+            valueMax: 9,
+            valueStep: 1,
+        }),
+        text({
+            cluster: "c40001Config",
+            attribute: "sw_ver",
+            name: "sw_ver",
+            access: "STATE_GET",
+            label: "Software Version",
+            entityCategory: "diagnostic",
+            endpointName: "main",
+        }),
+        text({
+            cluster: "c40001Config",
+            attribute: "sw_ver",
+            name: "sw_ver",
+            access: "STATE_GET",
+            label: "Software Version",
+            entityCategory: "diagnostic",
+            endpointName: "aux",
+        }),
+        text({
+            cluster: "c40001Config",
+            attribute: "hw_ver",
+            name: "hw_ver",
+            access: "STATE_GET",
+            label: "Hardware Version",
+            entityCategory: "diagnostic",
+            endpointName: "main",
+        }),
+        text({
+            cluster: "c40001Config",
+            attribute: "hw_ver",
+            name: "hw_ver",
+            access: "STATE_GET",
+            label: "Hardware Version",
+            entityCategory: "diagnostic",
+            endpointName: "aux",
+        }),
+        orlangurC4001Extended.c4001Cmds("main"),
+        orlangurC4001Extended.c4001Cmds("aux"),
     ]
 };
 
