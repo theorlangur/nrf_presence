@@ -672,7 +672,7 @@ int configure_c4001_out_pin()
     err = gpio_add_callback_dt(&presence, &g_on_presence_triggered_cb);
     if (!err)
     {
-	gpio_init_callback(&g_on_presence_triggered_cb2, presence_triggered<presence2, g_state_presence2, g_state_presence1>, BIT(presence.pin));
+	gpio_init_callback(&g_on_presence_triggered_cb2, presence_triggered<presence2, g_state_presence2, g_state_presence1>, BIT(presence2.pin));
 	err = gpio_add_callback_dt(&presence2, &g_on_presence_triggered_cb2);
     }
     return err;
