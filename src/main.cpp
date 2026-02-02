@@ -28,6 +28,7 @@
 #include <nrfzbcpp/zb_co2_cluster_desc.hpp>
 #include <nrfzbcpp/zb_nstd_air_q_cluster_desc.hpp>
 #include "zb/zb_c4001_cluster_desc.hpp"
+#include <osif/mac_platform.h>
 
 /**********************************************************************/
 /* C4001 presence sensor configurations/data                          */
@@ -66,6 +67,7 @@ static bool g_ZigbeeReady = false;
 #define FACTORY_RESET_BUTTON IDENTIFY_MODE_BUTTON
 
 /* Device endpoint, used to receive light controlling commands. */
+constexpr int8_t kTX_POWER = 7;
 constexpr uint8_t kMMW_EP = 1;
 constexpr uint8_t kMMW_AUX_EP = 2;
 constexpr uint16_t kDEV_ID = 0xBAAD;
@@ -439,6 +441,85 @@ bool update_environment_sensors()
     return true;
 }
 
+/**@brief Callback for TX power setting result.
+ *
+ * @param  param  Reference to Zigbee stack buffer.
+ */
+static void tx_power_cb(zb_bufid_t param)
+{
+	const char *status = NULL;
+	zb_tx_power_params_t *power_params = (zb_tx_power_params_t *)zb_buf_begin(param);
+
+	switch (power_params->status) {
+	case RET_OK:
+		status = "success";
+		break;
+	case RET_INVALID_PARAMETER_1:
+		status = "invalid page";
+		break;
+	case RET_INVALID_PARAMETER_2:
+		status = "invalid channel";
+		break;
+	case RET_INVALID_PARAMETER_3:
+		status = "invalid tx power";
+		break;
+	default:
+		status = "unknown";
+		break;
+	}
+
+	printk("Zigbee transceiver tx power set result (pg: %d, ch: %d, pw: %d): %s\r\n",
+		power_params->page, power_params->channel, power_params->tx_power, status);
+
+	zb_buf_free(param);
+}
+
+/**@brief Function for scheduling TX power set.
+ *
+ * @param  param    Reference to Zigbee stack buffer.
+ * @param  channel  Channel number.
+ */
+static void schedule_tx_power_set(zb_bufid_t param, zb_uint16_t channel)
+{
+	zb_tx_power_params_t *power_params;
+
+	power_params = (zb_tx_power_params_t *)zb_buf_initial_alloc(param, sizeof(zb_tx_power_params_t));
+
+	power_params->page = ZB_CHANNEL_PAGE0_2_4_GHZ;
+	power_params->channel = channel;
+	power_params->tx_power = kTX_POWER;
+	power_params->cb = tx_power_cb;
+
+	ZB_SCHEDULE_APP_CALLBACK(zb_set_tx_power_async, param);
+}
+
+/**@brief Function for setting TX power for configured channels.
+ */
+void set_tx_power(void)
+{
+	zb_ret_t ret;
+	uint32_t channel_mask;
+	uint8_t channel = ZB_TRANSCEIVER_START_CHANNEL_NUMBER;
+
+#if defined(CONFIG_ZIGBEE_CHANNEL_SELECTION_MODE_SINGLE)
+	channel_mask = 1 << CONFIG_ZIGBEE_CHANNEL;
+#elif defined(CONFIG_ZIGBEE_CHANNEL_SELECTION_MODE_MULTI)
+	channel_mask = CONFIG_ZIGBEE_CHANNEL_MASK;
+#endif
+
+	for (; channel <= ZB_TRANSCEIVER_MAX_CHANNEL_NUMBER; channel++) {
+		if (channel_mask & (1 << channel)) {
+			printk("Setting tx power for channel %d: %d dBm\r\n", channel,
+				kTX_POWER);
+			ret = zb_buf_get_out_delayed_ext(schedule_tx_power_set, channel, 0);
+			if (ret != RET_OK) {
+				printk("Failed to set tx power for channel %d, error %d\r\n",
+					channel, ret);
+			}
+		}
+	}
+}
+
 void on_zigbee_start()
 {
     printk("on_zigbee_start\r\n");
@@ -610,6 +691,7 @@ int main(void)
 	printk("Presence pin state: %d\r\n", val);
 	dev_ctx.occupancy.occupancy = val;
     }
+    set_tx_power();
     zigbee_enable();
 
     printk("Main: sleep forever\r\n");
