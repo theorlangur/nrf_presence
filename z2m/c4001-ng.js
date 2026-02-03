@@ -208,18 +208,18 @@ const definition = {
         deviceAddCustomCluster('c40001Config', {
             ID: 0xfc81,
             attributes: {
-                range_min:            {ID: 0x0000, type: Zcl.DataType.SINGLE_PREC},
-                range_max:            {ID: 0x0001, type: Zcl.DataType.SINGLE_PREC},
-                range_trig:           {ID: 0x0002, type: Zcl.DataType.SINGLE_PREC},
-                inhibit_duration:     {ID: 0x0003, type: Zcl.DataType.SINGLE_PREC},
-                sensitivity_detect:   {ID: 0x0004, type: Zcl.DataType.UINT8},
-                sensitivity_hold:     {ID: 0x0005, type: Zcl.DataType.UINT8},
+                range_min:            {ID: 0x0000, type: Zcl.DataType.SINGLE_PREC, read: true, write: true},
+                range_max:            {ID: 0x0001, type: Zcl.DataType.SINGLE_PREC, read: true, write: true},
+                range_trig:           {ID: 0x0002, type: Zcl.DataType.SINGLE_PREC, read: true, write: true},
+                inhibit_duration:     {ID: 0x0003, type: Zcl.DataType.SINGLE_PREC, read: true, write: true},
+                sensitivity_detect:   {ID: 0x0004, type: Zcl.DataType.UINT8, read: true, write: true},
+                sensitivity_hold:     {ID: 0x0005, type: Zcl.DataType.UINT8, read: true, write: true},
 
-                sw_ver:               {ID: 0x0006, type: Zcl.DataType.CHAR_STR},
-                hw_ver:               {ID: 0x0007, type: Zcl.DataType.CHAR_STR},
+                sw_ver:               {ID: 0x0006, type: Zcl.DataType.CHAR_STR, read: true, write: false},
+                hw_ver:               {ID: 0x0007, type: Zcl.DataType.CHAR_STR, read: true, write: false},
 
-                detect_delay:         {ID: 0x0008, type: Zcl.DataType.SINGLE_PREC},
-                clear_delay:          {ID: 0x0009, type: Zcl.DataType.SINGLE_PREC},
+                detect_delay:         {ID: 0x0008, type: Zcl.DataType.SINGLE_PREC, read: true, write: true},
+                clear_delay:          {ID: 0x0009, type: Zcl.DataType.SINGLE_PREC, read: true, write: true},
             },
             commands: {
                 restartC4001:     { ID: 0x01, parameters: [], },
