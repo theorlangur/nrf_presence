@@ -539,8 +539,7 @@ void zboss_signal_handler(zb_bufid_t bufid)
 
 	auto ret = zb::tpl_signal_handler<zb::sig_handlers_t{
 	.on_leave = +[]{ 
-	    k_sleep(K_MSEC(2100));
-	    sys_reboot(SYS_REBOOT_COLD);
+	    printk("left the network\r\n");
 	},
 	    //.on_error = []{ led::show_pattern(led::kPATTERN_3_BLIPS_NORMED, 1000); },
 	    .on_dev_reboot = on_zigbee_start,
