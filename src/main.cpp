@@ -20,23 +20,23 @@
 /* Zigbee                                                             */
 /**********************************************************************/
 #include <nrfzbcpp/zb_main.hpp>
-extern "C"{
-#define ZB_CONFIG_ROLE_ZR
-#define ZB_CONFIG_OVERALL_NETWORK_SIZE 100 
-#define ZB_CONFIG_HIGH_TRAFFIC
-#define ZB_CONFIG_APPLICATION_COMPLEX
-#include <zb_mem_config_common.h>
-#undef ZB_CONFIG_IOBUF_POOL_SIZE
-#define ZB_CONFIG_IOBUF_POOL_SIZE 128
-#undef ZB_CONFIG_SCHEDULER_Q_SIZE
-#define ZB_CONFIG_SCHEDULER_Q_SIZE 64
-#undef ZB_CONFIG_APS_DUPS_TABLE_SIZE
-#define ZB_CONFIG_APS_DUPS_TABLE_SIZE 64
-#define ZB_CONFIG_NWK_DISC_TABLE_SIZE 32U
-
-/* Memory context definitions. */
-#include <zb_mem_config_context.h>
-}
+//extern "C"{
+//#define ZB_CONFIG_ROLE_ZED
+//#define ZB_CONFIG_OVERALL_NETWORK_SIZE 100 
+//#define ZB_CONFIG_HIGH_TRAFFIC
+//#define ZB_CONFIG_APPLICATION_COMPLEX
+//#include <zb_mem_config_common.h>
+//#undef ZB_CONFIG_IOBUF_POOL_SIZE
+//#define ZB_CONFIG_IOBUF_POOL_SIZE 128
+//#undef ZB_CONFIG_SCHEDULER_Q_SIZE
+//#define ZB_CONFIG_SCHEDULER_Q_SIZE 64
+//#undef ZB_CONFIG_APS_DUPS_TABLE_SIZE
+//#define ZB_CONFIG_APS_DUPS_TABLE_SIZE 64
+//#define ZB_CONFIG_NWK_DISC_TABLE_SIZE 32U
+//
+///* Memory context definitions. */
+//#include <zb_mem_config_context.h>
+//}
 #include <nrfzbcpp/zb_std_cluster_desc.hpp>
 #include <nrfzbcpp/zb_status_cluster_desc.hpp>
 #include <nrfzbcpp/zb_occupancy_sensing_cluster_desc.hpp>
@@ -451,7 +451,7 @@ bool update_environment_sensors()
 	sensor_channel_get(eco2sensor, sensor_channel::SENSOR_CHAN_CO2, &v);
 	zb_ep.attr<kAttrCO2>() = float(v.val1) / 1000'000.f;
 	sensor_channel_get(eco2sensor, sensor_channel::SENSOR_CHAN_VOC, &v);
-	zb_ep.attr<kAttrTVOC>() = float(v.val1) / 1000'000.f;
+	zb_ep.attr<kAttrTVOC>() = float(v.val1);
 	sensor_channel_get(eco2sensor, (sensor_channel)SENSOR_CHAN_ENS160_AQI, &v);
 	zb_ep.attr<kAttrAQI>() = (zb::zb_zcl_air_q_t::AQI)v.val1;
     }
