@@ -20,23 +20,7 @@
 /* Zigbee                                                             */
 /**********************************************************************/
 #include <nrfzbcpp/zb_main.hpp>
-//extern "C"{
-//#define ZB_CONFIG_ROLE_ZED
-//#define ZB_CONFIG_OVERALL_NETWORK_SIZE 100 
-//#define ZB_CONFIG_HIGH_TRAFFIC
-//#define ZB_CONFIG_APPLICATION_COMPLEX
-//#include <zb_mem_config_common.h>
-//#undef ZB_CONFIG_IOBUF_POOL_SIZE
-//#define ZB_CONFIG_IOBUF_POOL_SIZE 128
-//#undef ZB_CONFIG_SCHEDULER_Q_SIZE
-//#define ZB_CONFIG_SCHEDULER_Q_SIZE 64
-//#undef ZB_CONFIG_APS_DUPS_TABLE_SIZE
-//#define ZB_CONFIG_APS_DUPS_TABLE_SIZE 64
-//#define ZB_CONFIG_NWK_DISC_TABLE_SIZE 32U
-//
-///* Memory context definitions. */
-//#include <zb_mem_config_context.h>
-//}
+//#include "zb/zb_mem_cfg.hpp"
 #include <nrfzbcpp/zb_std_cluster_desc.hpp>
 #include <nrfzbcpp/zb_status_cluster_desc.hpp>
 #include <nrfzbcpp/zb_occupancy_sensing_cluster_desc.hpp>
