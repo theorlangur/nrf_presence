@@ -14,11 +14,12 @@ project(presence_dfr_c4001)
 target_include_directories(app PRIVATE submodules/esp_generic_lib/include)
 
 target_sources(app PRIVATE src/main.cpp  src/c4001_task.cpp)
-add_subdirectory(src/lib)
 
 add_subdirectory(submodules/nrf_zb_cpp)
 add_subdirectory(submodules/nrf_general)
 add_subdirectory(submodules/nrf_uart)
+
+target_include_directories(NrfLibUART PRIVATE submodules/esp_generic_lib/include)
 
 target_link_libraries(app PUBLIC NrfLibGeneral)
 target_link_libraries(app PUBLIC NrfZBCpp)

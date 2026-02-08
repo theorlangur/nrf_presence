@@ -1,6 +1,6 @@
 #ifndef C4001_TASK_HPP_
 #define C4001_TASK_HPP_
-#include "lib/lib_dfr_c4001.h"
+#include <nrf_uart/periphery/lib_dfr_c4001.h>
 #include <utility>
 #include <variant>
 #include <nrf_general/lib_msgq_typed.hpp>
