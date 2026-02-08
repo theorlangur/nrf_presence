@@ -7,3 +7,6 @@
 [submodule "submodules/nrf_general"]
 	path = submodules/nrf_general
 	url = git@github.com:theorlangur/nrf_general.git
+[submodule "submodules/nrf_uart"]
+	path = submodules/nrf_uart
+	url = git@github.com:theorlangur/nrf_uart.git

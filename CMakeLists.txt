@@ -18,9 +18,11 @@ add_subdirectory(src/lib)
 
 add_subdirectory(submodules/nrf_zb_cpp)
 add_subdirectory(submodules/nrf_general)
+add_subdirectory(submodules/nrf_uart)
 
 target_link_libraries(app PUBLIC NrfLibGeneral)
 target_link_libraries(app PUBLIC NrfZBCpp)
+target_link_libraries(app PUBLIC NrfLibUART)
 
 include(cmake/CustomLibcxx.cmake)
 
