@@ -13,6 +13,7 @@
 #include "c4001_task.hpp"
 #include <dk_buttons_and_leds.h>
 #include <nrf_general/led.h>
+#include <nrf_uart/periphery/lib_ld2412.hpp>
 
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/sensor/ens160.h>
@@ -583,8 +584,73 @@ static void button_changed(uint32_t button_state, uint32_t has_changed)
     }
 }
 
+int test_ld2412()
+{
+    LD2412 ld(c4001_uart1);
+    auto initRes = ld.Init();
+    if (!initRes)
+    {
+	FMT_PRINTLN("Init failed with {}", initRes.error());
+	return 1;
+    }
+    FMT_PRINTLN("Version: {}", ld.GetVersion());
+    FMT_PRINTLN("BT: {}", ld.GetBluetoothMAC());
+    FMT_PRINTLN("SysMode: {}", ld.GetSystemMode());
+    FMT_PRINTLN("Timeout: {}", ld.GetTimeout());
+    FMT_PRINTLN("Dist resolution: {}", ld.GetDistanceRes());
+    FMT_PRINTLN("Min dist: {}", ld.GetMinDistance());
+    FMT_PRINTLN("Max dist: {}", ld.GetMaxDistance());
+    for(int i = 0; i < 14; ++i)
+    {
+	FMT_PRINTLN("Gate {}; Threshold: move: {}; still: {}", i + 1, ld.GetMoveThreshold(i), ld.GetStillThreshold(i));
+    }
+
+    FMT_PRINTLN("Switching to energy mode...");
+    auto ccR = ld.ChangeConfiguration()
+	.SetSystemMode(LD2412::SystemMode::Energy)
+    .EndChange();
+    if (!ccR)
+    {
+	FMT_PRINTLN("Switching to energy mode failed with {}", ccR.error());
+    }
+    else
+    {
+	FMT_PRINTLN("Switching to energy mode OK");
+    }
+
+    ld.StartContinuousReading();
+    while(true)
+    {
+	//auto readFrame = ld.TryReadSingleFrame();
+	auto readFrame = ld.TryReadFrame();
+	if (!readFrame)
+	{
+	    FMT_PRINTLN("Failed to read frame with {}", readFrame.error());
+	    return 2;
+	}
+	FMT_PRINTLN("Presence: {}; Light: {}", ld.GetPresence(), ld.GetMeasuredLight());
+	if (ld.GetSystemMode() == LD2412::SystemMode::Energy)
+	{
+	    printk("E: ");
+	    for(int i = 0; i < 14; ++i)
+	    {
+		FMT_PRINT("G{};M:{};S:{}|", i + 1, ld.GetMeasuredMoveEnergy(i), ld.GetMeasuredStillEnergy(i));
+	    }
+	    printk("\n");
+	}
+    }
+    return 0;
+}
+
 int main(void)
 {
+    printk("waiting...\n");
+    k_msleep(10000);
+    auto r = test_ld2412();
+    k_msleep(60000);
+    return r;
+
+
     int err = settings_subsys_init();
     err = settings_load();
 
