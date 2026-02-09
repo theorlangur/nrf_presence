@@ -13,7 +13,7 @@
 #include "c4001_task.hpp"
 #include <dk_buttons_and_leds.h>
 #include <nrf_general/led.h>
-#include <nrf_uart/periphery/lib_ld2412.hpp>
+//#include <nrf_uart/periphery/lib_ld2412.hpp>
 
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/sensor/ens160.h>
@@ -30,6 +30,7 @@
 #include <nrfzbcpp/zb_co2_cluster_desc.hpp>
 #include <nrfzbcpp/zb_nstd_air_q_cluster_desc.hpp>
 #include "zb/zb_c4001_cluster_desc.hpp"
+#include "zb/zb_ld2412_cluster_desc.hpp"
 #include <osif/mac_platform.h>
 
 /**********************************************************************/
@@ -79,6 +80,8 @@ struct device_ctx_t{
     zb::zb_zcl_status_t status_attr;
     zb::zb_zcl_occupancy_pir_and_ultrasonic_t occupancy;
     zb::zb_zcl_on_off_attrs_client_t on_off_client;
+    zb::zb_zcl_ld2412_t ld2412_main;
+    zb::zb_zcl_ld2412_t ld2412_aux;
     zb::zb_zcl_c4001_t c4001;
     zb::zb_zcl_c4001_t c4001_aux;
     zb::zb_zcl_rel_humid_basic_t humidity;
@@ -158,6 +161,14 @@ static constinit device_ctx_t dev_ctx{
 	/*.manufacturer =*/ INIT_BASIC_MANUF_NAME,
 	/*.model =*/ INIT_BASIC_MODEL_ID,
     },
+    .ld2412_main{
+	.still_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
+	,.move_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
+    },
+    .ld2412_aux{
+	.still_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
+	,.move_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
+    },
     .c4001{
 	.cmd_restart = {.cb = on_cmd_restart<c4001_1>},
 	.cmd_save_config = {.cb = on_cmd_save_config<c4001_1>},
@@ -176,6 +187,7 @@ constinit static auto zb_ctx = zb::make_device(
 	    , dev_ctx.status_attr
 	    , dev_ctx.occupancy
 	    , dev_ctx.c4001
+	    , dev_ctx.ld2412_main
 	    , dev_ctx.humidity
 	    , dev_ctx.temperature
 	    , dev_ctx.co2
@@ -184,6 +196,7 @@ constinit static auto zb_ctx = zb::make_device(
 	    ),
 	zb::make_ep_args<{.ep=kMMW_AUX_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
 	    dev_ctx.c4001_aux
+	    , dev_ctx.ld2412_aux
 	    )
 	);
 
