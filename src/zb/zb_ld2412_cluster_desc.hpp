@@ -46,10 +46,13 @@ namespace zb
         uint8_t statistics_collection_time_window = 0;
         ZigbeeBinTyped<energy_stat_t, 14> energy_stat_still;
         ZigbeeBinTyped<energy_stat_t, 14> energy_stat_move;
+        LD2412::LightSensitivity light_sense_mode = LD2412::LightSensitivity::Off; 
+        uint8_t light_sense_threshold = 0;
 
         cmd_in_t<1> cmd_restart;
         cmd_in_t<2> cmd_factory_reset;
         cmd_in_t<3> cmd_run_background_analysis;
+        cmd_in_t<4> cmd_take_statistic_snapshot;
     };
 
     template<> struct zcl_description_t<zb_zcl_ld2412_t> {
@@ -69,13 +72,18 @@ namespace zb
                     ,attribute_t{.m = &T::still_energy_thresholds,            .id = 0x0007, .a=Access::RW}
                     ,attribute_t{.m = &T::move_energy_thresholds,             .id = 0x0008, .a=Access::RW}
                     ,attribute_t{.m = &T::light_level,                        .id = 0x0009, .a=Access::RW}
-                    ,attribute_t{.m = &T::flags,                              .id = 0x000a, .a=Access::RW, .type=Type::U8}
+                    ,attribute_t{.m = &T::flags,                              .id = 0x000a, .a=Access::RWP, .type=Type::U8}
                     ,attribute_t{.m = &T::statistics_collection_time_window,  .id = 0x000b, .a=Access::RW}
                     ,attribute_t{.m = &T::energy_stat_still,                  .id = 0x000c, .a=Access::Read}
                     ,attribute_t{.m = &T::energy_stat_move,                   .id = 0x000d, .a=Access::Read}
+                    ,attribute_t{.m = &T::light_sense_mode,                   .id = 0x000e, .a=Access::RW}
+                    ,attribute_t{.m = &T::light_sense_threshold,              .id = 0x000f, .a=Access::RW}
                 >{},
                 commands_t<
-                    &T::cmd_restart, &T::cmd_factory_reset, &T::cmd_run_background_analysis
+                    &T::cmd_restart, 
+                    &T::cmd_factory_reset, 
+                    &T::cmd_run_background_analysis, 
+                    &T::cmd_take_statistic_snapshot
                 >{}
             >{};
         }

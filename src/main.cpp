@@ -13,7 +13,6 @@
 #include "c4001_task.hpp"
 #include <dk_buttons_and_leds.h>
 #include <nrf_general/led.h>
-//#include <nrf_uart/periphery/lib_ld2412.hpp>
 
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/sensor/ens160.h>
@@ -31,6 +30,7 @@
 #include <nrfzbcpp/zb_nstd_air_q_cluster_desc.hpp>
 #include "zb/zb_c4001_cluster_desc.hpp"
 #include "zb/zb_ld2412_cluster_desc.hpp"
+#include <nrf_uart/periphery/lib_ld2412_formatters.hpp>
 #include <osif/mac_platform.h>
 
 /**********************************************************************/
@@ -648,6 +648,8 @@ int test_ld2412()
     FMT_PRINTLN("Dist resolution: {}", ld.GetDistanceRes());
     FMT_PRINTLN("Min dist: {}", ld.GetMinDistance());
     FMT_PRINTLN("Max dist: {}", ld.GetMaxDistance());
+    FMT_PRINTLN("Light sense mode: {}", ld.GetLightSensitivityMode());
+    FMT_PRINTLN("Light sense Threshold: {}", ld.GetLightSensitivityThreshold());
     for(int i = 0; i < 14; ++i)
     {
 	FMT_PRINTLN("Gate {}; Threshold: move: {}; still: {}", i + 1, ld.GetMoveThreshold(i), ld.GetStillThreshold(i));
@@ -686,8 +688,6 @@ int test_ld2412()
 	    }
 	    printk("\n");
 	}
-	int state = gpio_pin_get_dt(&pir);
-	FMT_PRINTLN("PIR pin: {}", state);
     }
     return 0;
 }
