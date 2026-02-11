@@ -228,11 +228,13 @@ static const struct gpio_dt_spec led0 = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 ///* Get the node from the alias */
 #define SENSOR_NODE DT_ALIAS(presence)
 #define SENSOR_NODE2 DT_ALIAS(presence2)
+#define PIR_NODE2 DT_ALIAS(pir)
 
 /* Get the GPIO spec directly from the node */
 /* Note: We look for the property "gpios" inside the node */
 static const struct gpio_dt_spec presence = GPIO_DT_SPEC_GET(SENSOR_NODE, gpios);
 static const struct gpio_dt_spec presence2 = GPIO_DT_SPEC_GET(SENSOR_NODE2, gpios);
+static const struct gpio_dt_spec pir = GPIO_DT_SPEC_GET(PIR_NODE2, gpios);
 
 static const struct device *const eco2sensor = DEVICE_DT_GET(DT_NODELABEL(eco2sensor));
 static const struct device *const rht2sensor = DEVICE_DT_GET(DT_NODELABEL(rht2sensor));
@@ -597,8 +599,41 @@ static void button_changed(uint32_t button_state, uint32_t has_changed)
     }
 }
 
+gpio_callback g_test_pir_cb;
+
+void test_pir(const struct device *port,
+					struct gpio_callback *cb,
+					gpio_port_pins_t pins)
+{
+    int state = gpio_pin_get_dt(&pir);
+    gpio_pin_set_dt(&led0, state);
+}
+
+int config_pir()
+{
+    gpio_pin_configure_dt(&led0, GPIO_OUTPUT_ACTIVE);
+    gpio_pin_set_dt(&led0, 0);
+    int err = gpio_pin_configure_dt(&pir, GPIO_INPUT);
+    if (err != 0)
+    {
+	printk("gpio_pin_configure_dt: %d\r\n", err);
+	return err;
+    }
+    err = gpio_pin_interrupt_configure_dt(&pir, GPIO_INT_EDGE_BOTH);
+    if (err != 0)
+    {
+	printk("gpio_pin_interrupt_configure_dt: %d\r\n", err);
+	return err;
+    }
+
+    gpio_init_callback(&g_test_pir_cb, test_pir, BIT(pir.pin));
+    err = gpio_add_callback_dt(&pir, &g_test_pir_cb);
+    return err;
+}
+
 int test_ld2412()
 {
+    config_pir();
     LD2412 ld(c4001_uart1);
     auto initRes = ld.Init();
     if (!initRes)
@@ -651,6 +686,8 @@ int test_ld2412()
 	    }
 	    printk("\n");
 	}
+	int state = gpio_pin_get_dt(&pir);
+	FMT_PRINTLN("PIR pin: {}", state);
     }
     return 0;
 }
