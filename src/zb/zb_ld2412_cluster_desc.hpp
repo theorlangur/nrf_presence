@@ -22,7 +22,59 @@ namespace zb
         static constexpr uint8_t kCMD_RUN_BACK_ANALYSIS  = 3;
         static constexpr uint8_t kCMD_TAKE_STAT_SNAPSHOT = 4;
 
-        hlk::LD2412::DistanceRes distance_resolution = hlk::LD2412::DistanceRes::_0_50;
+        static bool validate_gates(uint8_t *value)
+        {
+            ZigbeeBin<15> *pT = (ZigbeeBin<15>*)value;
+            if (pT->data[0] != 14)
+                return false;
+
+            for(int i = 1; i < 15; ++i)
+                if (pT->data[i] > 100)
+                    return false;
+            return true;
+        }
+        static bool validate_stat_sample_count(uint8_t *value)
+        {
+            return *value <= 128;
+        }
+
+        struct [[gnu::packed]] base_cfg_t
+        {
+            float range_min = 0.2f;
+            float range_max = 10;
+            uint16_t clear_delay = 0;//seconds
+            hlk::LD2412::DistanceRes distance_resolution = hlk::LD2412::DistanceRes::_0_50;
+
+            static bool Validate(const base_cfg_t *pCfg) { 
+                return 
+                    (pCfg->range_min >= 0.f && pCfg->range_min <= 10.f)
+                    && (pCfg->range_max >= 0.f && pCfg->range_max <= 10.f)
+                    && (pCfg->range_max >= pCfg->range_min)
+                    && (
+                            pCfg->distance_resolution == hlk::LD2412::DistanceRes::_0_20
+                            || pCfg->distance_resolution == hlk::LD2412::DistanceRes::_0_50
+                            || pCfg->distance_resolution == hlk::LD2412::DistanceRes::_0_75
+                    );
+            }
+        };
+
+        struct [[gnu::packed]] light_sense_cfg_t{
+            hlk::LD2412::LightSensitivity mode = hlk::LD2412::LightSensitivity::Off; 
+            uint8_t threshold = 0;
+
+            static bool Validate(const light_sense_cfg_t *pCfg) { 
+                return 
+                    (
+                            pCfg->mode == hlk::LD2412::LightSensitivity::Off
+                            || pCfg->mode == hlk::LD2412::LightSensitivity::DetectWhenBiggerThan
+                            || pCfg->mode == hlk::LD2412::LightSensitivity::DetectWhenLessThan
+                    );
+            }
+        };
+
+        /**********************************************************************/
+        /* Data members go here                                               */
+        /**********************************************************************/
         uint8_t light_level = 0;
         struct
         {
@@ -32,24 +84,20 @@ namespace zb
             uint8_t collect_statistics          : 1 = 0;
             uint8_t unused                      : 4 = 0;
         } flags = {};
-        float range_min = 0.2f;
-        float range_max = 10;
-        uint16_t clear_delay = 0;//seconds
 
-        //TODO: validate values
+        ZigbeeBinTyped<base_cfg_t> base_config;
         ZigbeeBin<15> still_energy_thresholds = gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
         ZigbeeBin<15> move_energy_thresholds = gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
-
         ZigbeeBin<7> bluetooth_mac;
         ZigbeeStr<32> sw_ver;
-
         uint8_t statistics_sample_count_window = 0;
-        ZigbeeBinTyped<energy_stat_t, 14> energy_stat_still;
-        ZigbeeBinTyped<energy_stat_t, 14> energy_stat_move;
+        ZigbeeBinTypedArray<energy_stat_t, 14> energy_stat_still;
+        ZigbeeBinTypedArray<energy_stat_t, 14> energy_stat_move;
+        ZigbeeBinTyped<light_sense_cfg_t> light_sense = light_sense_cfg_t{}; 
 
-        hlk::LD2412::LightSensitivity light_sense_mode = hlk::LD2412::LightSensitivity::Off; 
-        uint8_t light_sense_threshold = 0;
-
+        /**********************************************************************/
+        /* Commands                                                           */
+        /**********************************************************************/
         cmd_in_t<kCMD_RESTART>            cmd_restart;
         cmd_in_t<kCMD_FACTORY_RESET>      cmd_factory_reset;
         cmd_in_t<kCMD_RUN_BACK_ANALYSIS>  cmd_run_background_analysis;
@@ -63,21 +111,17 @@ namespace zb
             return cluster_t<
                 cluster_info_t{.id = kZB_ZCL_CLUSTER_ID_LD2412},
                 attributes_t<
-                     attribute_t{.m = &T::distance_resolution,                .id = 0x0000, .a=Access::RW}
-                    ,attribute_t{.m = &T::range_min,                          .id = 0x0001, .a=Access::RW}
-                    ,attribute_t{.m = &T::range_max,                          .id = 0x0002, .a=Access::RW}
-                    ,attribute_t{.m = &T::sw_ver,                             .id = 0x0003, .a=Access::Read}
-                    ,attribute_t{.m = &T::bluetooth_mac,                      .id = 0x0004, .a=Access::Read}
-                    ,attribute_t{.m = &T::clear_delay,                        .id = 0x0005, .a=Access::RW}
-                    ,attribute_t{.m = &T::still_energy_thresholds,            .id = 0x0006, .a=Access::RW}
-                    ,attribute_t{.m = &T::move_energy_thresholds,             .id = 0x0007, .a=Access::RW}
-                    ,attribute_t{.m = &T::light_level,                        .id = 0x0008, .a=Access::RP}
-                    ,attribute_t{.m = &T::flags,                              .id = 0x0009, .a=Access::RWP, .type=Type::U8}
-                    ,attribute_t{.m = &T::statistics_sample_count_window,     .id = 0x000a, .a=Access::RW}
-                    ,attribute_t{.m = &T::energy_stat_still,                  .id = 0x000b, .a=Access::RP}
-                    ,attribute_t{.m = &T::energy_stat_move,                   .id = 0x000c, .a=Access::RP}
-                    ,attribute_t{.m = &T::light_sense_mode,                   .id = 0x000d, .a=Access::RW}
-                    ,attribute_t{.m = &T::light_sense_threshold,              .id = 0x000e, .a=Access::RW}
+                     attribute_t{.m = &T::base_config,                        .id = 0x0000, .a=Access::RW}
+                    ,attribute_t{.m = &T::sw_ver,                             .id = 0x0001, .a=Access::Read}
+                    ,attribute_t{.m = &T::bluetooth_mac,                      .id = 0x0002, .a=Access::Read}
+                    ,attribute_t{.m = &T::still_energy_thresholds,            .id = 0x0003, .a=Access::RW, .validator = &T::validate_gates}
+                    ,attribute_t{.m = &T::move_energy_thresholds,             .id = 0x0004, .a=Access::RW, .validator = &T::validate_gates}
+                    ,attribute_t{.m = &T::light_level,                        .id = 0x0005, .a=Access::RP}
+                    ,attribute_t{.m = &T::flags,                              .id = 0x0006, .a=Access::RWP, .type=Type::U8}
+                    ,attribute_t{.m = &T::statistics_sample_count_window,     .id = 0x0007, .a=Access::RW, .validator = &T::validate_stat_sample_count}
+                    ,attribute_t{.m = &T::energy_stat_still,                  .id = 0x0008, .a=Access::RP}
+                    ,attribute_t{.m = &T::energy_stat_move,                   .id = 0x0009, .a=Access::RP}
+                    ,attribute_t{.m = &T::light_sense,                        .id = 0x000a, .a=Access::RW}
                 >{},
                 commands_t<
                     &T::cmd_restart, 

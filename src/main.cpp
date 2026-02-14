@@ -100,11 +100,9 @@ constexpr auto kAttrStatus3 = &zb::zb_zcl_status_t::status3;
 /**********************************************************************/
 /* LD2412 attributes                                                  */
 /**********************************************************************/
-constexpr auto kAttrRMin = &zb::zb_zcl_ld2412_t::range_min;
-constexpr auto kAttrRMax = &zb::zb_zcl_ld2412_t::range_max;
+constexpr auto kAttrBaseCfg = &zb::zb_zcl_ld2412_t::base_config;
 constexpr auto kAttrStillThr = &zb::zb_zcl_ld2412_t::still_energy_thresholds;
 constexpr auto kAttrMoveThr = &zb::zb_zcl_ld2412_t::move_energy_thresholds;
-constexpr auto kAttrDistRes = &zb::zb_zcl_ld2412_t::distance_resolution;
 constexpr auto kAttrLightLevel = &zb::zb_zcl_ld2412_t::light_level;
 
 
