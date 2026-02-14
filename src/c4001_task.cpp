@@ -4,19 +4,10 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 #include "c4001_task.hpp"
+#include <lib_misc_helpers.hpp>
 
 namespace c4001
 {
-    namespace{
-	template<class... O>
-	struct overloaded:O...
-	{
-	    using O::operator()...;
-	};
-	template<class... O>
-	overloaded(O... o)->overloaded<O...>;
-    };
-
     Instance::Instance(C4001Q &q, const struct device *uart, const char* thread_name):
 	c4001_thread_name(thread_name),
 	c4001q(q),

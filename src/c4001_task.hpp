@@ -104,8 +104,8 @@ namespace c4001
         void reset_config();
         void restart();
 
-        static void c4001_thread_entry(void *, void *, void *);
     private:
+        static void c4001_thread_entry(void *, void *, void *);
         void c4001_mainloop();
 
 
