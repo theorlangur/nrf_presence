@@ -10,7 +10,6 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/settings/settings.h>
-#include "c4001_task.hpp"
 #include "ld2412_task.hpp"
 #include <nrf_uart/periphery/lib_ld2412_formatters.hpp>
 #include <dk_buttons_and_leds.h>
@@ -30,27 +29,14 @@
 #include <nrfzbcpp/zb_temp_cluster_desc.hpp>
 #include <nrfzbcpp/zb_co2_cluster_desc.hpp>
 #include <nrfzbcpp/zb_nstd_air_q_cluster_desc.hpp>
-#include "zb/zb_c4001_cluster_desc.hpp"
 #include "zb/zb_ld2412_cluster_desc.hpp"
 #include <nrf_uart/periphery/lib_ld2412.hpp>
 #include <osif/mac_platform.h>
 
-/**********************************************************************/
-/* C4001 presence sensor configurations/data                          */
-/**********************************************************************/
-#define DFR_UART_NODE DT_ALIAS(dfr_uart)
-#define DFR_UART_NODE2 DT_ALIAS(dfr_uart2)
-constinit const struct device *c4001_uart1 = DEVICE_DT_GET(DFR_UART_NODE);
-constinit const struct device *c4001_uart2 = DEVICE_DT_GET(DFR_UART_NODE2);
-
-K_MSGQ_DEFINE_TYPED(c4001::Instance::C4001Q, c4001q_1);
-K_MSGQ_DEFINE_TYPED(c4001::Instance::C4001Q, c4001q_2);
-
-c4001::Instance c4001_1(c4001q_1, c4001_uart1, "c4001_1");
-c4001::Instance c4001_2(c4001q_2, c4001_uart2, "c4001_2");
-
-constinit static dfr::C4001 *pC4001_1 = nullptr;
-constinit static dfr::C4001 *pC4001_2 = nullptr;
+#define MMWAVE_UART_NODE DT_ALIAS(mmwave_uart)
+#define MMWAVE_UART_NODE2 DT_ALIAS(mmwave_uart2)
+constinit const struct device *mmwave_uart1 = DEVICE_DT_GET(MMWAVE_UART_NODE);
+constinit const struct device *mmwave_uart2 = DEVICE_DT_GET(MMWAVE_UART_NODE2);
 
 /**********************************************************************/
 /* LD2412 presence sensor configurations/data                         */
@@ -58,8 +44,8 @@ constinit static dfr::C4001 *pC4001_2 = nullptr;
 K_MSGQ_DEFINE_TYPED(ld2412::Queue, ld2412q_1);
 K_MSGQ_DEFINE_TYPED(ld2412::Queue, ld2412q_2);
 
-ld2412::Instance ld2412_1(ld2412q_1, c4001_uart1, "ld2412_1");
-ld2412::Instance ld2412_2(ld2412q_2, c4001_uart2, "ld2412_2");
+ld2412::Instance ld2412_1(ld2412q_1, mmwave_uart1, "ld2412_1");
+ld2412::Instance ld2412_2(ld2412q_2, mmwave_uart2, "ld2412_2");
 
 constinit static hlk::LD2412 *pLD2412_1 = nullptr;
 constinit static hlk::LD2412 *pLD2412_2 = nullptr;
@@ -96,8 +82,6 @@ struct device_ctx_t{
     zb::zb_zcl_on_off_attrs_client_t on_off_client;
     zb::zb_zcl_ld2412_t ld2412_main;
     zb::zb_zcl_ld2412_t ld2412_aux;
-    zb::zb_zcl_c4001_t c4001;
-    zb::zb_zcl_c4001_t c4001_aux;
     zb::zb_zcl_rel_humid_basic_t humidity;
     zb::zb_zcl_temp_basic_t temperature;
     zb::zb_zcl_co2_basic_t co2;
@@ -114,14 +98,14 @@ constexpr auto kAttrStatus2 = &zb::zb_zcl_status_t::status2;
 constexpr auto kAttrStatus3 = &zb::zb_zcl_status_t::status3;
 
 /**********************************************************************/
-/* C4001 attributes                                                   */
+/* LD2412 attributes                                                  */
 /**********************************************************************/
-constexpr auto kAttrRMin = &zb::zb_zcl_c4001_t::range_min;
-constexpr auto kAttrRMax = &zb::zb_zcl_c4001_t::range_max;
-constexpr auto kAttrRTrig = &zb::zb_zcl_c4001_t::range_trig;
-constexpr auto kAttrInhibitDuration = &zb::zb_zcl_c4001_t::inhibit_duration;
-constexpr auto kAttrSTrig = &zb::zb_zcl_c4001_t::sensitivity_detect;
-constexpr auto kAttrSHold = &zb::zb_zcl_c4001_t::sensitivity_hold;
+constexpr auto kAttrRMin = &zb::zb_zcl_ld2412_t::range_min;
+constexpr auto kAttrRMax = &zb::zb_zcl_ld2412_t::range_max;
+constexpr auto kAttrStillThr = &zb::zb_zcl_ld2412_t::still_energy_thresholds;
+constexpr auto kAttrMoveThr = &zb::zb_zcl_ld2412_t::move_energy_thresholds;
+constexpr auto kAttrDistRes = &zb::zb_zcl_ld2412_t::distance_resolution;
+constexpr auto kAttrLightLevel = &zb::zb_zcl_ld2412_t::light_level;
 
 
 /**********************************************************************/
@@ -158,12 +142,14 @@ constexpr auto kAttrClearToDetectDelay = &zb::zb_zcl_occupancy_ultrasonic_t::Ult
 constexpr auto kCmdOn = &zb::zb_zcl_on_off_attrs_client_t::on;
 constexpr auto kCmdOff = &zb::zb_zcl_on_off_attrs_client_t::off;
 
-template<c4001::Instance &i>
+template<ld2412::Instance &i>
 zb::CmdHandlingResult on_cmd_restart();
-template<c4001::Instance &i>
-zb::CmdHandlingResult on_cmd_save_config();
-template<c4001::Instance &i>
-zb::CmdHandlingResult on_cmd_reset_config();
+template<ld2412::Instance &i>
+zb::CmdHandlingResult on_cmd_factory_reset();
+template<ld2412::Instance &i>
+zb::CmdHandlingResult on_cmd_run_back_analysis();
+template<ld2412::Instance &i>
+zb::CmdHandlingResult on_cmd_do_stat_snapshot();
 
 /* Zigbee device application context storage. */
 static constinit device_ctx_t dev_ctx{
@@ -178,21 +164,19 @@ static constinit device_ctx_t dev_ctx{
     .ld2412_main{
 	.still_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
 	,.move_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
+	,.cmd_restart = {.cb = on_cmd_restart<ld2412_1>}
+	,.cmd_factory_reset = {.cb = on_cmd_factory_reset<ld2412_1>}
+	,.cmd_run_background_analysis = {.cb = on_cmd_run_back_analysis<ld2412_1>}
+	,.cmd_take_statistic_snapshot = {.cb = on_cmd_do_stat_snapshot<ld2412_1>}
     },
     .ld2412_aux{
 	.still_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
 	,.move_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
+	,.cmd_restart = {.cb = on_cmd_restart<ld2412_2>}
+	,.cmd_factory_reset = {.cb = on_cmd_factory_reset<ld2412_2>}
+	,.cmd_run_background_analysis = {.cb = on_cmd_run_back_analysis<ld2412_2>}
+	,.cmd_take_statistic_snapshot = {.cb = on_cmd_do_stat_snapshot<ld2412_2>}
     },
-    .c4001{
-	.cmd_restart = {.cb = on_cmd_restart<c4001_1>},
-	.cmd_save_config = {.cb = on_cmd_save_config<c4001_1>},
-	.cmd_reset_config = {.cb = on_cmd_reset_config<c4001_1>}
-    },
-    .c4001_aux{
-	.cmd_restart = {.cb = on_cmd_restart<c4001_2>},
-	.cmd_save_config = {.cb = on_cmd_save_config<c4001_2>},
-	.cmd_reset_config = {.cb = on_cmd_reset_config<c4001_2>}
-    }
 };
 
 constinit static auto zb_ctx = zb::make_device(
@@ -200,19 +184,17 @@ constinit static auto zb_ctx = zb::make_device(
 	    dev_ctx.basic_attr
 	    , dev_ctx.status_attr
 	    , dev_ctx.occupancy
-	    , dev_ctx.c4001
 	    , dev_ctx.ld2412_main
 	    , dev_ctx.humidity
 	    , dev_ctx.temperature
 	    , dev_ctx.co2
 	    , dev_ctx.airq
 	    , dev_ctx.on_off_client
-	    ),
+	),
 	zb::make_ep_args<{.ep=kMMW_AUX_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
-	    dev_ctx.c4001_aux
-	    , dev_ctx.ld2412_aux
-	    )
-	);
+	    dev_ctx.ld2412_aux
+	)
+    );
 
 /**********************************************************************/
 /* Defining access to the global zigbee device context                */
@@ -306,42 +288,53 @@ void presence_triggered(const struct device *port,
     }
 }
 
-template<c4001::Instance &i>
+template<ld2412::Instance &i>
 zb::CmdHandlingResult on_cmd_restart()
 {
-    printk("c4001::restart\r\n");
+    printk("ld2412::restart\r\n");
     i.restart();
     return {};
 }
 
-template<c4001::Instance &i>
-zb::CmdHandlingResult on_cmd_save_config()
+template<ld2412::Instance &i>
+zb::CmdHandlingResult on_cmd_factory_reset()
 {
-    printk("c4001::save_config\r\n");
-    i.save_config();
+    printk("ld2412::factory_reset\r\n");
+    i.factory_reset();
     return {};
 }
 
-template<c4001::Instance &i>
-zb::CmdHandlingResult on_cmd_reset_config()
+template<ld2412::Instance &i>
+void on_back_analysis_done(ld2412::run_background_analysis_t::Result result)
 {
-    printk("c4001::reset_config\r\n");
-    i.reset_config();
+}
+
+template<ld2412::Instance &i>
+zb::CmdHandlingResult on_cmd_run_back_analysis()
+{
+    printk("ld2412::run_back_analysis\r\n");
+    i.run_back_analysis({&on_back_analysis_done<i>});
     return {};
 }
 
-void on_set_detect_to_clear_delay(uint16_t OtoU)
+template<ld2412::Instance &i>
+void on_get_stat_snapshot(hlk::LD2412::energy_stat_array_t const& still, hlk::LD2412::energy_stat_array_t const& move)
 {
-    c4001_1.set_clear_delay(OtoU);
-    c4001_2.set_clear_delay(OtoU);
 }
 
-void on_set_clear_to_detect_delay(uint16_t UtoO)
+template<ld2412::Instance &i>
+zb::CmdHandlingResult on_cmd_do_stat_snapshot()
 {
-    c4001_1.set_detect_delay(UtoO);
-    c4001_2.set_detect_delay(UtoO);
+    printk("ld2412::do_stat_snapshot\r\n");
+    i.take_statistic_snapshot({&on_get_stat_snapshot<i>});
+    return {};
 }
 
+//void on_set_detect_to_clear_delay(uint16_t OtoU)
+//{
+//    ld2412_1.set_clear_delay(OtoU);
+//    ld2412_2.set_clear_delay(OtoU);
+//}
 
 void send_on_off(uint8_t val)
 {
@@ -357,85 +350,39 @@ void on_dev_cb_error(int err)
     printk("on_dev_cb_error: %d\r\n", err);
 }
 
-template<c4001::Instance &i, auto &zb>
-void zb_c4001_update(uint8_t e)
+template<ld2412::Instance &i, auto &zb>
+void zb_ld2412_update()
 {
-    using namespace c4001; 
-    cfg_id_t id = (cfg_id_t)e;
-    auto *pC4001 = i.sensor();
-    if (id & cfg_id_t::Range)
-    {
-	zb.template attr<kAttrRMin>() = pC4001->GetRangeFrom();
-	zb.template attr<kAttrRMax>() = pC4001->GetRangeTo();
-    }
-    if (id & cfg_id_t::RangeTrig)
-    {
-	zb.template attr<kAttrRTrig>() = pC4001->GetTriggerDistance();
-    }
-    if (id & cfg_id_t::Delay)
-    {
-	zb_ep.attr<kAttrClearToDetectDelay>() = pC4001->GetDetectLatency();
-	zb_ep.attr<kAttrDetectToClearDelay>() = pC4001->GetClearLatency();
-    }
-    if (id & cfg_id_t::InhibitDuration)
-    {
-	zb.template attr<kAttrInhibitDuration>() = pC4001->GetInhibitDuration();
-    }
-    if (id & cfg_id_t::Sensitivity)
-    {
-	zb.template attr<kAttrSTrig>() = pC4001->GetSensitivityTrig();
-	zb.template attr<kAttrSHold>() = pC4001->GetSensitivityHold();
-    }
+    using namespace ld2412; 
+    auto *pLD2412 = i.sensor();
+    //zb.template attr<kAttrRMin>() = pLD2412->GetRangeFrom();
+    //zb.template attr<kAttrRMax>() = pLD2412->GetRangeTo();
+    //zb_ep.attr<kAttrDetectToClearDelay>() = pLD2412->GetClearLatency();
+    //zb.template attr<kAttrStillThr>() = pLD2412->GetAllStillThresholds();
+    //zb.template attr<kAttrMoveThr>() = pLD2412->GetAllMoveThresholds();
 }
 
-template<c4001::Instance &i, auto &zb>
-void zb_c4001_error(uint8_t e)
+template<ld2412::Instance &i, auto &zb>
+void zb_ld2412_error(uint8_t e)
 {
-    using namespace c4001;
+    using namespace ld2412;
     //generally: set zb attributes to current values
-    switch(err_t(e))
-    {
-	case err_t::Range:
-	    zb_c4001_update<i, zb>((uint8_t)cfg_id_t::Range);
-	    break;
-	case err_t::RangeTrig:
-	    zb_c4001_update<i, zb>((uint8_t)cfg_id_t::RangeTrig);
-	    break;
-	case err_t::Delay:
-	    zb_c4001_update<i, zb>((uint8_t)cfg_id_t::Delay);
-	    break;
-	case err_t::InhibitDuration:
-	    zb_c4001_update<i, zb>((uint8_t)cfg_id_t::InhibitDuration);
-	    break;
-	case err_t::Sensitivity:
-	    zb_c4001_update<i, zb>((uint8_t)cfg_id_t::Sensitivity);
-	    break;
-	default:
-	break;
-    }
+    zb_ld2412_update<i, zb>();
     zb_ep.attr<kAttrStatus1>() = e;
-}
-
-template<c4001::Instance &i, auto &zb>
-void on_c4001_error(c4001::err_t e)
-{
-    if (g_ZigbeeReady)
-	zb_schedule_app_callback(&zb_c4001_error<i, zb>, (uint8_t)e);
-}
-
-template<c4001::Instance &i, auto &zb>
-void on_c4001_upd(c4001::cfg_id_t id)
-{
-    if (g_ZigbeeReady)
-	zb_schedule_app_callback(&zb_c4001_update<i, zb>, (uint8_t)id);
 }
 
 template<ld2412::Instance &i, auto &zb>
 void on_ld2412_error(ld2412::err_t e)
 {
-    //TODO: implement
-	//   if (g_ZigbeeReady)
-	//zb_schedule_app_callback(&zb_c4001_error<i, zb>, (uint8_t)e);
+    if (g_ZigbeeReady)
+	zb_schedule_app_callback(&zb_ld2412_error<i, zb>, (uint8_t)e);
+}
+
+template<ld2412::Instance &i, auto &zb>
+void on_ld2412_upd()
+{
+    if (g_ZigbeeReady)
+	zb_schedule_app_callback(&zb_ld2412_update<i, zb>, (uint8_t)0);
 }
 
 template<ld2412::Instance &i, auto &zb>
@@ -446,20 +393,14 @@ void on_ld2412_notify(ld2412::notification_id_t id)
 	//zb_schedule_app_callback(&zb_c4001_update<i, zb>, (uint8_t)id);
 }
 
-template<c4001::Instance &i>
-void on_uto_delay_changed(uint16_t d)
-{
-    i.set_detect_delay(d);
-}
-
-template<c4001::Instance &i>
+template<ld2412::Instance &i>
 void on_otu_delay_changed(uint16_t d)
 {
-    i.set_clear_delay(d);
+    //i.set_clear_delay(d);
 }
 
 
-int configure_c4001_out_pin();
+int configure_ld2412_out_pin();
 
 zb::ZbTimerExt g_EnvironmentSensorFetcher;
 
@@ -666,7 +607,7 @@ int test_ld2412()
     pLD2412_1 = ld2412_1.setup(&on_ld2412_error<ld2412_1, zb_ep>, &on_ld2412_notify<ld2412_1, zb_ep>);
 
     config_pir();
-    hlk::LD2412 ld(c4001_uart1);
+    hlk::LD2412 ld(mmwave_uart1);
     auto initRes = ld.Init();
     if (!initRes)
     {
@@ -753,17 +694,18 @@ int main(void)
 
     printk("main\r\n");
 
-    pC4001_1 = c4001_1.setup(&on_c4001_error<c4001_1, zb_ep>, &on_c4001_upd<c4001_1, zb_ep>);
-    if (pC4001_1)
+    //pC4001_1 = c4001_1.setup(&on_c4001_error<c4001_1, zb_ep>, &on_c4001_upd<c4001_1, zb_ep>);
+    pLD2412_1 = ld2412_1.setup(&on_ld2412_error<ld2412_1, zb_ep>, &on_ld2412_notify<ld2412_1, zb_ep>);
+    if (pLD2412_1)
     {
-	dev_ctx.c4001.range_min = pC4001_1->GetRangeFrom();
-	dev_ctx.c4001.range_max = pC4001_1->GetRangeTo();
-	dev_ctx.c4001.range_trig = pC4001_1->GetTriggerDistance();
-	dev_ctx.c4001.inhibit_duration = pC4001_1->GetInhibitDuration();
-	dev_ctx.c4001.sensitivity_detect = pC4001_1->GetSensitivityTrig();
-	dev_ctx.c4001.sensitivity_hold = pC4001_1->GetSensitivityHold();
-	dev_ctx.c4001.sw_ver = pC4001_1->GetSWVer().m_Version;
-	dev_ctx.c4001.hw_ver = pC4001_1->GetHWVer().m_Version;
+	//dev_ctx.c4001.range_min = pC4001_1->GetRangeFrom();
+	//dev_ctx.c4001.range_max = pC4001_1->GetRangeTo();
+	//dev_ctx.c4001.range_trig = pC4001_1->GetTriggerDistance();
+	//dev_ctx.c4001.inhibit_duration = pC4001_1->GetInhibitDuration();
+	//dev_ctx.c4001.sensitivity_detect = pC4001_1->GetSensitivityTrig();
+	//dev_ctx.c4001.sensitivity_hold = pC4001_1->GetSensitivityHold();
+	//dev_ctx.c4001.sw_ver = pC4001_1->GetSWVer().m_Version;
+	//dev_ctx.c4001.hw_ver = pC4001_1->GetHWVer().m_Version;
     }else
     {
 	printk("C4001 not found\r\n");
@@ -778,17 +720,18 @@ int main(void)
 	return 0;
     }
 
-    pC4001_2 = c4001_2.setup(&on_c4001_error<c4001_2, zb_ep_aux>, &on_c4001_upd<c4001_2, zb_ep_aux>);
-    if (pC4001_2)
+    //pC4001_2 = c4001_2.setup(&on_c4001_error<c4001_2, zb_ep_aux>, &on_c4001_upd<c4001_2, zb_ep_aux>);
+    pLD2412_2 = ld2412_2.setup(&on_ld2412_error<ld2412_2, zb_ep>, &on_ld2412_notify<ld2412_2, zb_ep>);
+    if (pLD2412_2)
     {
-	dev_ctx.c4001_aux.range_min = pC4001_2->GetRangeFrom();
-	dev_ctx.c4001_aux.range_max = pC4001_2->GetRangeTo();
-	dev_ctx.c4001_aux.range_trig = pC4001_2->GetTriggerDistance();
-	dev_ctx.c4001_aux.inhibit_duration = pC4001_2->GetInhibitDuration();
-	dev_ctx.c4001_aux.sensitivity_detect = pC4001_2->GetSensitivityTrig();
-	dev_ctx.c4001_aux.sensitivity_hold = pC4001_2->GetSensitivityHold();
-	dev_ctx.c4001_aux.sw_ver = pC4001_2->GetSWVer().m_Version;
-	dev_ctx.c4001_aux.hw_ver = pC4001_2->GetHWVer().m_Version;
+	//dev_ctx.c4001_aux.range_min = pC4001_2->GetRangeFrom();
+	//dev_ctx.c4001_aux.range_max = pC4001_2->GetRangeTo();
+	//dev_ctx.c4001_aux.range_trig = pC4001_2->GetTriggerDistance();
+	//dev_ctx.c4001_aux.inhibit_duration = pC4001_2->GetInhibitDuration();
+	//dev_ctx.c4001_aux.sensitivity_detect = pC4001_2->GetSensitivityTrig();
+	//dev_ctx.c4001_aux.sensitivity_hold = pC4001_2->GetSensitivityHold();
+	//dev_ctx.c4001_aux.sw_ver = pC4001_2->GetSWVer().m_Version;
+	//dev_ctx.c4001_aux.hw_ver = pC4001_2->GetHWVer().m_Version;
     }else
     {
 	printk("C4001(2) not found\r\n");
@@ -808,21 +751,21 @@ int main(void)
     /* Register callback for handling ZCL commands. */
     auto dev_cb = zb::tpl_device_cb<
 	zb::dev_cb_handlers_desc{ .error_handler = on_dev_cb_error }
-	, zb::handle_set_for<kAttrDetectToClearDelay, on_set_detect_to_clear_delay>(zb_ep)
-	, zb::handle_set_for<kAttrClearToDetectDelay, on_set_clear_to_detect_delay>(zb_ep)
-	, zb::handle_set_for<kAttrRMin,               method_fwd<c4001_1, &c4001::Instance::set_range_from>>(zb_ep)
-	, zb::handle_set_for<kAttrRMax,               method_fwd<c4001_1, &c4001::Instance::set_range_to>>(zb_ep)
-	, zb::handle_set_for<kAttrRTrig,              method_fwd<c4001_1, &c4001::Instance::set_range_trig>>(zb_ep)
-	, zb::handle_set_for<kAttrInhibitDuration,    method_fwd<c4001_1, &c4001::Instance::set_inhibit_duration>>(zb_ep)
-	, zb::handle_set_for<kAttrSTrig,              method_fwd<c4001_1, &c4001::Instance::set_detect_sensitivity>>(zb_ep)
-	, zb::handle_set_for<kAttrSHold,              method_fwd<c4001_1, &c4001::Instance::set_hold_sensitivity>>(zb_ep)
-
-	, zb::handle_set_for<kAttrRMin,               method_fwd<c4001_2, &c4001::Instance::set_range_from>>(zb_ep_aux)
-	, zb::handle_set_for<kAttrRMax,               method_fwd<c4001_2, &c4001::Instance::set_range_to>>(zb_ep_aux)
-	, zb::handle_set_for<kAttrRTrig,              method_fwd<c4001_2, &c4001::Instance::set_range_trig>>(zb_ep_aux)
-	, zb::handle_set_for<kAttrInhibitDuration,    method_fwd<c4001_2, &c4001::Instance::set_inhibit_duration>>(zb_ep_aux)
-	, zb::handle_set_for<kAttrSTrig,              method_fwd<c4001_2, &c4001::Instance::set_detect_sensitivity>>(zb_ep_aux)
-	, zb::handle_set_for<kAttrSHold,              method_fwd<c4001_2, &c4001::Instance::set_hold_sensitivity>>(zb_ep_aux)
+	//, zb::handle_set_for<kAttrDetectToClearDelay, on_set_detect_to_clear_delay>(zb_ep)
+	//, zb::handle_set_for<kAttrClearToDetectDelay, on_set_clear_to_detect_delay>(zb_ep)
+	//, zb::handle_set_for<kAttrRMin,               method_fwd<c4001_1, &c4001::Instance::set_range_from>>(zb_ep)
+	//, zb::handle_set_for<kAttrRMax,               method_fwd<c4001_1, &c4001::Instance::set_range_to>>(zb_ep)
+	//, zb::handle_set_for<kAttrRTrig,              method_fwd<c4001_1, &c4001::Instance::set_range_trig>>(zb_ep)
+	//, zb::handle_set_for<kAttrInhibitDuration,    method_fwd<c4001_1, &c4001::Instance::set_inhibit_duration>>(zb_ep)
+	//, zb::handle_set_for<kAttrSTrig,              method_fwd<c4001_1, &c4001::Instance::set_detect_sensitivity>>(zb_ep)
+	//, zb::handle_set_for<kAttrSHold,              method_fwd<c4001_1, &c4001::Instance::set_hold_sensitivity>>(zb_ep)
+	//
+	//, zb::handle_set_for<kAttrRMin,               method_fwd<c4001_2, &c4001::Instance::set_range_from>>(zb_ep_aux)
+	//, zb::handle_set_for<kAttrRMax,               method_fwd<c4001_2, &c4001::Instance::set_range_to>>(zb_ep_aux)
+	//, zb::handle_set_for<kAttrRTrig,              method_fwd<c4001_2, &c4001::Instance::set_range_trig>>(zb_ep_aux)
+	//, zb::handle_set_for<kAttrInhibitDuration,    method_fwd<c4001_2, &c4001::Instance::set_inhibit_duration>>(zb_ep_aux)
+	//, zb::handle_set_for<kAttrSTrig,              method_fwd<c4001_2, &c4001::Instance::set_detect_sensitivity>>(zb_ep_aux)
+	//, zb::handle_set_for<kAttrSHold,              method_fwd<c4001_2, &c4001::Instance::set_hold_sensitivity>>(zb_ep_aux)
     >;
 
     ZB_ZCL_REGISTER_DEVICE_CB(dev_cb);
@@ -830,7 +773,7 @@ int main(void)
     /* Register device context (endpoints). */
     ZB_AF_REGISTER_DEVICE_CTX(zb_ctx);
 
-    if (int err = configure_c4001_out_pin(); err != 0)
+    if (int err = configure_ld2412_out_pin(); err != 0)
     {
 	printk("Failed to configure c4001 out pin\r\n");
     }
@@ -843,24 +786,24 @@ int main(void)
     zigbee_enable();
 
     printk("Main: sleep forever\r\n");
-    {
-	printk("C4001(1); HW=%s\r\n", pC4001_1->GetHWVer().m_Version);
-	printk("C4001(1); SW=%s\r\n", pC4001_1->GetSWVer().m_Version);
-	printk("C4001(1); Range=%.1f to %.1fm\r\n", (double)pC4001_1->GetRangeFrom(), (double)pC4001_1->GetRangeTo());
-	printk("C4001(1); Latency; to detect=%.1fs; to clear=%.1fs\r\n", (double)pC4001_1->GetDetectLatency(), (double)pC4001_1->GetClearLatency());
-	printk("C4001(1); Trig Range=%.1fm\r\n", (double)pC4001_1->GetTriggerDistance());
-	printk("C4001(1); Sensitivity Detect=%d; Hold=%d;\r\n", pC4001_1->GetSensitivityTrig(), pC4001_1->GetSensitivityHold());
-	printk("C4001(1); Inhibut Duration=%.1fs\r\n", (double)pC4001_1->GetInhibitDuration());
-    }
-    {
-	printk("C4001(2); HW=%s\r\n", pC4001_2->GetHWVer().m_Version);
-	printk("C4001(2); SW=%s\r\n", pC4001_2->GetSWVer().m_Version);
-	printk("C4001(2); Range=%.1f to %.1fm\r\n", (double)pC4001_2->GetRangeFrom(), (double)pC4001_2->GetRangeTo());
-	printk("C4001(2); Latency; to detect=%.1fs; to clear=%.1fs\r\n", (double)pC4001_2->GetDetectLatency(), (double)pC4001_2->GetClearLatency());
-	printk("C4001(2); Trig Range=%.1fm\r\n", (double)pC4001_2->GetTriggerDistance());
-	printk("C4001(2); Sensitivity Detect=%d; Hold=%d;\r\n", pC4001_2->GetSensitivityTrig(), pC4001_2->GetSensitivityHold());
-	printk("C4001(2); Inhibut Duration=%.1fs\r\n", (double)pC4001_2->GetInhibitDuration());
-    }
+	//   {
+	//printk("C4001(1); HW=%s\r\n", pC4001_1->GetHWVer().m_Version);
+	//printk("C4001(1); SW=%s\r\n", pC4001_1->GetSWVer().m_Version);
+	//printk("C4001(1); Range=%.1f to %.1fm\r\n", (double)pC4001_1->GetRangeFrom(), (double)pC4001_1->GetRangeTo());
+	//printk("C4001(1); Latency; to detect=%.1fs; to clear=%.1fs\r\n", (double)pC4001_1->GetDetectLatency(), (double)pC4001_1->GetClearLatency());
+	//printk("C4001(1); Trig Range=%.1fm\r\n", (double)pC4001_1->GetTriggerDistance());
+	//printk("C4001(1); Sensitivity Detect=%d; Hold=%d;\r\n", pC4001_1->GetSensitivityTrig(), pC4001_1->GetSensitivityHold());
+	//printk("C4001(1); Inhibut Duration=%.1fs\r\n", (double)pC4001_1->GetInhibitDuration());
+	//   }
+	//   {
+	//printk("C4001(2); HW=%s\r\n", pC4001_2->GetHWVer().m_Version);
+	//printk("C4001(2); SW=%s\r\n", pC4001_2->GetSWVer().m_Version);
+	//printk("C4001(2); Range=%.1f to %.1fm\r\n", (double)pC4001_2->GetRangeFrom(), (double)pC4001_2->GetRangeTo());
+	//printk("C4001(2); Latency; to detect=%.1fs; to clear=%.1fs\r\n", (double)pC4001_2->GetDetectLatency(), (double)pC4001_2->GetClearLatency());
+	//printk("C4001(2); Trig Range=%.1fm\r\n", (double)pC4001_2->GetTriggerDistance());
+	//printk("C4001(2); Sensitivity Detect=%d; Hold=%d;\r\n", pC4001_2->GetSensitivityTrig(), pC4001_2->GetSensitivityHold());
+	//printk("C4001(2); Inhibut Duration=%.1fs\r\n", (double)pC4001_2->GetInhibitDuration());
+	//   }
     while (1) {
 	k_sleep(K_FOREVER);
     }
@@ -868,7 +811,7 @@ int main(void)
     return 0;
 }
 
-int configure_c4001_out_pin()
+int configure_ld2412_out_pin()
 {
     gpio_pin_configure_dt(&led0, GPIO_OUTPUT_ACTIVE);
     int err = gpio_pin_configure_dt(&presence, GPIO_INPUT);

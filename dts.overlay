@@ -30,21 +30,21 @@
 
 	aliases {
 		userled0 = &led0;
-		presence = &dfr_sensor_1;
-		presence2 = &dfr_sensor_2;
+		presence = &mmwave_sensor_1;
+		presence2 = &mmwave_sensor_2;
 		pir = &pir_sensor;
-		dfr-uart = &uart20;
-		dfr-uart2 = &uart22;
+		mmwave-uart = &uart20;
+		mmwave-uart2 = &uart22;
 	};
 
 	/* A standalone node describing your hardware */
 	dfr_presence_sensor: presence_sensor {
 		compatible = "gpio-keys";
-		dfr_sensor_1: dfr_sensor_1{
+		mmwave_sensor_1: mmwave_sensor_1{
 			gpios = <&gpio1 8 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
 			label = "Presence Sensor";
 		};
-		dfr_sensor_2: dfr_sensor_2{
+		mmwave_sensor_2: mmwave_sensor_2{
 			gpios = <&gpio1 12 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
 			label = "Presence Sensor 2";
 		};

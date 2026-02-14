@@ -17,6 +17,10 @@ namespace zb
     {
         using gate_array_t = hlk::LD2412::gate_array_t;
         using energy_stat_t = hlk::LD2412::energy_stat_t;
+        static constexpr uint8_t kCMD_RESTART            = 1;
+        static constexpr uint8_t kCMD_FACTORY_RESET      = 2;
+        static constexpr uint8_t kCMD_RUN_BACK_ANALYSIS  = 3;
+        static constexpr uint8_t kCMD_TAKE_STAT_SNAPSHOT = 4;
 
         hlk::LD2412::DistanceRes distance_resolution = hlk::LD2412::DistanceRes::_0_50;
         uint8_t light_level = 0;
@@ -32,10 +36,11 @@ namespace zb
         float range_max = 10;
         uint16_t clear_delay = 0;//seconds
 
+        //TODO: validate values
         ZigbeeBin<15> still_energy_thresholds = gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
         ZigbeeBin<15> move_energy_thresholds = gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
 
-        ZigbeeBin<14> bluetooth_mac;
+        ZigbeeBin<7> bluetooth_mac;
         ZigbeeStr<32> sw_ver;
 
         uint8_t statistics_sample_count_window = 0;
@@ -45,10 +50,10 @@ namespace zb
         hlk::LD2412::LightSensitivity light_sense_mode = hlk::LD2412::LightSensitivity::Off; 
         uint8_t light_sense_threshold = 0;
 
-        cmd_in_t<1> cmd_restart;
-        cmd_in_t<2> cmd_factory_reset;
-        cmd_in_t<3> cmd_run_background_analysis;
-        cmd_in_t<4> cmd_take_statistic_snapshot;
+        cmd_in_t<kCMD_RESTART>            cmd_restart;
+        cmd_in_t<kCMD_FACTORY_RESET>      cmd_factory_reset;
+        cmd_in_t<kCMD_RUN_BACK_ANALYSIS>  cmd_run_background_analysis;
+        cmd_in_t<kCMD_TAKE_STAT_SNAPSHOT> cmd_take_statistic_snapshot;
     };
 
     template<> struct zcl_description_t<zb_zcl_ld2412_t> {
@@ -58,7 +63,7 @@ namespace zb
             return cluster_t<
                 cluster_info_t{.id = kZB_ZCL_CLUSTER_ID_LD2412},
                 attributes_t<
-                    attribute_t{.m = &T::distance_resolution,                 .id = 0x0000, .a=Access::RW}
+                     attribute_t{.m = &T::distance_resolution,                .id = 0x0000, .a=Access::RW}
                     ,attribute_t{.m = &T::range_min,                          .id = 0x0001, .a=Access::RW}
                     ,attribute_t{.m = &T::range_max,                          .id = 0x0002, .a=Access::RW}
                     ,attribute_t{.m = &T::sw_ver,                             .id = 0x0003, .a=Access::Read}
@@ -69,8 +74,8 @@ namespace zb
                     ,attribute_t{.m = &T::light_level,                        .id = 0x0008, .a=Access::RP}
                     ,attribute_t{.m = &T::flags,                              .id = 0x0009, .a=Access::RWP, .type=Type::U8}
                     ,attribute_t{.m = &T::statistics_sample_count_window,     .id = 0x000a, .a=Access::RW}
-                    ,attribute_t{.m = &T::energy_stat_still,                  .id = 0x000b, .a=Access::Read}
-                    ,attribute_t{.m = &T::energy_stat_move,                   .id = 0x000c, .a=Access::Read}
+                    ,attribute_t{.m = &T::energy_stat_still,                  .id = 0x000b, .a=Access::RP}
+                    ,attribute_t{.m = &T::energy_stat_move,                   .id = 0x000c, .a=Access::RP}
                     ,attribute_t{.m = &T::light_sense_mode,                   .id = 0x000d, .a=Access::RW}
                     ,attribute_t{.m = &T::light_sense_threshold,              .id = 0x000e, .a=Access::RW}
                 >{},

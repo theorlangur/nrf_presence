@@ -12,6 +12,8 @@ namespace ld2412
     {
         Ok,
         Restart,
+        ReloadConfig,
+        FactoryReset,
         Bluetooth,
         SetBasicCfg,
         SetLightSenseCfg,
@@ -58,10 +60,14 @@ namespace ld2412
         callback_t cb;
     };
     struct restart_cfg_t{};
+    struct reload_cfg_t{};
+    struct factory_reset_cfg_t{};
     struct bt_cfg_t{bool on;};
 
     using QueueItem = std::variant<
         restart_cfg_t
+        , reload_cfg_t
+        , factory_reset_cfg_t
         , bt_cfg_t
         , basic_cfg_t
         , light_sense_cfg_t
@@ -83,6 +89,16 @@ namespace ld2412
         hlk::LD2412* setup(err_callback_t err, notify_callback_t notification);
         hlk::LD2412* sensor();
 
+        void restart();
+        void reload_config();
+        void factory_reset();
+        void switch_bluetooth(bool on);
+        void set_basic_config(basic_cfg_t const& cfg);
+        void set_light_sense(light_sense_cfg_t const& cfg);
+        void set_gate_thresholds(energy_thresholds_cfg_t const& cfg);
+        void run_back_analysis(run_background_analysis_t const& cfg);
+        void collect_statistics(collect_statistics_cfg_t const& cfg);
+        void take_statistic_snapshot(snapshot_statistics_cfg_t const& cfg);
     private:
         void mainloop();
         void collect_sample();
@@ -126,7 +142,6 @@ namespace ld2412
         size_t m_TotalSamplesWritten = 0;
 
         size_t m_LightSensorUpdateInterval = 5;//seconds
-        size_t m_BackgroundCheckInterval = 2;//seconds
     };
 }
 #endif

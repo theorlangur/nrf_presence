@@ -55,6 +55,47 @@ namespace ld2412
 	    return {};
     }
 
+    void Instance::restart()
+    {
+	m_Q << restart_cfg_t{};
+    }
+    void Instance::reload_config()
+    {
+	m_Q << reload_cfg_t{};
+    }
+    void Instance::factory_reset()
+    {
+	m_Q << factory_reset_cfg_t{};
+    }
+    void Instance::switch_bluetooth(bool on)
+    {
+	m_Q << bt_cfg_t{.on = on};
+    }
+    void Instance::set_basic_config(basic_cfg_t const& cfg)
+    {
+	m_Q << cfg;
+    }
+    void Instance::set_light_sense(light_sense_cfg_t const& cfg)
+    {
+	m_Q << cfg;
+    }
+    void Instance::set_gate_thresholds(energy_thresholds_cfg_t const& cfg)
+    {
+	m_Q << cfg;
+    }
+    void Instance::run_back_analysis(run_background_analysis_t const& cfg)
+    {
+	m_Q << cfg;
+    }
+    void Instance::collect_statistics(collect_statistics_cfg_t const& cfg)
+    {
+	m_Q << cfg;
+    }
+    void Instance::take_statistic_snapshot(snapshot_statistics_cfg_t const& cfg)
+    {
+	m_Q << cfg;
+    }
+
     void Instance::thread_func(void *_pThis, void *, void *)
     {
 	Instance *pThis = (Instance*)(_pThis);
@@ -145,6 +186,20 @@ namespace ld2412
 			    if (auto r = m_Sensor.Restart(); !r)
 			    {
 				if (m_ErrCB) m_ErrCB(err_t::Restart);
+			    }
+			}
+			,[&](reload_cfg_t const&)
+			{
+			    if (auto r = m_Sensor.ReloadConfig(); !r)
+			    {
+				if (m_ErrCB) m_ErrCB(err_t::ReloadConfig);
+			    }
+			}
+			,[&](factory_reset_cfg_t const&)
+			{
+			    if (auto r = m_Sensor.FactoryReset(); !r)
+			    {
+				if (m_ErrCB) m_ErrCB(err_t::FactoryReset);
 			    }
 			}
 			,[&](bt_cfg_t const& cfg)
