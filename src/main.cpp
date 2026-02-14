@@ -11,6 +11,8 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/settings/settings.h>
 #include "c4001_task.hpp"
+#include "ld2412_task.hpp"
+#include <nrf_uart/periphery/lib_ld2412_formatters.hpp>
 #include <dk_buttons_and_leds.h>
 #include <nrf_general/led.h>
 
@@ -30,7 +32,7 @@
 #include <nrfzbcpp/zb_nstd_air_q_cluster_desc.hpp>
 #include "zb/zb_c4001_cluster_desc.hpp"
 #include "zb/zb_ld2412_cluster_desc.hpp"
-#include <nrf_uart/periphery/lib_ld2412_formatters.hpp>
+#include <nrf_uart/periphery/lib_ld2412.hpp>
 #include <osif/mac_platform.h>
 
 /**********************************************************************/
@@ -49,6 +51,18 @@ c4001::Instance c4001_2(c4001q_2, c4001_uart2, "c4001_2");
 
 constinit static dfr::C4001 *pC4001_1 = nullptr;
 constinit static dfr::C4001 *pC4001_2 = nullptr;
+
+/**********************************************************************/
+/* LD2412 presence sensor configurations/data                         */
+/**********************************************************************/
+K_MSGQ_DEFINE_TYPED(ld2412::Queue, ld2412q_1);
+K_MSGQ_DEFINE_TYPED(ld2412::Queue, ld2412q_2);
+
+ld2412::Instance ld2412_1(ld2412q_1, c4001_uart1, "ld2412_1");
+ld2412::Instance ld2412_2(ld2412q_2, c4001_uart2, "ld2412_2");
+
+constinit static hlk::LD2412 *pLD2412_1 = nullptr;
+constinit static hlk::LD2412 *pLD2412_2 = nullptr;
 
 /**********************************************************************/
 /* Zigbee Declarations and Definitions                                */
@@ -416,6 +430,22 @@ void on_c4001_upd(c4001::cfg_id_t id)
 	zb_schedule_app_callback(&zb_c4001_update<i, zb>, (uint8_t)id);
 }
 
+template<ld2412::Instance &i, auto &zb>
+void on_ld2412_error(ld2412::err_t e)
+{
+    //TODO: implement
+	//   if (g_ZigbeeReady)
+	//zb_schedule_app_callback(&zb_c4001_error<i, zb>, (uint8_t)e);
+}
+
+template<ld2412::Instance &i, auto &zb>
+void on_ld2412_notify(ld2412::notification_id_t id)
+{
+    //TODO: implement
+	//   if (g_ZigbeeReady)
+	//zb_schedule_app_callback(&zb_c4001_update<i, zb>, (uint8_t)id);
+}
+
 template<c4001::Instance &i>
 void on_uto_delay_changed(uint16_t d)
 {
@@ -633,8 +663,10 @@ int config_pir()
 
 int test_ld2412()
 {
+    pLD2412_1 = ld2412_1.setup(&on_ld2412_error<ld2412_1, zb_ep>, &on_ld2412_notify<ld2412_1, zb_ep>);
+
     config_pir();
-    LD2412 ld(c4001_uart1);
+    hlk::LD2412 ld(c4001_uart1);
     auto initRes = ld.Init();
     if (!initRes)
     {
@@ -657,7 +689,7 @@ int test_ld2412()
 
     FMT_PRINTLN("Switching to energy mode...");
     auto ccR = ld.ChangeConfiguration()
-	.SetSystemMode(LD2412::SystemMode::Energy)
+	.SetSystemMode(hlk::LD2412::SystemMode::Energy)
     .EndChange();
     if (!ccR)
     {
@@ -679,7 +711,7 @@ int test_ld2412()
 	    return 2;
 	}
 	FMT_PRINTLN("Presence: {}; Light: {}", ld.GetPresence(), ld.GetMeasuredLight());
-	if (ld.GetSystemMode() == LD2412::SystemMode::Energy)
+	if (ld.GetSystemMode() == hlk::LD2412::SystemMode::Energy)
 	{
 	    printk("E: ");
 	    for(int i = 0; i < 14; ++i)

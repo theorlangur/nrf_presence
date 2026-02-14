@@ -24,8 +24,8 @@ namespace zb
             uint8_t med;
         };
 
-        LD2412::SystemMode mode = LD2412::SystemMode::Simple;
-        LD2412::DistanceRes distance_resolution = LD2412::DistanceRes::_0_50;
+        hlk::LD2412::SystemMode mode = hlk::LD2412::SystemMode::Simple;
+        hlk::LD2412::DistanceRes distance_resolution = hlk::LD2412::DistanceRes::_0_50;
         uint8_t light_level = 0;
         struct
         {
@@ -46,7 +46,7 @@ namespace zb
         uint8_t statistics_collection_time_window = 0;
         ZigbeeBinTyped<energy_stat_t, 14> energy_stat_still;
         ZigbeeBinTyped<energy_stat_t, 14> energy_stat_move;
-        LD2412::LightSensitivity light_sense_mode = LD2412::LightSensitivity::Off; 
+        hlk::LD2412::LightSensitivity light_sense_mode = hlk::LD2412::LightSensitivity::Off; 
         uint8_t light_sense_threshold = 0;
 
         cmd_in_t<1> cmd_restart;
