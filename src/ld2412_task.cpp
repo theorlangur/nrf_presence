@@ -24,6 +24,12 @@ namespace ld2412
 	if (!r)
 	    return {};
 
+	r = m_Sensor.ChangeConfiguration()
+	    .SetSystemMode(hlk::LD2412::SystemMode::Energy)
+	.EndChange();
+	if (!r)
+	    return {};
+
 	m_ErrCB = err;
 	m_NotifyCB = notification;
 
@@ -65,15 +71,109 @@ namespace ld2412
 		overloaded{
 		    [&](restart_cfg_t const&)
 		    {
-			//TODO: implement
-		    },
-		    [&](bt_cfg_t const& cfg)
+			if (auto r = m_Sensor.Restart(); !r)
+			{
+			    if (m_ErrCB) m_ErrCB(err_t::Restart);
+			}
+		    }
+		    ,[&](bt_cfg_t const& cfg)
 		    {
-			//TODO: implement
-		    },
-		    [&](basic_cfg_t const& cfg)
+			if (auto r = m_Sensor.SwitchBluetooth(cfg.on); !r)
+			{
+			    if (m_ErrCB) m_ErrCB(err_t::Bluetooth);
+			}
+		    }
+		    ,[&](basic_cfg_t const& cfg)
 		    {
-			//TODO: implement
+			auto r = m_Sensor.ChangeConfiguration()
+			    .SetDistanceRes(cfg.resolution)
+			    .SetMinDistanceRaw(cfg.gate_from)
+			    .SetMaxDistanceRaw(cfg.gate_to)
+			    .SetTimeout(cfg.clear_delay)
+			.EndChange();
+			if (!r && m_ErrCB)
+			    m_ErrCB(err_t::SetBasicCfg);
+		    }
+		    ,[&](light_sense_cfg_t const& cfg)
+		    {
+			auto r = m_Sensor.ChangeConfiguration()
+			    .SetLightSensitivity(cfg.mode, cfg.threshold)
+			.EndChange();
+			if (!r && m_ErrCB)
+			    m_ErrCB(err_t::SetLightSenseCfg);
+		    }
+		    ,[&](energy_thresholds_cfg_t const& cfg)
+		    {
+			auto r = m_Sensor.ChangeConfiguration()
+			    .SetMoveThresholds(cfg.move_thresholds)
+			    .SetStillThresholds(cfg.still_thresholds)
+			.EndChange();
+			if (!r && m_ErrCB)
+			    m_ErrCB(err_t::SetEnergyThresholds);
+		    }
+		    ,[&](run_background_analysis_t const& cfg)
+		    {
+			if (!m_Sensor.RunDynamicBackgroundAnalysis())
+			{
+			    if (m_ErrCB)
+				m_ErrCB(err_t::RunBackAnalysis);
+			}else
+			{
+			    m_BackgroundAnalysisDoneCB = cfg.cb;
+			}
+		    }
+		    ,[&](collect_statistics_cfg_t const& cfg)
+		    {
+			m_StatSampleCount = cfg.window_size;
+			if (m_StatSampleCount > MAX_STAT_SAMPLE_SIZE)
+			    m_StatSampleCount = MAX_STAT_SAMPLE_SIZE;
+			m_StatSampleIndex = 0;
+			m_TotalSamplesWritten = 0;
+		    }
+		    ,[&](snapshot_statistics_cfg_t const& cfg)
+		    {
+			if (cfg.cb)
+			{
+			    if (!m_TotalSamplesWritten)
+			    {
+				if (m_ErrCB)
+				    m_ErrCB(err_t::SnapshotStatistics);
+				return;
+			    }
+			    hlk::LD2412::energy_stat_array_t still, move;
+			    size_t sum_still[14];  
+			    size_t sum_move[14];  
+
+			    for(int g = 0; g < 14; ++g)
+			    {
+				auto still_e = m_StatSampleBuffer[0].still_energies[g];
+				auto move_e = m_StatSampleBuffer[0].move_energies[g];
+
+				sum_still[g] = still[g].max = still[g].min = still_e;
+				sum_move[g] = move[g].max = move[g].min = move_e;
+			    }
+
+			    size_t n = std::min(m_TotalSamplesWritten, m_StatSampleCount);
+			    for(size_t sample = 1; sample < n; ++sample)
+			    {
+				for(int g = 0; g < 14; ++g)
+				{
+				    auto still_e = m_StatSampleBuffer[sample].still_energies[g];
+				    auto move_e = m_StatSampleBuffer[sample].move_energies[g];
+
+				    sum_still[g] += still_e;
+				    sum_move[g] += move_e;
+				}
+			    }
+
+			    for(int g = 0; g < 14; ++g)
+			    {
+				still[g].avg = sum_still[g] / n;
+				move[g].avg = sum_move[g] / n;
+			    }
+
+			    cfg.cb(still, move);
+			}
 		    }
 		},
 		 q
