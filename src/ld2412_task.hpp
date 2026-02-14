@@ -85,6 +85,8 @@ namespace ld2412
 
     private:
         void mainloop();
+        void collect_sample();
+        void check_back_analysis();
 
         /**********************************************************************/
         /* Thread-related stuff                                               */
@@ -122,6 +124,9 @@ namespace ld2412
         size_t m_StatSampleIndex = 0;
         size_t m_StatSampleCount = 0;
         size_t m_TotalSamplesWritten = 0;
+
+        size_t m_LightSensorUpdateInterval = 5;//seconds
+        size_t m_BackgroundCheckInterval = 2;//seconds
     };
 }
 #endif
