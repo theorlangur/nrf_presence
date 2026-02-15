@@ -104,6 +104,9 @@ constexpr auto kAttrBaseCfg = &zb::zb_zcl_ld2412_t::base_config;
 constexpr auto kAttrStillThr = &zb::zb_zcl_ld2412_t::still_energy_thresholds;
 constexpr auto kAttrMoveThr = &zb::zb_zcl_ld2412_t::move_energy_thresholds;
 constexpr auto kAttrLightLevel = &zb::zb_zcl_ld2412_t::light_level;
+constexpr auto kAttrFlags = &zb::zb_zcl_ld2412_t::flags;
+constexpr auto kAttrStatStill = &zb::zb_zcl_ld2412_t::energy_stat_still;
+constexpr auto kAttrStatMove = &zb::zb_zcl_ld2412_t::energy_stat_move;
 
 
 /**********************************************************************/
@@ -132,10 +135,6 @@ constexpr auto kAttrAQI = &zb::zb_zcl_air_q_t::aqi;
 /* Occupancy attribute shortcuts                                      */
 /**********************************************************************/
 constexpr auto kAttrOccupancy = &zb::zb_zcl_occupancy_ultrasonic_t::occupancy;
-constexpr auto kAttrDetectToClearDelay = &zb::zb_zcl_occupancy_ultrasonic_t::UltrasonicOccupiedToUnoccupiedDelay;
-constexpr auto kAttrClearToDetectDelay = &zb::zb_zcl_occupancy_ultrasonic_t::UltrasonicUnoccupiedToOccupiedDelay;
-//constexpr auto kAttrDetectToClearDelay = &zb::zb_zcl_c4001_t::clear_delay; //&zb::zb_zcl_occupancy_ultrasonic_t::UltrasonicOccupiedToUnoccupiedDelay;
-//constexpr auto kAttrClearToDetectDelay = &zb::zb_zcl_c4001_t::detect_delay;//&zb::zb_zcl_occupancy_ultrasonic_t::UltrasonicUnoccupiedToOccupiedDelay;
 
 constexpr auto kCmdOn = &zb::zb_zcl_on_off_attrs_client_t::on;
 constexpr auto kCmdOff = &zb::zb_zcl_on_off_attrs_client_t::off;
@@ -206,6 +205,24 @@ struct zb::global_device
 //a shortcut for a convenient access
 constinit static auto &zb_ep = zb_ctx.ep<kMMW_EP>();
 constinit static auto &zb_ep_aux = zb_ctx.ep<kMMW_AUX_EP>();
+
+template<ld2412::Instance &i>
+auto& get_zb_ep_for_ld2412()
+{
+    if constexpr (&i == &ld2412_1)
+	return zb_ep;
+    else if (&i == &ld2412_2)
+	return zb_ep_aux;
+}
+
+template<ld2412::Instance &i>
+zb::zb_zcl_ld2412_t& get_data_for_ld2412()
+{
+    if constexpr (&i == &ld2412_1)
+	return dev_ctx.ld2412_main;
+    else if (&i == &ld2412_2)
+	return dev_ctx.ld2412_aux;
+}
 
 /**********************************************************************/
 /* Device defines                                                     */
@@ -305,6 +322,12 @@ zb::CmdHandlingResult on_cmd_factory_reset()
 template<ld2412::Instance &i>
 void on_back_analysis_done(ld2412::run_background_analysis_t::Result result)
 {
+    auto &d = get_data_for_ld2412<i>();
+    auto &ep = get_zb_ep_for_ld2412<i>();
+    auto flags = d.flags;
+    flags.background_analysis_active = false;
+    flags.background_analysis_ok = result == ld2412::run_background_analysis_t::Result::Ok;
+    ep.template attr<kAttrFlags>() = flags;
 }
 
 template<ld2412::Instance &i>
@@ -312,12 +335,24 @@ zb::CmdHandlingResult on_cmd_run_back_analysis()
 {
     printk("ld2412::run_back_analysis\r\n");
     i.run_back_analysis({&on_back_analysis_done<i>});
+
+    auto &d = get_data_for_ld2412<i>();
+    auto &ep = get_zb_ep_for_ld2412<i>();
+    auto flags = d.flags;
+    flags.background_analysis_active = true;
+    flags.background_analysis_ok = true;
+    ep.template attr<kAttrFlags>() = flags;
+
     return {};
 }
 
 template<ld2412::Instance &i>
 void on_get_stat_snapshot(hlk::LD2412::energy_stat_array_t const& still, hlk::LD2412::energy_stat_array_t const& move)
 {
+    auto &d = get_data_for_ld2412<i>();
+    auto &ep = get_zb_ep_for_ld2412<i>();
+    ep.template attr<kAttrStatStill>() = still;
+    ep.template attr<kAttrStatMove>() = move;
 }
 
 template<ld2412::Instance &i>
@@ -327,12 +362,6 @@ zb::CmdHandlingResult on_cmd_do_stat_snapshot()
     i.take_statistic_snapshot({&on_get_stat_snapshot<i>});
     return {};
 }
-
-//void on_set_detect_to_clear_delay(uint16_t OtoU)
-//{
-//    ld2412_1.set_clear_delay(OtoU);
-//    ld2412_2.set_clear_delay(OtoU);
-//}
 
 void send_on_off(uint8_t val)
 {
