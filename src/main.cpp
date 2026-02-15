@@ -586,85 +586,6 @@ bool update_environment_sensors()
     return true;
 }
 
-/**@brief Callback for TX power setting result.
- *
- * @param  param  Reference to Zigbee stack buffer.
- */
-static void tx_power_cb(zb_bufid_t param)
-{
-	const char *status = NULL;
-	zb_tx_power_params_t *power_params = (zb_tx_power_params_t *)zb_buf_begin(param);
-
-	switch (power_params->status) {
-	case RET_OK:
-		status = "success";
-		break;
-	case RET_INVALID_PARAMETER_1:
-		status = "invalid page";
-		break;
-	case RET_INVALID_PARAMETER_2:
-		status = "invalid channel";
-		break;
-	case RET_INVALID_PARAMETER_3:
-		status = "invalid tx power";
-		break;
-	default:
-		status = "unknown";
-		break;
-	}
-
-	printk("Zigbee transceiver tx power set result (pg: %d, ch: %d, pw: %d): %s\r\n",
-		power_params->page, power_params->channel, power_params->tx_power, status);
-
-	zb_buf_free(param);
-}
-
-/**@brief Function for scheduling TX power set.
- *
- * @param  param    Reference to Zigbee stack buffer.
- * @param  channel  Channel number.
- */
-static void schedule_tx_power_set(zb_bufid_t param, zb_uint16_t channel)
-{
-	zb_tx_power_params_t *power_params;
-
-	power_params = (zb_tx_power_params_t *)zb_buf_initial_alloc(param, sizeof(zb_tx_power_params_t));
-
-	power_params->page = ZB_CHANNEL_PAGE0_2_4_GHZ;
-	power_params->channel = channel;
-	power_params->tx_power = kTX_POWER;
-	power_params->cb = tx_power_cb;
-
-	ZB_SCHEDULE_APP_CALLBACK(zb_set_tx_power_async, param);
-}
-
-/**@brief Function for setting TX power for configured channels.
- */
-void set_tx_power(void)
-{
-	zb_ret_t ret;
-	uint32_t channel_mask;
-	uint8_t channel = ZB_TRANSCEIVER_START_CHANNEL_NUMBER;
-
-#if defined(CONFIG_ZIGBEE_CHANNEL_SELECTION_MODE_SINGLE)
-	channel_mask = 1 << CONFIG_ZIGBEE_CHANNEL;
-#elif defined(CONFIG_ZIGBEE_CHANNEL_SELECTION_MODE_MULTI)
-	channel_mask = CONFIG_ZIGBEE_CHANNEL_MASK;
-#endif
-
-	for (; channel <= ZB_TRANSCEIVER_MAX_CHANNEL_NUMBER; channel++) {
-		if (channel_mask & (1 << channel)) {
-			printk("Setting tx power for channel %d: %d dBm\r\n", channel,
-				kTX_POWER);
-			ret = zb_buf_get_out_delayed_ext(schedule_tx_power_set, channel, 0);
-			if (ret != RET_OK) {
-				printk("Failed to set tx power for channel %d, error %d\r\n",
-					channel, ret);
-			}
-		}
-	}
-}
-
 void on_zigbee_start()
 {
     printk("on_zigbee_start\r\n");
@@ -683,9 +604,9 @@ void zboss_signal_handler(zb_bufid_t bufid)
         auto signalId = zb_get_app_signal(bufid, &pHdr);
 
 	auto ret = zb::tpl_signal_handler<zb::sig_handlers_t{
-	.on_leave = +[]{ 
-	    printk("left the network\r\n");
-	},
+	    .on_leave = +[]{ 
+		printk("left the network\r\n");
+	    },
 	    //.on_error = []{ led::show_pattern(led::kPATTERN_3_BLIPS_NORMED, 1000); },
 	    .on_dev_reboot = on_zigbee_start,
 	    .on_steering = on_zigbee_start,
@@ -924,7 +845,6 @@ int main(void)
 	printk("Presence pin state: %d\r\n", val);
 	dev_ctx.occupancy.occupancy = val;
     }
-    set_tx_power();
     zigbee_enable();
 
     printk("Main: sleep forever\r\n");
