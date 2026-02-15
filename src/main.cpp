@@ -894,26 +894,20 @@ int main(void)
     /* Register callback for handling ZCL commands. */
     auto dev_cb = zb::tpl_device_cb<
 	zb::dev_cb_handlers_desc{ .error_handler = on_dev_cb_error }
+	//main instance
 	, zb::handle_set_for<kAttrBaseCfg,               &on_set_base_config<ld2412_1>>(zb_ep)
 	, zb::handle_set_for<kAttrLightSense,            &on_set_light_sense<ld2412_1>>(zb_ep)
 	, zb::handle_set_for<kAttrStillThr,              method_fwd<ld2412_1, &ld2412::Instance::set_still_thresholds_raw>>(zb_ep)
 	, zb::handle_set_for<kAttrMoveThr,               method_fwd<ld2412_1, &ld2412::Instance::set_move_thresholds_raw>>(zb_ep)
 	, zb::handle_set_for<kAttrStatWinSize,           method_fwd<ld2412_1, &ld2412::Instance::collect_statistics>>(zb_ep)
-	//, zb::handle_set_for<kAttrDetectToClearDelay, on_set_detect_to_clear_delay>(zb_ep)
-	//, zb::handle_set_for<kAttrClearToDetectDelay, on_set_clear_to_detect_delay>(zb_ep)
-	//, zb::handle_set_for<kAttrRMin,               method_fwd<c4001_1, &c4001::Instance::set_range_from>>(zb_ep)
-	//, zb::handle_set_for<kAttrRMax,               method_fwd<c4001_1, &c4001::Instance::set_range_to>>(zb_ep)
-	//, zb::handle_set_for<kAttrRTrig,              method_fwd<c4001_1, &c4001::Instance::set_range_trig>>(zb_ep)
-	//, zb::handle_set_for<kAttrInhibitDuration,    method_fwd<c4001_1, &c4001::Instance::set_inhibit_duration>>(zb_ep)
-	//, zb::handle_set_for<kAttrSTrig,              method_fwd<c4001_1, &c4001::Instance::set_detect_sensitivity>>(zb_ep)
-	//, zb::handle_set_for<kAttrSHold,              method_fwd<c4001_1, &c4001::Instance::set_hold_sensitivity>>(zb_ep)
-	//
-	//, zb::handle_set_for<kAttrRMin,               method_fwd<c4001_2, &c4001::Instance::set_range_from>>(zb_ep_aux)
-	//, zb::handle_set_for<kAttrRMax,               method_fwd<c4001_2, &c4001::Instance::set_range_to>>(zb_ep_aux)
-	//, zb::handle_set_for<kAttrRTrig,              method_fwd<c4001_2, &c4001::Instance::set_range_trig>>(zb_ep_aux)
-	//, zb::handle_set_for<kAttrInhibitDuration,    method_fwd<c4001_2, &c4001::Instance::set_inhibit_duration>>(zb_ep_aux)
-	//, zb::handle_set_for<kAttrSTrig,              method_fwd<c4001_2, &c4001::Instance::set_detect_sensitivity>>(zb_ep_aux)
-	//, zb::handle_set_for<kAttrSHold,              method_fwd<c4001_2, &c4001::Instance::set_hold_sensitivity>>(zb_ep_aux)
+	, zb::handle_set_for<kAttrBT,                    method_fwd<ld2412_1, &ld2412::Instance::switch_bluetooth>>(zb_ep)
+	//aux instance
+	, zb::handle_set_for<kAttrBaseCfg,               &on_set_base_config<ld2412_2>>(zb_ep)
+	, zb::handle_set_for<kAttrLightSense,            &on_set_light_sense<ld2412_2>>(zb_ep)
+	, zb::handle_set_for<kAttrStillThr,              method_fwd<ld2412_2, &ld2412::Instance::set_still_thresholds_raw>>(zb_ep)
+	, zb::handle_set_for<kAttrMoveThr,               method_fwd<ld2412_2, &ld2412::Instance::set_move_thresholds_raw>>(zb_ep)
+	, zb::handle_set_for<kAttrStatWinSize,           method_fwd<ld2412_2, &ld2412::Instance::collect_statistics>>(zb_ep)
+	, zb::handle_set_for<kAttrBT,                    method_fwd<ld2412_2, &ld2412::Instance::switch_bluetooth>>(zb_ep)
     >;
 
     ZB_ZCL_REGISTER_DEVICE_CB(dev_cb);
