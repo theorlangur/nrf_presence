@@ -39,8 +39,10 @@ namespace ld2412
         hlk::LD2412::LightSensitivity mode = hlk::LD2412::LightSensitivity::Off;;
         uint8_t threshold = 0;
     };
-    struct energy_thresholds_cfg_t{
+    struct still_thresholds_cfg_t{
         hlk::LD2412::gate_array_t const& still_thresholds;
+    };
+    struct move_thresholds_cfg_t{
         hlk::LD2412::gate_array_t const& move_thresholds;
     };
     struct run_background_analysis_t{
@@ -71,7 +73,8 @@ namespace ld2412
         , bt_cfg_t
         , basic_cfg_t
         , light_sense_cfg_t
-        , energy_thresholds_cfg_t
+        , still_thresholds_cfg_t
+        , move_thresholds_cfg_t
         , run_background_analysis_t
         , collect_statistics_cfg_t
         , snapshot_statistics_cfg_t
@@ -95,9 +98,12 @@ namespace ld2412
         void switch_bluetooth(bool on);
         void set_basic_config(basic_cfg_t const& cfg);
         void set_light_sense(light_sense_cfg_t const& cfg);
-        void set_gate_thresholds(energy_thresholds_cfg_t const& cfg);
+        void set_still_thresholds(still_thresholds_cfg_t const& cfg);
+        void set_move_thresholds(move_thresholds_cfg_t const& cfg);
+        void set_still_thresholds_raw(hlk::LD2412::gate_array_t const& thr) { set_still_thresholds(still_thresholds_cfg_t{.still_thresholds = thr}); }
+        void set_move_thresholds_raw(hlk::LD2412::gate_array_t const& thr) { set_move_thresholds(move_thresholds_cfg_t{.move_thresholds = thr}); }
         void run_back_analysis(run_background_analysis_t const& cfg);
-        void collect_statistics(collect_statistics_cfg_t const& cfg);
+        void collect_statistics(uint8_t win_size);
         void take_statistic_snapshot(snapshot_statistics_cfg_t const& cfg);
 
         auto get_stat_collect_window_size() const { return m_StatSampleCount; }

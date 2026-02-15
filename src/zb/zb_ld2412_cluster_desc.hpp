@@ -24,11 +24,11 @@ namespace zb
 
         static bool validate_gates(uint8_t *value)
         {
-            ZigbeeBin<15> *pT = (ZigbeeBin<15>*)value;
-            if (pT->data[0] != 14)
+            ZigbeeBinTyped<gate_array_t> *pT = (ZigbeeBinTyped<gate_array_t>*)value;
+            if (pT->len_bytes != 14)
                 return false;
 
-            for(int i = 1; i < 15; ++i)
+            for(int i = 0; i < 14; ++i)
                 if (pT->data[i] > 100)
                     return false;
             return true;
@@ -78,17 +78,17 @@ namespace zb
         uint8_t light_level = 0;
         struct flags_t
         {
-            uint8_t bluetooth_state             : 1 = 0;
             uint8_t background_analysis_active  : 1 = 0;
             uint8_t background_analysis_ok      : 1 = 0;
-            uint8_t unused                      : 5 = 0;
+            uint8_t unused                      : 6 = 0;
         } flags = {};
 
         ZigbeeBinTyped<base_cfg_t> base_config;
-        ZigbeeBin<15> still_energy_thresholds = gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
-        ZigbeeBin<15> move_energy_thresholds = gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
+        ZigbeeBinTyped<gate_array_t> still_energy_thresholds = gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
+        ZigbeeBinTyped<gate_array_t> move_energy_thresholds = gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
         ZigbeeBin<7> bluetooth_mac;
         ZigbeeStr<32> sw_ver;
+        bool bluetooth_state = false;
         uint8_t statistics_sample_count_window = 0;
         ZigbeeBinTypedArray<energy_stat_t, 14> energy_stat_still;
         ZigbeeBinTypedArray<energy_stat_t, 14> energy_stat_move;
@@ -121,6 +121,7 @@ namespace zb
                     ,attribute_t{.m = &T::energy_stat_still,                  .id = 0x0008, .a=Access::RP}
                     ,attribute_t{.m = &T::energy_stat_move,                   .id = 0x0009, .a=Access::RP}
                     ,attribute_t{.m = &T::light_sense,                        .id = 0x000a, .a=Access::RW}
+                    ,attribute_t{.m = &T::bluetooth_state,                    .id = 0x000b, .a=Access::RW}
                 >{},
                 commands_t<
                     &T::cmd_restart, 

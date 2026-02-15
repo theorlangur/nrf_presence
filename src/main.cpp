@@ -105,6 +105,7 @@ constexpr auto kAttrStillThr    = &zb::zb_zcl_ld2412_t::still_energy_thresholds;
 constexpr auto kAttrMoveThr     = &zb::zb_zcl_ld2412_t::move_energy_thresholds;
 constexpr auto kAttrLightLevel  = &zb::zb_zcl_ld2412_t::light_level;
 constexpr auto kAttrFlags       = &zb::zb_zcl_ld2412_t::flags;
+constexpr auto kAttrBT          = &zb::zb_zcl_ld2412_t::bluetooth_state;
 constexpr auto kAttrStatStill   = &zb::zb_zcl_ld2412_t::energy_stat_still;
 constexpr auto kAttrStatMove    = &zb::zb_zcl_ld2412_t::energy_stat_move;
 constexpr auto kAttrLightSense  = &zb::zb_zcl_ld2412_t::light_sense;
@@ -411,9 +412,9 @@ void zb_ld2412_update_flags()
     auto &d = get_data_for_ld2412<i>();
     auto *pLD2412 = i.sensor();
     zb::zb_zcl_ld2412_t::flags_t f = d.flags;
-    f.bluetooth_state = pLD2412->GetLastBluetoothState();
     f.background_analysis_active = i.is_running_back_analysis();
     ep.template attr<kAttrFlags>() = f;
+    ep.template attr<kAttrBT>() = pLD2412->GetLastBluetoothState();
 }
 
 template<ld2412::Instance &i>
@@ -525,7 +526,7 @@ void update_dev_ctx_from_ld2412()
     auto &d = get_data_for_ld2412<i>();
     auto *pLD2412 = i.sensor();
 
-    d.flags.bluetooth_state = pLD2412->GetLastBluetoothState();
+    d.bluetooth_state = pLD2412->GetLastBluetoothState();
     d.flags.background_analysis_active = pLD2412->IsDynamicBackgroundAnalysisRunning();
     d.light_sense->mode = pLD2412->GetLightSensitivityMode();
     d.light_sense->threshold = pLD2412->GetLightSensitivityThreshold();
@@ -537,6 +538,23 @@ void update_dev_ctx_from_ld2412()
     d.bluetooth_mac = pLD2412->GetBluetoothMAC();
     tools::format_to_silent(as_print_dest(d.sw_ver), "{}", pLD2412->GetVersion());
     d.statistics_sample_count_window = 0;
+}
+
+template<ld2412::Instance &i>
+void on_set_base_config(zb::zb_zcl_ld2412_t::base_cfg_t const& cfg)
+{
+    i.set_basic_config({
+	    .resolution = cfg.distance_resolution
+	    , .gate_from = hlk::LD2412::GetGateFromDistanceCM(cfg.range_min * 100.f, cfg.distance_resolution)
+	    , .gate_to = hlk::LD2412::GetGateFromDistanceCM(cfg.range_max * 100.f, cfg.distance_resolution)
+	    , .clear_delay = cfg.clear_delay
+	});
+}
+
+template<ld2412::Instance &i>
+void on_set_light_sense(zb::zb_zcl_ld2412_t::light_sense_cfg_t const& cfg)
+{
+    i.set_light_sense({ .mode = cfg.mode, .threshold = cfg.threshold });
 }
 
 int configure_ld2412_out_pin();
@@ -876,6 +894,11 @@ int main(void)
     /* Register callback for handling ZCL commands. */
     auto dev_cb = zb::tpl_device_cb<
 	zb::dev_cb_handlers_desc{ .error_handler = on_dev_cb_error }
+	, zb::handle_set_for<kAttrBaseCfg,               &on_set_base_config<ld2412_1>>(zb_ep)
+	, zb::handle_set_for<kAttrLightSense,            &on_set_light_sense<ld2412_1>>(zb_ep)
+	, zb::handle_set_for<kAttrStillThr,              method_fwd<ld2412_1, &ld2412::Instance::set_still_thresholds_raw>>(zb_ep)
+	, zb::handle_set_for<kAttrMoveThr,               method_fwd<ld2412_1, &ld2412::Instance::set_move_thresholds_raw>>(zb_ep)
+	, zb::handle_set_for<kAttrStatWinSize,           method_fwd<ld2412_1, &ld2412::Instance::collect_statistics>>(zb_ep)
 	//, zb::handle_set_for<kAttrDetectToClearDelay, on_set_detect_to_clear_delay>(zb_ep)
 	//, zb::handle_set_for<kAttrClearToDetectDelay, on_set_clear_to_detect_delay>(zb_ep)
 	//, zb::handle_set_for<kAttrRMin,               method_fwd<c4001_1, &c4001::Instance::set_range_from>>(zb_ep)

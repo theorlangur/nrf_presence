@@ -79,7 +79,11 @@ namespace ld2412
     {
 	m_Q << cfg;
     }
-    void Instance::set_gate_thresholds(energy_thresholds_cfg_t const& cfg)
+    void Instance::set_still_thresholds(still_thresholds_cfg_t const& cfg)
+    {
+	m_Q << cfg;
+    }
+    void Instance::set_move_thresholds(move_thresholds_cfg_t const& cfg)
     {
 	m_Q << cfg;
     }
@@ -87,9 +91,9 @@ namespace ld2412
     {
 	m_Q << cfg;
     }
-    void Instance::collect_statistics(collect_statistics_cfg_t const& cfg)
+    void Instance::collect_statistics(uint8_t win_size)
     {
-	m_Q << cfg;
+	m_Q << collect_statistics_cfg_t{win_size};
     }
     void Instance::take_statistic_snapshot(snapshot_statistics_cfg_t const& cfg)
     {
@@ -228,11 +232,18 @@ namespace ld2412
 			    if (!r && m_ErrCB)
 				m_ErrCB(err_t::SetLightSenseCfg);
 			}
-			,[&](energy_thresholds_cfg_t const& cfg)
+			,[&](still_thresholds_cfg_t const& cfg)
+			{
+			    auto r = m_Sensor.ChangeConfiguration()
+				.SetStillThresholds(cfg.still_thresholds)
+			    .EndChange();
+			    if (!r && m_ErrCB)
+				m_ErrCB(err_t::SetEnergyThresholds);
+			}
+			,[&](move_thresholds_cfg_t const& cfg)
 			{
 			    auto r = m_Sensor.ChangeConfiguration()
 				.SetMoveThresholds(cfg.move_thresholds)
-				.SetStillThresholds(cfg.still_thresholds)
 			    .EndChange();
 			    if (!r && m_ErrCB)
 				m_ErrCB(err_t::SetEnergyThresholds);
