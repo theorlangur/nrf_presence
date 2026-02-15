@@ -282,31 +282,49 @@ auto as_print_dest(zb::ZigbeeStr<N> &str)
 
 void send_on_off(uint8_t val);
 
-gpio_callback g_on_presence_triggered_cb;
-gpio_callback g_on_presence_triggered_cb2;
+gpio_callback g_on_ld2412_triggered_main;
+gpio_callback g_on_ld2412_triggered_aux;
+gpio_callback g_on_pir_triggered;
 
-int g_state_presence1 = 0;
-int g_state_presence2 = 0;
+int g_ld2412_main_presence_out = 0;
+int g_ld2412_aux_presence_out = 0;
+int g_pir_presence = 0;
+bool g_presence_state = false;
 
-template<gpio_dt_spec const& pin, int &state, int const& state_aux>
 void presence_triggered(const struct device *port,
 					struct gpio_callback *cb,
 					gpio_port_pins_t pins)
 {
-    int old_val = state || state_aux;
-    state = gpio_pin_get_dt(&pin);
-    int val = state || state_aux;
-    if (val != old_val)
+    bool pir_changed = pins & BIT(pir.pin);
+    bool main_changed = pins & BIT(presence.pin);
+    bool aux_changed = pins & BIT(presence2.pin);
+    int new_pir = g_pir_presence;
+    int new_main = g_ld2412_main_presence_out;
+    int new_aux = g_ld2412_aux_presence_out;
+
+    bool new_presence_state = g_presence_state;
+
+    if (pir_changed) new_pir = gpio_pin_get_dt(&pir);
+    if (main_changed) new_main = gpio_pin_get_dt(&presence);
+    if (aux_changed) new_aux = gpio_pin_get_dt(&presence2);
+
+    if (pir_changed && new_pir && !g_pir_presence)
+	new_presence_state = true;
+    else if (!new_pir && !new_main && !new_aux)
+	new_presence_state = false;
+
+    if (new_presence_state != g_presence_state)
     {
+	g_presence_state = new_presence_state;
 	//TODO: remove me
-	gpio_pin_set_dt(&led0, val);
+	gpio_pin_set_dt(&led0, g_presence_state);
 
 	if (g_ZigbeeReady) //post to zigbee and shoot commands
-	    zb_schedule_app_callback(&send_on_off, val);
+	    zb_schedule_app_callback(&send_on_off, g_presence_state);
 	else
 	{
 	    //write latest state directly
-	    dev_ctx.occupancy.occupancy = val;
+	    dev_ctx.occupancy.occupancy = g_presence_state;
 	}
     }
 }
@@ -557,7 +575,7 @@ void on_set_light_sense(zb::zb_zcl_ld2412_t::light_sense_cfg_t const& cfg)
     i.set_light_sense({ .mode = cfg.mode, .threshold = cfg.threshold });
 }
 
-int configure_ld2412_out_pin();
+int configure_presence_pins();
 
 zb::ZbTimerExt g_EnvironmentSensorFetcher;
 
@@ -648,50 +666,8 @@ static void button_changed(uint32_t button_state, uint32_t has_changed)
     }
 }
 
-gpio_callback g_test_pir_cb;
-
-void test_pir(const struct device *port,
-					struct gpio_callback *cb,
-					gpio_port_pins_t pins)
+void print_ld2412_config(hlk::LD2412 &ld)
 {
-    int state = gpio_pin_get_dt(&pir);
-    gpio_pin_set_dt(&led0, state);
-}
-
-int config_pir()
-{
-    gpio_pin_configure_dt(&led0, GPIO_OUTPUT_ACTIVE);
-    gpio_pin_set_dt(&led0, 0);
-    int err = gpio_pin_configure_dt(&pir, GPIO_INPUT);
-    if (err != 0)
-    {
-	printk("gpio_pin_configure_dt: %d\r\n", err);
-	return err;
-    }
-    err = gpio_pin_interrupt_configure_dt(&pir, GPIO_INT_EDGE_BOTH);
-    if (err != 0)
-    {
-	printk("gpio_pin_interrupt_configure_dt: %d\r\n", err);
-	return err;
-    }
-
-    gpio_init_callback(&g_test_pir_cb, test_pir, BIT(pir.pin));
-    err = gpio_add_callback_dt(&pir, &g_test_pir_cb);
-    return err;
-}
-
-int test_ld2412()
-{
-    pLD2412_1 = ld2412_1.setup(&on_ld2412_error<ld2412_1>, &on_ld2412_notify<ld2412_1>);
-
-    config_pir();
-    hlk::LD2412 ld(mmwave_uart1);
-    auto initRes = ld.Init();
-    if (!initRes)
-    {
-	FMT_PRINTLN("Init failed with {}", initRes.error());
-	return 1;
-    }
     FMT_PRINTLN("Version: {}", ld.GetVersion());
     FMT_PRINTLN("BT: {}", ld.GetBluetoothMAC());
     FMT_PRINTLN("SysMode: {}", ld.GetSystemMode());
@@ -705,53 +681,10 @@ int test_ld2412()
     {
 	FMT_PRINTLN("Gate {}; Threshold: move: {}; still: {}", i + 1, ld.GetMoveThreshold(i), ld.GetStillThreshold(i));
     }
-
-    FMT_PRINTLN("Switching to energy mode...");
-    auto ccR = ld.ChangeConfiguration()
-	.SetSystemMode(hlk::LD2412::SystemMode::Energy)
-    .EndChange();
-    if (!ccR)
-    {
-	FMT_PRINTLN("Switching to energy mode failed with {}", ccR.error());
-    }
-    else
-    {
-	FMT_PRINTLN("Switching to energy mode OK");
-    }
-
-    ld.StartContinuousReading();
-    while(true)
-    {
-	//auto readFrame = ld.TryReadSingleFrame();
-	auto readFrame = ld.TryReadFrame();
-	if (!readFrame)
-	{
-	    FMT_PRINTLN("Failed to read frame with {}", readFrame.error());
-	    return 2;
-	}
-	FMT_PRINTLN("Presence: {}; Light: {}", ld.GetPresence(), ld.GetMeasuredLight());
-	if (ld.GetSystemMode() == hlk::LD2412::SystemMode::Energy)
-	{
-	    printk("E: ");
-	    for(int i = 0; i < 14; ++i)
-	    {
-		FMT_PRINT("G{};M:{};S:{}|", i + 1, ld.GetMeasuredMoveEnergy(i), ld.GetMeasuredStillEnergy(i));
-	    }
-	    printk("\n");
-	}
-    }
-    return 0;
 }
 
 int main(void)
 {
-    printk("waiting...\n");
-    k_msleep(10000);
-    auto r = test_ld2412();
-    k_msleep(60000);
-    return r;
-
-
     int err = settings_subsys_init();
     err = settings_load();
 
@@ -836,7 +769,7 @@ int main(void)
     /* Register device context (endpoints). */
     ZB_AF_REGISTER_DEVICE_CTX(zb_ctx);
 
-    if (int err = configure_ld2412_out_pin(); err != 0)
+    if (int err = configure_presence_pins(); err != 0)
     {
 	printk("Failed to configure c4001 out pin\r\n");
     }
@@ -848,24 +781,11 @@ int main(void)
     zigbee_enable();
 
     printk("Main: sleep forever\r\n");
-	//   {
-	//printk("C4001(1); HW=%s\r\n", pC4001_1->GetHWVer().m_Version);
-	//printk("C4001(1); SW=%s\r\n", pC4001_1->GetSWVer().m_Version);
-	//printk("C4001(1); Range=%.1f to %.1fm\r\n", (double)pC4001_1->GetRangeFrom(), (double)pC4001_1->GetRangeTo());
-	//printk("C4001(1); Latency; to detect=%.1fs; to clear=%.1fs\r\n", (double)pC4001_1->GetDetectLatency(), (double)pC4001_1->GetClearLatency());
-	//printk("C4001(1); Trig Range=%.1fm\r\n", (double)pC4001_1->GetTriggerDistance());
-	//printk("C4001(1); Sensitivity Detect=%d; Hold=%d;\r\n", pC4001_1->GetSensitivityTrig(), pC4001_1->GetSensitivityHold());
-	//printk("C4001(1); Inhibut Duration=%.1fs\r\n", (double)pC4001_1->GetInhibitDuration());
-	//   }
-	//   {
-	//printk("C4001(2); HW=%s\r\n", pC4001_2->GetHWVer().m_Version);
-	//printk("C4001(2); SW=%s\r\n", pC4001_2->GetSWVer().m_Version);
-	//printk("C4001(2); Range=%.1f to %.1fm\r\n", (double)pC4001_2->GetRangeFrom(), (double)pC4001_2->GetRangeTo());
-	//printk("C4001(2); Latency; to detect=%.1fs; to clear=%.1fs\r\n", (double)pC4001_2->GetDetectLatency(), (double)pC4001_2->GetClearLatency());
-	//printk("C4001(2); Trig Range=%.1fm\r\n", (double)pC4001_2->GetTriggerDistance());
-	//printk("C4001(2); Sensitivity Detect=%d; Hold=%d;\r\n", pC4001_2->GetSensitivityTrig(), pC4001_2->GetSensitivityHold());
-	//printk("C4001(2); Inhibut Duration=%.1fs\r\n", (double)pC4001_2->GetInhibitDuration());
-	//   }
+    FMT_PRINTLN("-----LD2412 main-----");
+    print_ld2412_config(*pLD2412_1);
+    FMT_PRINTLN("-----LD2412 aux-----");
+    print_ld2412_config(*pLD2412_2);
+
     while (1) {
 	k_sleep(K_FOREVER);
     }
@@ -873,13 +793,13 @@ int main(void)
     return 0;
 }
 
-int configure_ld2412_out_pin()
+int configure_presence_pins()
 {
     gpio_pin_configure_dt(&led0, GPIO_OUTPUT_ACTIVE);
     int err = gpio_pin_configure_dt(&presence, GPIO_INPUT);
     if (err != 0)
     {
-	printk("gpio_pin_configure_dt: %d\r\n", err);
+	printk("(main)gpio_pin_configure_dt: %d\r\n", err);
 	return err;
     }
     gpio_pin_set_dt(&led0, 0);
@@ -887,29 +807,51 @@ int configure_ld2412_out_pin()
     err = gpio_pin_interrupt_configure_dt(&presence, GPIO_INT_EDGE_BOTH);
     if (err != 0)
     {
-	printk("gpio_pin_interrupt_configure_dt: %d\r\n", err);
+	printk("(main)gpio_pin_interrupt_configure_dt: %d\r\n", err);
 	return err;
     }
-    g_state_presence1 = gpio_pin_get_dt(&presence);
+    g_ld2412_main_presence_out = gpio_pin_get_dt(&presence);
 
     err = gpio_pin_interrupt_configure_dt(&presence2, GPIO_INT_EDGE_BOTH);
     if (err != 0)
     {
-	printk("gpio_pin_interrupt_configure_dt(2): %d\r\n", err);
+	printk("(aux)gpio_pin_interrupt_configure_dt: %d\r\n", err);
 	return err;
     }
-    g_state_presence2 = gpio_pin_get_dt(&presence2);
+    g_ld2412_aux_presence_out = gpio_pin_get_dt(&presence2);
 
-    if (g_state_presence1 || g_state_presence2)
-	dev_ctx.occupancy.occupancy = true;
+    err = gpio_pin_configure_dt(&pir, GPIO_INPUT);
+    if (err != 0)
+    {
+	printk("(pir)gpio_pin_configure_dt: %d\r\n", err);
+	return err;
+    }
+    err = gpio_pin_interrupt_configure_dt(&pir, GPIO_INT_EDGE_BOTH);
+    if (err != 0)
+    {
+	printk("(pir)gpio_pin_interrupt_configure_dt: %d\r\n", err);
+	return err;
+    }
+    g_pir_presence = gpio_pin_get_dt(&pir);
 
-    gpio_init_callback(&g_on_presence_triggered_cb, presence_triggered<presence, g_state_presence1, g_state_presence2>, BIT(presence.pin));
-    err = gpio_add_callback_dt(&presence, &g_on_presence_triggered_cb);
+    dev_ctx.occupancy.occupancy = g_pir_presence;//initially only conservatively by PIR
+
+    gpio_init_callback(&g_on_ld2412_triggered_main, presence_triggered, BIT(presence.pin));
+    err = gpio_add_callback_dt(&presence, &g_on_ld2412_triggered_main);
     if (!err)
     {
-	gpio_init_callback(&g_on_presence_triggered_cb2, presence_triggered<presence2, g_state_presence2, g_state_presence1>, BIT(presence2.pin));
-	err = gpio_add_callback_dt(&presence2, &g_on_presence_triggered_cb2);
-    }
+	gpio_init_callback(&g_on_ld2412_triggered_aux, presence_triggered, BIT(presence2.pin));
+	err = gpio_add_callback_dt(&presence2, &g_on_ld2412_triggered_aux);
+	if (!err)
+	{
+	    gpio_init_callback(&g_on_pir_triggered, presence_triggered, BIT(pir.pin));
+	    err = gpio_add_callback_dt(&pir, &g_on_pir_triggered);
+	    if (err != 0)
+		printk("(pir)gpio_add_callback_dt: %d\r\n", err);
+	}else
+	    printk("(aux)gpio_add_callback_dt: %d\r\n", err);
+    }else
+	printk("(main)gpio_add_callback_dt: %d\r\n", err);
     return err;
 }
 
