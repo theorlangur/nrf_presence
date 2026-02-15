@@ -99,6 +99,9 @@ namespace ld2412
         void run_back_analysis(run_background_analysis_t const& cfg);
         void collect_statistics(collect_statistics_cfg_t const& cfg);
         void take_statistic_snapshot(snapshot_statistics_cfg_t const& cfg);
+
+        auto get_stat_collect_window_size() const { return m_StatSampleCount; }
+        bool is_running_back_analysis() const { return m_BackgroundAnalysisDoneCB != nullptr; }
     private:
         void mainloop();
         void collect_sample();

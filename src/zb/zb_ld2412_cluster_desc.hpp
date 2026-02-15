@@ -76,13 +76,12 @@ namespace zb
         /* Data members go here                                               */
         /**********************************************************************/
         uint8_t light_level = 0;
-        struct
+        struct flags_t
         {
             uint8_t bluetooth_state             : 1 = 0;
             uint8_t background_analysis_active  : 1 = 0;
             uint8_t background_analysis_ok      : 1 = 0;
-            uint8_t collect_statistics          : 1 = 0;
-            uint8_t unused                      : 4 = 0;
+            uint8_t unused                      : 5 = 0;
         } flags = {};
 
         ZigbeeBinTyped<base_cfg_t> base_config;

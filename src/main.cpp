@@ -100,13 +100,15 @@ constexpr auto kAttrStatus3 = &zb::zb_zcl_status_t::status3;
 /**********************************************************************/
 /* LD2412 attributes                                                  */
 /**********************************************************************/
-constexpr auto kAttrBaseCfg = &zb::zb_zcl_ld2412_t::base_config;
-constexpr auto kAttrStillThr = &zb::zb_zcl_ld2412_t::still_energy_thresholds;
-constexpr auto kAttrMoveThr = &zb::zb_zcl_ld2412_t::move_energy_thresholds;
-constexpr auto kAttrLightLevel = &zb::zb_zcl_ld2412_t::light_level;
-constexpr auto kAttrFlags = &zb::zb_zcl_ld2412_t::flags;
-constexpr auto kAttrStatStill = &zb::zb_zcl_ld2412_t::energy_stat_still;
-constexpr auto kAttrStatMove = &zb::zb_zcl_ld2412_t::energy_stat_move;
+constexpr auto kAttrBaseCfg     = &zb::zb_zcl_ld2412_t::base_config;
+constexpr auto kAttrStillThr    = &zb::zb_zcl_ld2412_t::still_energy_thresholds;
+constexpr auto kAttrMoveThr     = &zb::zb_zcl_ld2412_t::move_energy_thresholds;
+constexpr auto kAttrLightLevel  = &zb::zb_zcl_ld2412_t::light_level;
+constexpr auto kAttrFlags       = &zb::zb_zcl_ld2412_t::flags;
+constexpr auto kAttrStatStill   = &zb::zb_zcl_ld2412_t::energy_stat_still;
+constexpr auto kAttrStatMove    = &zb::zb_zcl_ld2412_t::energy_stat_move;
+constexpr auto kAttrLightSense  = &zb::zb_zcl_ld2412_t::light_sense;
+constexpr auto kAttrStatWinSize = &zb::zb_zcl_ld2412_t::statistics_sample_count_window;
 
 
 /**********************************************************************/
@@ -271,6 +273,11 @@ void method_fwd(arg1_type_t<M> a)
     (inst.*M)(a);
 }
 
+template<size_t N>
+auto as_print_dest(zb::ZigbeeStr<N> &str)
+{
+    return tools::BufferFormatter(str.name + 1, str.size());
+}
 
 void send_on_off(uint8_t val);
 
@@ -377,55 +384,160 @@ void on_dev_cb_error(int err)
     printk("on_dev_cb_error: %d\r\n", err);
 }
 
-template<ld2412::Instance &i, auto &zb>
-void zb_ld2412_update()
+template<ld2412::Instance &i>
+void zb_ld2412_update_light_sense()
 {
-    using namespace ld2412; 
+    auto &ep = get_zb_ep_for_ld2412<i>();
     auto *pLD2412 = i.sensor();
-    //zb.template attr<kAttrRMin>() = pLD2412->GetRangeFrom();
-    //zb.template attr<kAttrRMax>() = pLD2412->GetRangeTo();
-    //zb_ep.attr<kAttrDetectToClearDelay>() = pLD2412->GetClearLatency();
-    //zb.template attr<kAttrStillThr>() = pLD2412->GetAllStillThresholds();
-    //zb.template attr<kAttrMoveThr>() = pLD2412->GetAllMoveThresholds();
+    zb::zb_zcl_ld2412_t::light_sense_cfg_t l;
+    l.mode = pLD2412->GetLightSensitivityMode();
+    l.threshold = pLD2412->GetLightSensitivityThreshold();
+    ep.template attr<kAttrLightSense>() = l;
 }
 
-template<ld2412::Instance &i, auto &zb>
+template<ld2412::Instance &i>
+void zb_ld2412_update_thresholds()
+{
+    auto &ep = get_zb_ep_for_ld2412<i>();
+    auto *pLD2412 = i.sensor();
+    ep.template attr<kAttrStillThr>() = pLD2412->GetAllStillThresholds();
+    ep.template attr<kAttrMoveThr>() = pLD2412->GetAllMoveThresholds();
+}
+
+template<ld2412::Instance &i>
+void zb_ld2412_update_flags()
+{
+    auto &ep = get_zb_ep_for_ld2412<i>();
+    auto &d = get_data_for_ld2412<i>();
+    auto *pLD2412 = i.sensor();
+    zb::zb_zcl_ld2412_t::flags_t f = d.flags;
+    f.bluetooth_state = pLD2412->GetLastBluetoothState();
+    f.background_analysis_active = i.is_running_back_analysis();
+    ep.template attr<kAttrFlags>() = f;
+}
+
+template<ld2412::Instance &i>
+void zb_ld2412_update_stat_collection()
+{
+    auto &ep = get_zb_ep_for_ld2412<i>();
+    auto &d = get_data_for_ld2412<i>();
+    ep.template attr<kAttrStatWinSize>() = i.get_stat_collect_window_size();
+}
+
+template<ld2412::Instance &i>
+void zb_ld2412_update_base_config()
+{
+    auto &ep = get_zb_ep_for_ld2412<i>();
+    auto &d = get_data_for_ld2412<i>();
+    auto *pLD2412 = i.sensor();
+    zb::zb_zcl_ld2412_t::base_cfg_t base;
+    base.clear_delay = pLD2412->GetTimeout();
+    base.distance_resolution = pLD2412->GetDistanceRes();
+    base.range_min = pLD2412->GetMinDistance() / 100.f;
+    base.range_max = pLD2412->GetMaxDistance() / 100.f;
+    ep.template attr<kAttrBaseCfg>() = base;
+}
+
+template<ld2412::Instance &i>
 void zb_ld2412_error(uint8_t e)
 {
     using namespace ld2412;
     //generally: set zb attributes to current values
-    zb_ld2412_update<i, zb>();
+    switch(err_t(e))
+    {
+	using enum err_t;
+	case Restart:
+	case ReloadConfig:
+	case FactoryReset:
+	{
+	    zb_ld2412_update_base_config<i>();
+	    zb_ld2412_update_flags<i>();
+	    zb_ld2412_update_light_sense<i>();
+	    zb_ld2412_update_thresholds<i>();
+	    zb_ld2412_update_stat_collection<i>();
+	}
+	break;
+	case Bluetooth:
+	    zb_ld2412_update_flags<i>();
+	break;
+	case SetBasicCfg:
+	    zb_ld2412_update_base_config<i>();
+	break;
+	case SetLightSenseCfg:
+	    zb_ld2412_update_light_sense<i>();
+	break;
+	case SetEnergyThresholds:
+	    zb_ld2412_update_thresholds<i>();
+	break;
+	case RunBackAnalysis:
+	    zb_ld2412_update_flags<i>();
+	break;
+	case ConfigureCollectStatistics:
+	    zb_ld2412_update_stat_collection<i>();
+	break;
+	default:
+	break;
+    }
     zb_ep.attr<kAttrStatus1>() = e;
 }
 
-template<ld2412::Instance &i, auto &zb>
+template<ld2412::Instance &i>
 void on_ld2412_error(ld2412::err_t e)
 {
     if (g_ZigbeeReady)
-	zb_schedule_app_callback(&zb_ld2412_error<i, zb>, (uint8_t)e);
-}
-
-template<ld2412::Instance &i, auto &zb>
-void on_ld2412_upd()
-{
-    if (g_ZigbeeReady)
-	zb_schedule_app_callback(&zb_ld2412_update<i, zb>, (uint8_t)0);
-}
-
-template<ld2412::Instance &i, auto &zb>
-void on_ld2412_notify(ld2412::notification_id_t id)
-{
-    //TODO: implement
-	//   if (g_ZigbeeReady)
-	//zb_schedule_app_callback(&zb_c4001_update<i, zb>, (uint8_t)id);
+	zb_schedule_app_callback(&zb_ld2412_error<i>, (uint8_t)e);
 }
 
 template<ld2412::Instance &i>
-void on_otu_delay_changed(uint16_t d)
+void zb_ld2412_notify(uint8_t id)
 {
-    //i.set_clear_delay(d);
+    auto &ep = get_zb_ep_for_ld2412<i>();
+    auto &d = get_data_for_ld2412<i>();
+    auto *pLD2412 = i.sensor();
+    zb::zb_zcl_ld2412_t::flags_t f = d.flags;
+
+    switch(ld2412::notification_id_t(id))
+    {
+	case ld2412::notification_id_t::BackgroundAnalysisDone:
+	    f.background_analysis_active = false;
+	    f.background_analysis_ok = true;
+	    ep.template attr<kAttrFlags>() = f;
+	    break;
+	case ld2412::notification_id_t::BackgroundAnalysisError:
+	    f.background_analysis_active = false;
+	    f.background_analysis_ok = false;
+	    ep.template attr<kAttrFlags>() = f;
+	    break;
+    }
 }
 
+template<ld2412::Instance &i>
+void on_ld2412_notify(ld2412::notification_id_t id)
+{
+    if (g_ZigbeeReady)
+	zb_schedule_app_callback(&zb_ld2412_notify<i>, (uint8_t)id);
+}
+
+template<ld2412::Instance &i>
+void update_dev_ctx_from_ld2412()
+{
+    auto &ep = get_zb_ep_for_ld2412<i>();
+    auto &d = get_data_for_ld2412<i>();
+    auto *pLD2412 = i.sensor();
+
+    d.flags.bluetooth_state = pLD2412->GetLastBluetoothState();
+    d.flags.background_analysis_active = pLD2412->IsDynamicBackgroundAnalysisRunning();
+    d.light_sense->mode = pLD2412->GetLightSensitivityMode();
+    d.light_sense->threshold = pLD2412->GetLightSensitivityThreshold();
+    d.base_config->distance_resolution = pLD2412->GetDistanceRes();
+    d.base_config->clear_delay = pLD2412->GetTimeout();
+    d.base_config->range_min = pLD2412->GetMinDistance() / 100.f;
+    d.base_config->range_max = pLD2412->GetMaxDistance() / 100.f;
+    d.light_level = pLD2412->GetMeasuredLight();
+    d.bluetooth_mac = pLD2412->GetBluetoothMAC();
+    tools::format_to_silent(as_print_dest(d.sw_ver), "{}", pLD2412->GetVersion());
+    d.statistics_sample_count_window = 0;
+}
 
 int configure_ld2412_out_pin();
 
@@ -631,7 +743,7 @@ int config_pir()
 
 int test_ld2412()
 {
-    pLD2412_1 = ld2412_1.setup(&on_ld2412_error<ld2412_1, zb_ep>, &on_ld2412_notify<ld2412_1, zb_ep>);
+    pLD2412_1 = ld2412_1.setup(&on_ld2412_error<ld2412_1>, &on_ld2412_notify<ld2412_1>);
 
     config_pir();
     hlk::LD2412 ld(mmwave_uart1);
@@ -721,54 +833,40 @@ int main(void)
 
     printk("main\r\n");
 
-    //pC4001_1 = c4001_1.setup(&on_c4001_error<c4001_1, zb_ep>, &on_c4001_upd<c4001_1, zb_ep>);
-    pLD2412_1 = ld2412_1.setup(&on_ld2412_error<ld2412_1, zb_ep>, &on_ld2412_notify<ld2412_1, zb_ep>);
+    pLD2412_1 = ld2412_1.setup(&on_ld2412_error<ld2412_1>, &on_ld2412_notify<ld2412_1>);
     if (pLD2412_1)
     {
-	//dev_ctx.c4001.range_min = pC4001_1->GetRangeFrom();
-	//dev_ctx.c4001.range_max = pC4001_1->GetRangeTo();
-	//dev_ctx.c4001.range_trig = pC4001_1->GetTriggerDistance();
-	//dev_ctx.c4001.inhibit_duration = pC4001_1->GetInhibitDuration();
-	//dev_ctx.c4001.sensitivity_detect = pC4001_1->GetSensitivityTrig();
-	//dev_ctx.c4001.sensitivity_hold = pC4001_1->GetSensitivityHold();
-	//dev_ctx.c4001.sw_ver = pC4001_1->GetSWVer().m_Version;
-	//dev_ctx.c4001.hw_ver = pC4001_1->GetHWVer().m_Version;
+	//TODO: the other way around and update the config on ld2412 from stored settings?
+	update_dev_ctx_from_ld2412<ld2412_1>();
     }else
     {
-	printk("C4001 not found\r\n");
+	printk("LD2412 not found\r\n");
 	int val = 1;
 	while(true)
 	{
 	    gpio_pin_set_dt(&led0, val);
 	    k_msleep(1000);
 	    val ^= 1;
-	    printk("C4001 not found; led: %d\r\n", val);
+	    printk("LD2412 not found; led: %d\r\n", val);
 	}
 	return 0;
     }
 
-    //pC4001_2 = c4001_2.setup(&on_c4001_error<c4001_2, zb_ep_aux>, &on_c4001_upd<c4001_2, zb_ep_aux>);
-    pLD2412_2 = ld2412_2.setup(&on_ld2412_error<ld2412_2, zb_ep>, &on_ld2412_notify<ld2412_2, zb_ep>);
+    pLD2412_2 = ld2412_2.setup(&on_ld2412_error<ld2412_2>, &on_ld2412_notify<ld2412_2>);
     if (pLD2412_2)
     {
-	//dev_ctx.c4001_aux.range_min = pC4001_2->GetRangeFrom();
-	//dev_ctx.c4001_aux.range_max = pC4001_2->GetRangeTo();
-	//dev_ctx.c4001_aux.range_trig = pC4001_2->GetTriggerDistance();
-	//dev_ctx.c4001_aux.inhibit_duration = pC4001_2->GetInhibitDuration();
-	//dev_ctx.c4001_aux.sensitivity_detect = pC4001_2->GetSensitivityTrig();
-	//dev_ctx.c4001_aux.sensitivity_hold = pC4001_2->GetSensitivityHold();
-	//dev_ctx.c4001_aux.sw_ver = pC4001_2->GetSWVer().m_Version;
-	//dev_ctx.c4001_aux.hw_ver = pC4001_2->GetHWVer().m_Version;
+	//TODO: the other way around and update the config on ld2412 from stored settings?
+	update_dev_ctx_from_ld2412<ld2412_2>();
     }else
     {
-	printk("C4001(2) not found\r\n");
+	printk("LD2412(aux) not found\r\n");
 	int val = 1;
 	while(true)
 	{
 	    gpio_pin_set_dt(&led0, val);
 	    k_msleep(500);
 	    val ^= 1;
-	    printk("C4001(2) not found; led: %d\r\n", val);
+	    printk("LD2412(aux) not found; led: %d\r\n", val);
 	}
 	return 0;
     }
