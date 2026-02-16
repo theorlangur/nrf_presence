@@ -27,6 +27,7 @@ namespace c4001
 	auto r = c4001.Init();
 	if (!r)
 	{
+	    FMT_PRINTLN("c4001 init failed with {}", r.error());
 	    c4001_thread = nullptr;
 	    return nullptr;
 	}
