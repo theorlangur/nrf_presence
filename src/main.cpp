@@ -30,7 +30,6 @@
 #include <nrfzbcpp/zb_co2_cluster_desc.hpp>
 #include <nrfzbcpp/zb_nstd_air_q_cluster_desc.hpp>
 #include "zb/zb_ld2412_cluster_desc.hpp"
-#include <nrf_uart/periphery/lib_ld2412.hpp>
 #include <osif/mac_platform.h>
 
 #define MMWAVE_UART_NODE DT_ALIAS(mmwave_uart)
