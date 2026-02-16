@@ -13,7 +13,7 @@ project(presence_dfr_c4001)
 
 target_include_directories(app PRIVATE submodules/esp_generic_lib/include)
 
-target_sources(app PRIVATE src/main.cpp src/c4001_task.cpp src/ld2412_task.cpp)
+target_sources(app PRIVATE src/main.cpp src/c4001_task.cpp)
 
 add_subdirectory(submodules/nrf_zb_cpp)
 add_subdirectory(submodules/nrf_general)

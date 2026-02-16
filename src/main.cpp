@@ -11,8 +11,6 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/settings/settings.h>
 #include "c4001_task.hpp"
-#include "ld2412_task.hpp"
-#include <nrf_uart/periphery/lib_ld2412_formatters.hpp>
 #include <dk_buttons_and_leds.h>
 #include <nrf_general/led.h>
 
@@ -31,8 +29,6 @@
 #include <nrfzbcpp/zb_co2_cluster_desc.hpp>
 #include <nrfzbcpp/zb_nstd_air_q_cluster_desc.hpp>
 #include "zb/zb_c4001_cluster_desc.hpp"
-#include "zb/zb_ld2412_cluster_desc.hpp"
-#include <nrf_uart/periphery/lib_ld2412.hpp>
 #include <osif/mac_platform.h>
 
 /**********************************************************************/
@@ -51,18 +47,6 @@ c4001::Instance c4001_2(c4001q_2, c4001_uart2, "c4001_2");
 
 constinit static dfr::C4001 *pC4001_1 = nullptr;
 constinit static dfr::C4001 *pC4001_2 = nullptr;
-
-/**********************************************************************/
-/* LD2412 presence sensor configurations/data                         */
-/**********************************************************************/
-K_MSGQ_DEFINE_TYPED(ld2412::Queue, ld2412q_1);
-K_MSGQ_DEFINE_TYPED(ld2412::Queue, ld2412q_2);
-
-ld2412::Instance ld2412_1(ld2412q_1, c4001_uart1, "ld2412_1");
-ld2412::Instance ld2412_2(ld2412q_2, c4001_uart2, "ld2412_2");
-
-constinit static hlk::LD2412 *pLD2412_1 = nullptr;
-constinit static hlk::LD2412 *pLD2412_2 = nullptr;
 
 /**********************************************************************/
 /* Zigbee Declarations and Definitions                                */
@@ -94,8 +78,6 @@ struct device_ctx_t{
     zb::zb_zcl_status_t status_attr;
     zb::zb_zcl_occupancy_pir_and_ultrasonic_t occupancy;
     zb::zb_zcl_on_off_attrs_client_t on_off_client;
-    zb::zb_zcl_ld2412_t ld2412_main;
-    zb::zb_zcl_ld2412_t ld2412_aux;
     zb::zb_zcl_c4001_t c4001;
     zb::zb_zcl_c4001_t c4001_aux;
     zb::zb_zcl_rel_humid_basic_t humidity;
@@ -175,14 +157,6 @@ static constinit device_ctx_t dev_ctx{
 	/*.manufacturer =*/ INIT_BASIC_MANUF_NAME,
 	/*.model =*/ INIT_BASIC_MODEL_ID,
     },
-    .ld2412_main{
-	.still_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
-	,.move_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
-    },
-    .ld2412_aux{
-	.still_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
-	,.move_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
-    },
     .c4001{
 	.cmd_restart = {.cb = on_cmd_restart<c4001_1>},
 	.cmd_save_config = {.cb = on_cmd_save_config<c4001_1>},
@@ -201,7 +175,6 @@ constinit static auto zb_ctx = zb::make_device(
 	    , dev_ctx.status_attr
 	    , dev_ctx.occupancy
 	    , dev_ctx.c4001
-	    , dev_ctx.ld2412_main
 	    , dev_ctx.humidity
 	    , dev_ctx.temperature
 	    , dev_ctx.co2
@@ -210,7 +183,6 @@ constinit static auto zb_ctx = zb::make_device(
 	    ),
 	zb::make_ep_args<{.ep=kMMW_AUX_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
 	    dev_ctx.c4001_aux
-	    , dev_ctx.ld2412_aux
 	    )
 	);
 
@@ -430,22 +402,6 @@ void on_c4001_upd(c4001::cfg_id_t id)
 	zb_schedule_app_callback(&zb_c4001_update<i, zb>, (uint8_t)id);
 }
 
-template<ld2412::Instance &i, auto &zb>
-void on_ld2412_error(ld2412::err_t e)
-{
-    //TODO: implement
-	//   if (g_ZigbeeReady)
-	//zb_schedule_app_callback(&zb_c4001_error<i, zb>, (uint8_t)e);
-}
-
-template<ld2412::Instance &i, auto &zb>
-void on_ld2412_notify(ld2412::notification_id_t id)
-{
-    //TODO: implement
-	//   if (g_ZigbeeReady)
-	//zb_schedule_app_callback(&zb_c4001_update<i, zb>, (uint8_t)id);
-}
-
 template<c4001::Instance &i>
 void on_uto_delay_changed(uint16_t d)
 {
@@ -661,78 +617,8 @@ int config_pir()
     return err;
 }
 
-int test_ld2412()
-{
-    pLD2412_1 = ld2412_1.setup(&on_ld2412_error<ld2412_1, zb_ep>, &on_ld2412_notify<ld2412_1, zb_ep>);
-
-    config_pir();
-    hlk::LD2412 ld(c4001_uart1);
-    auto initRes = ld.Init();
-    if (!initRes)
-    {
-	FMT_PRINTLN("Init failed with {}", initRes.error());
-	return 1;
-    }
-    FMT_PRINTLN("Version: {}", ld.GetVersion());
-    FMT_PRINTLN("BT: {}", ld.GetBluetoothMAC());
-    FMT_PRINTLN("SysMode: {}", ld.GetSystemMode());
-    FMT_PRINTLN("Timeout: {}", ld.GetTimeout());
-    FMT_PRINTLN("Dist resolution: {}", ld.GetDistanceRes());
-    FMT_PRINTLN("Min dist: {}", ld.GetMinDistance());
-    FMT_PRINTLN("Max dist: {}", ld.GetMaxDistance());
-    FMT_PRINTLN("Light sense mode: {}", ld.GetLightSensitivityMode());
-    FMT_PRINTLN("Light sense Threshold: {}", ld.GetLightSensitivityThreshold());
-    for(int i = 0; i < 14; ++i)
-    {
-	FMT_PRINTLN("Gate {}; Threshold: move: {}; still: {}", i + 1, ld.GetMoveThreshold(i), ld.GetStillThreshold(i));
-    }
-
-    FMT_PRINTLN("Switching to energy mode...");
-    auto ccR = ld.ChangeConfiguration()
-	.SetSystemMode(hlk::LD2412::SystemMode::Energy)
-    .EndChange();
-    if (!ccR)
-    {
-	FMT_PRINTLN("Switching to energy mode failed with {}", ccR.error());
-    }
-    else
-    {
-	FMT_PRINTLN("Switching to energy mode OK");
-    }
-
-    ld.StartContinuousReading();
-    while(true)
-    {
-	//auto readFrame = ld.TryReadSingleFrame();
-	auto readFrame = ld.TryReadFrame();
-	if (!readFrame)
-	{
-	    FMT_PRINTLN("Failed to read frame with {}", readFrame.error());
-	    return 2;
-	}
-	FMT_PRINTLN("Presence: {}; Light: {}", ld.GetPresence(), ld.GetMeasuredLight());
-	if (ld.GetSystemMode() == hlk::LD2412::SystemMode::Energy)
-	{
-	    printk("E: ");
-	    for(int i = 0; i < 14; ++i)
-	    {
-		FMT_PRINT("G{};M:{};S:{}|", i + 1, ld.GetMeasuredMoveEnergy(i), ld.GetMeasuredStillEnergy(i));
-	    }
-	    printk("\n");
-	}
-    }
-    return 0;
-}
-
 int main(void)
 {
-    printk("waiting...\n");
-    k_msleep(10000);
-    auto r = test_ld2412();
-    k_msleep(60000);
-    return r;
-
-
     int err = settings_subsys_init();
     err = settings_load();
 
