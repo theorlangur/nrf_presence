@@ -125,7 +125,8 @@
 
 &uart22 {
 	status = "okay";
-	current-speed = <9600>;
+	/* current-speed = <9600>; */
+	current-speed = <115200>;
 	pinctrl-0 = <&uart22_default>;
 	pinctrl-1 = <&uart22_sleep>;
 	pinctrl-names = "default", "sleep";
