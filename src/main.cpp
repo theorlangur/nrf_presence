@@ -672,8 +672,8 @@ void print_ld2412_config(hlk::LD2412 &ld)
     FMT_PRINTLN("SysMode: {}", ld.GetSystemMode());
     FMT_PRINTLN("Timeout: {}", ld.GetTimeout());
     FMT_PRINTLN("Dist resolution: {}", ld.GetDistanceRes());
-    FMT_PRINTLN("Min dist: {}", ld.GetMinDistance());
-    FMT_PRINTLN("Max dist: {}", ld.GetMaxDistance());
+    FMT_PRINTLN("Min dist: {}", ld.GetMinDistance()/100.f);
+    FMT_PRINTLN("Max dist: {}", ld.GetMaxDistance()/100.f);
     FMT_PRINTLN("Light sense mode: {}", ld.GetLightSensitivityMode());
     FMT_PRINTLN("Light sense Threshold: {}", ld.GetLightSensitivityThreshold());
     for(int i = 0; i < 14; ++i)
