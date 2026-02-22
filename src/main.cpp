@@ -58,7 +58,7 @@ static bool g_ZigbeeReady = false;
 #define INIT_BASIC_MANUF_NAME      "SFINAE"
 
 /* Model number assigned by manufacturer (32-bytes long string). */
-#define INIT_BASIC_MODEL_ID        "C4001-NG"
+#define INIT_BASIC_MODEL_ID        "LD2412-NG"
 //#define INIT_SW_VER                "C4001-1.0"
 
 
