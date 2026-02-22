@@ -27,6 +27,9 @@ namespace ld2412
     {
         BackgroundAnalysisDone
         , BackgroundAnalysisError
+        , SetBasicCfgDone
+        , SetLightSenseDone
+        , SetEnergyThresholdsDone
     };
 
     struct basic_cfg_t{

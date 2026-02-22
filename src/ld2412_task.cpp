@@ -1,5 +1,6 @@
 #include "ld2412_task.hpp"
 #include <lib_misc_helpers.hpp>
+#include <nrf_uart/periphery/lib_ld2412_formatters.hpp>
 
 namespace ld2412
 {
@@ -189,6 +190,7 @@ namespace ld2412
 			{
 			    if (auto r = m_Sensor.Restart(); !r)
 			    {
+				FMT_PRINTLN("Restart failed with: {}", r.error());
 				if (m_ErrCB) m_ErrCB(err_t::Restart);
 			    }
 			}
@@ -196,6 +198,7 @@ namespace ld2412
 			{
 			    if (auto r = m_Sensor.ReloadConfig(); !r)
 			    {
+				FMT_PRINTLN("Reload failed with: {}", r.error());
 				if (m_ErrCB) m_ErrCB(err_t::ReloadConfig);
 			    }
 			}
@@ -203,6 +206,7 @@ namespace ld2412
 			{
 			    if (auto r = m_Sensor.FactoryReset(); !r)
 			    {
+				FMT_PRINTLN("Factory reset failed with: {}", r.error());
 				if (m_ErrCB) m_ErrCB(err_t::FactoryReset);
 			    }
 			}
@@ -210,6 +214,7 @@ namespace ld2412
 			{
 			    if (auto r = m_Sensor.SwitchBluetooth(cfg.on); !r)
 			    {
+				FMT_PRINTLN("BT switch failed with: {}", r.error());
 				if (m_ErrCB) m_ErrCB(err_t::Bluetooth);
 			    }
 			}
@@ -221,6 +226,12 @@ namespace ld2412
 				.SetMaxDistanceRaw(cfg.gate_to)
 				.SetTimeout(cfg.clear_delay)
 			    .EndChange();
+			    if (!r)
+			    {
+				FMT_PRINTLN("Basic config set failed with: {}", r.error());
+			    }
+			    else if (r && m_NotifyCB)
+				m_NotifyCB(notification_id_t::SetBasicCfgDone);
 			    if (!r && m_ErrCB)
 				m_ErrCB(err_t::SetBasicCfg);
 			}
@@ -229,6 +240,12 @@ namespace ld2412
 			    auto r = m_Sensor.ChangeConfiguration()
 				.SetLightSensitivity(cfg.mode, cfg.threshold)
 			    .EndChange();
+			    if (!r)
+			    {
+				FMT_PRINTLN("Light sense set failed with: {}", r.error());
+			    }
+			    else if (r && m_NotifyCB)
+				m_NotifyCB(notification_id_t::SetLightSenseDone);
 			    if (!r && m_ErrCB)
 				m_ErrCB(err_t::SetLightSenseCfg);
 			}
@@ -237,6 +254,12 @@ namespace ld2412
 			    auto r = m_Sensor.ChangeConfiguration()
 				.SetStillThresholds(cfg.still_thresholds)
 			    .EndChange();
+			    if (!r)
+			    {
+				FMT_PRINTLN("Still thr set failed with: {}", r.error());
+			    }
+			    else if (r && m_NotifyCB)
+				m_NotifyCB(notification_id_t::SetEnergyThresholdsDone);
 			    if (!r && m_ErrCB)
 				m_ErrCB(err_t::SetEnergyThresholds);
 			}
@@ -245,6 +268,12 @@ namespace ld2412
 			    auto r = m_Sensor.ChangeConfiguration()
 				.SetMoveThresholds(cfg.move_thresholds)
 			    .EndChange();
+			    if (!r)
+			    {
+				FMT_PRINTLN("Move thr set failed with: {}", r.error());
+			    }
+			    else if (r && m_NotifyCB)
+				m_NotifyCB(notification_id_t::SetEnergyThresholdsDone);
 			    if (!r && m_ErrCB)
 				m_ErrCB(err_t::SetEnergyThresholds);
 			}

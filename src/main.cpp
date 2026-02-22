@@ -526,6 +526,15 @@ void zb_ld2412_notify(uint8_t id)
 	    f.background_analysis_ok = false;
 	    ep.template attr<kAttrFlags>() = f;
 	    break;
+	case ld2412::notification_id_t::SetBasicCfgDone:
+	    zb_ld2412_update_base_config<i>();
+	    break;
+	case ld2412::notification_id_t::SetLightSenseDone:
+	    zb_ld2412_update_light_sense<i>();
+	    break;
+	case ld2412::notification_id_t::SetEnergyThresholdsDone:
+	    zb_ld2412_update_thresholds<i>();
+	    break;
     }
 }
 
@@ -560,6 +569,8 @@ void update_dev_ctx_from_ld2412()
 template<ld2412::Instance &i>
 void on_set_base_config(zb::zb_zcl_ld2412_t::base_cfg_t const& cfg)
 {
+    const char *pInstName = &i == &ld2412_1 ? "main" : "aux";
+    printk("(%s)dist_res=%d; r_min=%.2f; r_max=%.2f; clear=%d\r\n", pInstName, cfg.distance_resolution, cfg.range_min, cfg.range_max, cfg.clear_delay);
     i.set_basic_config({
 	    .resolution = cfg.distance_resolution
 	    , .gate_from = hlk::LD2412::GetGateFromDistanceCM(cfg.range_min * 100.f, cfg.distance_resolution)
