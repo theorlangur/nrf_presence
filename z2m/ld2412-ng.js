@@ -34,18 +34,18 @@ const hlkLD2412Cluster = {
     ID: 0xFC82,
     manufacturerCode: null,
     attributes: {
-        baseConfig: { ID: 0x0000, type: Zcl.DataType.OCTET_STR },
-        swVer: { ID: 0x0001, type: Zcl.DataType.CHAR_STR },
-        bluetoothMac: { ID: 0x0002, type: Zcl.DataType.OCTET_STR },
-        stillEnergyThresholds: { ID: 0x0003, type: Zcl.DataType.OCTET_STR },
-        moveEnergyThresholds: { ID: 0x0004, type: Zcl.DataType.OCTET_STR },
-        lightLevel: { ID: 0x0005, type: Zcl.DataType.UINT8 },
-        flags: { ID: 0x0006, type: Zcl.DataType.UINT8 },
-        statSampleWindow: { ID: 0x0007, type: Zcl.DataType.UINT8 },
-        energyStatStill: { ID: 0x0008, type: Zcl.DataType.CHAR_STR },
-        energyStatMove: { ID: 0x0009, type: Zcl.DataType.CHAR_STR },
-        lightSense: { ID: 0x000a, type: Zcl.DataType.OCTET_STR },
-        bluetoothState: { ID: 0x000b, type: Zcl.DataType.BOOLEAN },
+        baseConfig: { ID: 0x0000, type: Zcl.DataType.OCTET_STR, read: true, write: true },
+        swVer: { ID: 0x0001, type: Zcl.DataType.CHAR_STR, read: true, write: false },
+        bluetoothMac: { ID: 0x0002, type: Zcl.DataType.OCTET_STR, read: true, write: false },
+        stillEnergyThresholds: { ID: 0x0003, type: Zcl.DataType.OCTET_STR, read: true, write: true },
+        moveEnergyThresholds: { ID: 0x0004, type: Zcl.DataType.OCTET_STR, read: true, write: true },
+        lightLevel: { ID: 0x0005, type: Zcl.DataType.UINT8, read: true, write: false },
+        flags: { ID: 0x0006, type: Zcl.DataType.UINT8, read: true, write: true },
+        statSampleWindow: { ID: 0x0007, type: Zcl.DataType.UINT8, read: true, write: true },
+        energyStatStill: { ID: 0x0008, type: Zcl.DataType.CHAR_STR, read: true, write: false },
+        energyStatMove: { ID: 0x0009, type: Zcl.DataType.CHAR_STR, read: true, write: false },
+        lightSense: { ID: 0x000a, type: Zcl.DataType.OCTET_STR, read: true, write: true },
+        bluetoothState: { ID: 0x000b, type: Zcl.DataType.BOOLEAN, read: true, write: true },
     },
     commands: {
         restart: { ID: 0x0001, parameters: [] },
@@ -144,20 +144,21 @@ const tzLocal = {
         'statistics_sample_count_window', 'bluetooth_state', 'exec_cmd'
     ],
     convertSet: async (entity, key, value, meta) => {
-        const stateKey = meta.endpoint_name ? `${key}_${meta.endpoint_name}` : key;
+        const ep = meta.endpoint_name ? `_${meta.endpoint_name}` : ''
+        const stateKey = `${key}${ep}`
         const state = meta.state[stateKey] || {};
         let payload = {};
 
         if (key === 'base_config') {
             const merged = { ...state, ...value };
             const buf = Buffer.alloc(11);
-            buf.writeFloatLE(merged.range_min !== undefined ? merged.range_min : 0.0, 0);
-            buf.writeFloatLE(merged.range_max !== undefined ? merged.range_max : 8.0, 4);
-            buf.writeUInt16LE(merged.clear_delay !== undefined ? merged.clear_delay : 5, 8);
+            buf.writeFloatLE(merged[`range_min${ep}`] !== undefined ? merged[`range_min${ep}`] : 0.0, 0);
+            buf.writeFloatLE(merged[`range_max${ep}`] !== undefined ? merged[`range_max${ep}`] : 8.0, 4);
+            buf.writeUInt16LE(merged[`clear_delay${ep}`] !== undefined ? merged[`clear_delay${ep}`] : 5, 8);
             
             let res = 0;
-            if (merged.distance_resolution === '0.50') res = 1;
-            else if (merged.distance_resolution === '0.20') res = 3;
+            if (merged[`distance_resolution${ep}`] === '0.50') res = 1;
+            else if (merged[`distance_resolution${ep}`] === '0.20') res = 3;
             buf.writeUInt8(res, 10);
             payload = { baseConfig: buf };
             
@@ -169,7 +170,7 @@ const tzLocal = {
             const merged = { ...state, ...value };
             const buf = Buffer.alloc(14);
             for (let i = 0; i < 14; i++) {
-                buf.writeUInt8(merged[`gate_${i}`] !== undefined ? merged[`gate_${i}`] : 50, i);
+                buf.writeUInt8(merged[`gate_${i}${ep}`] !== undefined ? merged[`gate_${i}${ep}`] : 50, i);
             }
             payload = key === 'still_energy_thresholds' ? { stillEnergyThresholds: buf } : { moveEnergyThresholds: buf };
             
@@ -181,10 +182,10 @@ const tzLocal = {
             const merged = { ...state, ...value };
             const buf = Buffer.alloc(2);
             let mode = 0;
-            if (merged.mode === 'DetectWhenLessThan') mode = 1;
-            else if (merged.mode === 'DetectWhenBiggerThan') mode = 2;
+            if (merged[`mode${ep}`] === 'DetectWhenLessThan') mode = 1;
+            else if (merged[`mode${ep}`] === 'DetectWhenBiggerThan') mode = 2;
             buf.writeUInt8(mode, 0);
-            buf.writeUInt8(merged.threshold !== undefined ? merged.threshold : 128, 1);
+            buf.writeUInt8(merged[`threshold${ep}`] !== undefined ? merged[`threshold${ep}`] : 128, 1);
             payload = { lightSense: buf };
             
             await entity.write('hlkLD2412', payload, { customCluster: hlkLD2412Cluster });
