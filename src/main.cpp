@@ -773,9 +773,12 @@ int main(void)
 	printk("Failed to configure c4001 out pin\r\n");
     }
     {
-	int val = gpio_pin_get_dt(&presence);
-	printk("Presence pin state: %d\r\n", val);
-	dev_ctx.occupancy.occupancy = val;
+	int p1 = gpio_pin_get_dt(&presence);
+	int p2 = gpio_pin_get_dt(&presence2);
+	int pirVal = gpio_pin_get_dt(&pir);
+	g_presence_state = p1 | p2 | pirVal;
+	printk("Presence pin state: %d\r\n", g_presence_state);
+	dev_ctx.occupancy.occupancy = g_presence_state;
     }
     zigbee_enable();
 
