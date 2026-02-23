@@ -112,16 +112,29 @@ const fzLocal = {
         }
 
         if (data.energyStatStill !== undefined) {
+            // Check if Z2M parsed it as a string (CHAR_STR) or a Buffer (OCTET_STR)
+            const isString = typeof data.energyStatStill === 'string';
+            
             for (let i = 0; i < 14; i++) {
                 const offset = i * 3;
-                result[`stat_still_gate_${i}${ep}`] = `min: ${data.energyStatStill.readUInt8(offset)}, max: ${data.energyStatStill.readUInt8(offset + 1)}, avg: ${data.energyStatStill.readUInt8(offset + 2)}`;
+                const min = isString ? data.energyStatStill.charCodeAt(offset) : data.energyStatStill.readUInt8(offset);
+                const max = isString ? data.energyStatStill.charCodeAt(offset + 1) : data.energyStatStill.readUInt8(offset + 1);
+                const avg = isString ? data.energyStatStill.charCodeAt(offset + 2) : data.energyStatStill.readUInt8(offset + 2);
+                
+                result[`stat_still_gate_${i}${ep}`] = `min: ${min}, max: ${max}, avg: ${avg}`;
             }
         }
 
         if (data.energyStatMove !== undefined) {
+            const isString = typeof data.energyStatMove === 'string';
+            
             for (let i = 0; i < 14; i++) {
                 const offset = i * 3;
-                result[`stat_move_gate_${i}${ep}`] = `min: ${data.energyStatMove.readUInt8(offset)}, max: ${data.energyStatMove.readUInt8(offset + 1)}, avg: ${data.energyStatMove.readUInt8(offset + 2)}`;
+                const min = isString ? data.energyStatMove.charCodeAt(offset) : data.energyStatMove.readUInt8(offset);
+                const max = isString ? data.energyStatMove.charCodeAt(offset + 1) : data.energyStatMove.readUInt8(offset + 1);
+                const avg = isString ? data.energyStatMove.charCodeAt(offset + 2) : data.energyStatMove.readUInt8(offset + 2);
+                
+                result[`stat_move_gate_${i}${ep}`] = `min: ${min}, max: ${max}, avg: ${avg}`;
             }
         }
 
