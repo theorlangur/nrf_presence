@@ -376,6 +376,18 @@ void on_get_stat_snapshot(hlk::LD2412::energy_stat_array_t const& still, hlk::LD
 {
     auto &d = get_data_for_ld2412<i>();
     auto &ep = get_zb_ep_for_ld2412<i>();
+    printk("stat still: ");
+    for(int j = 0; j < 14; ++j)
+    {
+	printk("%d=[min: %d; max: %d; avg: %d] ", j, still[j].min, still[j].max, still[j].avg);
+    }
+    printk("\r\n");
+    printk("stat move: ");
+    for(int j = 0; j < 14; ++j)
+    {
+	printk("%d=[min: %d; max: %d; avg: %d] ", j, move[j].min, move[j].max, move[j].avg);
+    }
+    printk("\r\n");
     ep.template attr<kAttrStatStill>() = still;
     ep.template attr<kAttrStatMove>() = move;
 }
