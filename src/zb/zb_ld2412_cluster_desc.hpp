@@ -118,8 +118,8 @@ namespace zb
                     ,attribute_t{.m = &T::light_level,                        .id = 0x0005, .a=Access::RP}
                     ,attribute_t{.m = &T::flags,                              .id = 0x0006, .a=Access::RWP, .type=Type::U8}
                     ,attribute_t{.m = &T::statistics_sample_count_window,     .id = 0x0007, .a=Access::RW, .validator = &T::validate_stat_sample_count}
-                    ,attribute_t{.m = &T::energy_stat_still,                  .id = 0x0008, .a=Access::RP}
-                    ,attribute_t{.m = &T::energy_stat_move,                   .id = 0x0009, .a=Access::RP}
+                    ,attribute_t{.m = &T::energy_stat_still,                  .id = 0x0008, .a=Access::Read}
+                    ,attribute_t{.m = &T::energy_stat_move,                   .id = 0x0009, .a=Access::Read}
                     ,attribute_t{.m = &T::light_sense,                        .id = 0x000a, .a=Access::RW}
                     ,attribute_t{.m = &T::bluetooth_state,                    .id = 0x000b, .a=Access::RW}
                 >{},
