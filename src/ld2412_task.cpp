@@ -82,10 +82,12 @@ namespace ld2412
     }
     void Instance::set_still_thresholds(still_thresholds_cfg_t const& cfg)
     {
+	FMT_PRINTLN("still thresholds: {}", cfg.still_thresholds);
 	m_Q << cfg;
     }
     void Instance::set_move_thresholds(move_thresholds_cfg_t const& cfg)
     {
+	FMT_PRINTLN("move thresholds: {}", cfg.move_thresholds);
 	m_Q << cfg;
     }
     void Instance::run_back_analysis(run_background_analysis_t const& cfg)
