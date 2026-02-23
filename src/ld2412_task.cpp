@@ -222,7 +222,7 @@ namespace ld2412
 			}
 			,[&](basic_cfg_t const& cfg)
 			{
-			    auto r = m_Sensor.ChangeConfiguration()
+			    auto r = m_Sensor.ChangeConfiguration(true)
 				.SetDistanceRes(cfg.resolution)
 				.SetMinDistanceRaw(cfg.gate_from)
 				.SetMaxDistanceRaw(cfg.gate_to)
@@ -239,7 +239,7 @@ namespace ld2412
 			}
 			,[&](light_sense_cfg_t const& cfg)
 			{
-			    auto r = m_Sensor.ChangeConfiguration()
+			    auto r = m_Sensor.ChangeConfiguration(true)
 				.SetLightSensitivity(cfg.mode, cfg.threshold)
 			    .EndChange();
 			    if (!r)
@@ -253,7 +253,7 @@ namespace ld2412
 			}
 			,[&](still_thresholds_cfg_t const& cfg)
 			{
-			    auto r = m_Sensor.ChangeConfiguration()
+			    auto r = m_Sensor.ChangeConfiguration(true)
 				.SetStillThresholds(cfg.still_thresholds)
 			    .EndChange();
 			    if (!r)
@@ -267,7 +267,7 @@ namespace ld2412
 			}
 			,[&](move_thresholds_cfg_t const& cfg)
 			{
-			    auto r = m_Sensor.ChangeConfiguration()
+			    auto r = m_Sensor.ChangeConfiguration(true)
 				.SetMoveThresholds(cfg.move_thresholds)
 			    .EndChange();
 			    if (!r)
