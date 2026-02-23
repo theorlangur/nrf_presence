@@ -42,8 +42,8 @@ const hlkLD2412Cluster = {
         lightLevel: { ID: 0x0005, type: Zcl.DataType.UINT8, read: true, write: false },
         flags: { ID: 0x0006, type: Zcl.DataType.UINT8, read: true, write: true },
         statSampleWindow: { ID: 0x0007, type: Zcl.DataType.UINT8, read: true, write: true },
-        energyStatStill: { ID: 0x0008, type: Zcl.DataType.CHAR_STR, read: true, write: false },
-        energyStatMove: { ID: 0x0009, type: Zcl.DataType.CHAR_STR, read: true, write: false },
+        energyStatStill: { ID: 0x0008, type: Zcl.DataType.OCTET_STR, read: true, write: false },
+        energyStatMove: { ID: 0x0009, type: Zcl.DataType.OCTET_STR, read: true, write: false },
         lightSense: { ID: 0x000a, type: Zcl.DataType.OCTET_STR, read: true, write: true },
         bluetoothState: { ID: 0x000b, type: Zcl.DataType.BOOLEAN, read: true, write: true },
     },
@@ -112,30 +112,21 @@ const fzLocal = {
         }
 
         if (data.energyStatStill !== undefined) {
-            // Check if Z2M parsed it as a string (CHAR_STR) or a Buffer (OCTET_STR)
-            const isString = typeof data.energyStatStill === 'string';
-            
+            const parsed = {};
             for (let i = 0; i < 14; i++) {
                 const offset = i * 3;
-                const min = isString ? data.energyStatStill.charCodeAt(offset) : data.energyStatStill.readUInt8(offset);
-                const max = isString ? data.energyStatStill.charCodeAt(offset + 1) : data.energyStatStill.readUInt8(offset + 1);
-                const avg = isString ? data.energyStatStill.charCodeAt(offset + 2) : data.energyStatStill.readUInt8(offset + 2);
-                
-                result[`stat_still_gate_${i}${ep}`] = `min: ${min}, max: ${max}, avg: ${avg}`;
+                parsed[`gate_${i}${ep}`] = `min: ${data.energyStatStill.readUInt8(offset)}, max: ${data.energyStatStill.readUInt8(offset + 1)}, avg: ${data.energyStatStill.readUInt8(offset + 2)}`;
             }
+            result[`energy_stat_still${ep}`] = parsed;
         }
 
         if (data.energyStatMove !== undefined) {
-            const isString = typeof data.energyStatMove === 'string';
-            
+            const parsed = {};
             for (let i = 0; i < 14; i++) {
                 const offset = i * 3;
-                const min = isString ? data.energyStatMove.charCodeAt(offset) : data.energyStatMove.readUInt8(offset);
-                const max = isString ? data.energyStatMove.charCodeAt(offset + 1) : data.energyStatMove.readUInt8(offset + 1);
-                const avg = isString ? data.energyStatMove.charCodeAt(offset + 2) : data.energyStatMove.readUInt8(offset + 2);
-                
-                result[`stat_move_gate_${i}${ep}`] = `min: ${min}, max: ${max}, avg: ${avg}`;
+                parsed[`gate_${i}${ep}`] = `min: ${data.energyStatMove.readUInt8(offset)}, max: ${data.energyStatMove.readUInt8(offset + 1)}, avg: ${data.energyStatMove.readUInt8(offset + 2)}`;
             }
+            result[`energy_stat_move${ep}`] = parsed;
         }
 
         if (data.lightSense !== undefined) {
@@ -154,7 +145,8 @@ const fzLocal = {
 const tzLocal = {
     key: [
         'base_config', 'still_energy_thresholds', 'move_energy_thresholds', 'light_sense',
-        'statistics_sample_count_window', 'bluetooth_state', 'exec_cmd'
+        'statistics_sample_count_window', 'bluetooth_state', 'exec_cmd',
+        'energy_stat_still', 'energy_stat_move'
     ],
     convertSet: async (entity, key, value, meta) => {
         const ep = meta.endpoint_name ? `_${meta.endpoint_name}` : ''
@@ -241,7 +233,9 @@ const tzLocal = {
             'background_analysis_ok': 'flags',
             'statistics_sample_count_window': 'statSampleWindow',
             'light_sense': 'lightSense',
-            'bluetooth_state': 'bluetoothState'
+            'bluetooth_state': 'bluetoothState',
+            'energy_stat_still': 'energyStatStill',
+            'energy_stat_move': 'energyStatMove'   
         };
 
         const attr = keyToAttr[key];
@@ -261,11 +255,14 @@ function hlkLd2412(ep) {
         return comp;
     };
 
-    const statExposes = [];
-    for (let i = 0; i < 14; i++) {
-        statExposes.push(e.text(`stat_still_gate_${i}`, ea.STATE).withDescription(`Still Stats Gate ${i}`).withEndpoint(ep));
-        statExposes.push(e.text(`stat_move_gate_${i}`, ea.STATE).withDescription(`Move Stats Gate ${i}`).withEndpoint(ep));
-    }
+    const createStatExpose = (name, desc) => {
+        // Use ea.STATE_GET so the UI generates a read/refresh button
+        const comp = e.composite(name, name, ea.STATE_GET).withDescription(desc).withEndpoint(ep);
+        for (let i = 0; i < 14; i++) {
+            comp.withFeature(e.text(`gate_${i}`, ea.STATE_GET).withDescription(`Gate ${i} (min, max, avg)`));
+        }
+        return comp;
+    };
 
     const exposesList = [
         e.composite('base_config', 'base_config', ea.ALL).withDescription('Base Configuration').withEndpoint(ep)
@@ -283,6 +280,9 @@ function hlkLd2412(ep) {
 
         e.numeric('light_level', ea.STATE).withDescription('Current Light Level').withEndpoint(ep),
         e.numeric('statistics_sample_count_window', ea.ALL).withValueMin(0).withValueMax(128).withEndpoint(ep),
+        createStatExpose('energy_stat_still', 'Still Energy Stats'),
+        createStatExpose('energy_stat_move', 'Move Energy Stats'),
+
         e.binary('background_analysis_active', ea.STATE, true, false).withEndpoint(ep),
         e.binary('background_analysis_ok', ea.STATE, true, false).withEndpoint(ep),
         e.binary('bluetooth_state', ea.ALL, true, false).withDescription('Bluetooth State').withEndpoint(ep),
@@ -290,8 +290,6 @@ function hlkLd2412(ep) {
         e.text('sw_ver', ea.STATE).withDescription('Firmware Version').withEndpoint(ep),
         
         e.enum('exec_cmd', ea.SET, ['restart', 'factory_reset', 'run_back_analysis', 'take_stat_snapshot']).withEndpoint(ep),
-        
-        ...statExposes,
     ];
 
     const configureLocal = async (device, coordinatorEndpoint, logger) => {
@@ -312,18 +310,6 @@ function hlkLd2412(ep) {
                     minimumReportInterval: 1,
                     maximumReportInterval: 3600,
                     reportableChange: 1, 
-                },
-                {
-                    attribute: 'energyStatStill',
-                    minimumReportInterval: 1,
-                    maximumReportInterval: 3600,
-                    reportableChange: 0, 
-                },
-                {
-                    attribute: 'energyStatMove',
-                    minimumReportInterval: 1,
-                    maximumReportInterval: 3600,
-                    reportableChange: 0,
                 }
             ], { customCluster: hlkLD2412Cluster });
 
