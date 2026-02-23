@@ -418,8 +418,12 @@ void zb_ld2412_update_thresholds()
 {
     auto &ep = get_zb_ep_for_ld2412<i>();
     auto *pLD2412 = i.sensor();
-    ep.template attr<kAttrStillThr>() = pLD2412->GetAllStillThresholds();
-    ep.template attr<kAttrMoveThr>() = pLD2412->GetAllMoveThresholds();
+    auto const& still = pLD2412->GetAllStillThresholds();
+    auto const& move = pLD2412->GetAllMoveThresholds();
+    FMT_PRINTLN("zb updated thr still to {}", still);
+    FMT_PRINTLN("zb updated thr move to {}", move);
+    ep.template attr<kAttrStillThr>() = still;
+    ep.template attr<kAttrMoveThr>() = move;
 }
 
 template<ld2412::Instance &i>
@@ -453,6 +457,7 @@ void zb_ld2412_update_base_config()
     base.distance_resolution = pLD2412->GetDistanceRes();
     base.range_min = pLD2412->GetMinDistance() / 100.f;
     base.range_max = pLD2412->GetMaxDistance() / 100.f;
+    FMT_PRINTLN("Base cfg updated to: [r_from={}, r_min={}, res={}, del={}]", base.range_min, base.range_max, base.distance_resolution, base.clear_delay);
     ep.template attr<kAttrBaseCfg>() = base;
 }
 
@@ -554,23 +559,28 @@ void update_dev_ctx_from_ld2412()
 
     d.bluetooth_state = pLD2412->GetLastBluetoothState();
     d.flags.background_analysis_active = pLD2412->IsDynamicBackgroundAnalysisRunning();
+
     d.light_sense->mode = pLD2412->GetLightSensitivityMode();
     d.light_sense->threshold = pLD2412->GetLightSensitivityThreshold();
+
     d.base_config->distance_resolution = pLD2412->GetDistanceRes();
     d.base_config->clear_delay = pLD2412->GetTimeout();
     d.base_config->range_min = pLD2412->GetMinDistance() / 100.f;
     d.base_config->range_max = pLD2412->GetMaxDistance() / 100.f;
+
     d.light_level = pLD2412->GetMeasuredLight();
     d.bluetooth_mac = pLD2412->GetBluetoothMAC();
     tools::format_to_silent(as_print_dest(d.sw_ver), "{}", pLD2412->GetVersion());
+
     d.statistics_sample_count_window = 0;
+
+    d.still_energy_thresholds = pLD2412->GetAllStillThresholds();
+    d.move_energy_thresholds = pLD2412->GetAllMoveThresholds();
 }
 
 template<ld2412::Instance &i>
 void on_set_base_config(zb::zb_zcl_ld2412_t::base_cfg_t const& cfg)
 {
-    const char *pInstName = &i == &ld2412_1 ? "main" : "aux";
-    printk("(%s)dist_res=%d; r_min=%.2f; r_max=%.2f; clear=%d\r\n", pInstName, cfg.distance_resolution, cfg.range_min, cfg.range_max, cfg.clear_delay);
     i.set_basic_config({
 	    .resolution = cfg.distance_resolution
 	    , .gate_from = hlk::LD2412::GetGateFromDistanceCM(cfg.range_min * 100.f, cfg.distance_resolution)
