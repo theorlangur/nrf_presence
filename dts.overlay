@@ -4,7 +4,9 @@
 	chosen {
 		ncs,zigbee-timer = &timer20;
 		zephyr,code-partition = &slot0_partition;
-		zephyr,console = &uart00;
+		/* zephyr,console = &uart00; */
+		ncs,zigbee-uart = &uart00;
+        /* ncs,zboss-trace-uart = &uart00; */
 	};
 
 	leds {

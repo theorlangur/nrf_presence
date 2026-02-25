@@ -324,6 +324,8 @@ void send_on_off(uint8_t val)
 	zb_ep.send_cmd<kCmdOff>();
 }
 
+zb::ZbTimerExt g_PeriodicOnOffSend;
+
 void on_dev_cb_error(int err)
 {
     printk("on_dev_cb_error: %d\r\n", err);
@@ -523,11 +525,16 @@ void set_tx_power(void)
 	}
 }
 
+int g_DummyPresence = 0;
 void on_zigbee_start()
 {
     printk("on_zigbee_start\r\n");
     g_ZigbeeReady = true;
     g_EnvironmentSensorFetcher.Setup(update_environment_sensors, 15000);
+    g_PeriodicOnOffSend.Setup([]{
+	    send_on_off(g_DummyPresence);
+	    return true;
+    }, 10000);
 }
 
 /**@brief Zigbee stack event handler.
@@ -639,7 +646,7 @@ int main(void)
 
     printk("main\r\n");
 
-    pC4001_1 = c4001_1.setup(&on_c4001_error<c4001_1, zb_ep>, &on_c4001_upd<c4001_1, zb_ep>);
+    pC4001_1 = c4001_1.sensor();//c4001_1.setup(&on_c4001_error<c4001_1, zb_ep>, &on_c4001_upd<c4001_1, zb_ep>);
     if (pC4001_1)
     {
 	dev_ctx.c4001.range_min = pC4001_1->GetRangeFrom();
@@ -664,7 +671,8 @@ int main(void)
 	return 0;
     }
 
-    pC4001_2 = c4001_2.setup(&on_c4001_error<c4001_2, zb_ep_aux>, &on_c4001_upd<c4001_2, zb_ep_aux>);
+    //pC4001_2 = c4001_2.setup(&on_c4001_error<c4001_2, zb_ep_aux>, &on_c4001_upd<c4001_2, zb_ep_aux>);
+    pC4001_2 = c4001_2.sensor();//c4001_1.setup(&on_c4001_error<c4001_1, zb_ep>, &on_c4001_upd<c4001_1, zb_ep>);
     if (pC4001_2)
     {
 	dev_ctx.c4001_aux.range_min = pC4001_2->GetRangeFrom();

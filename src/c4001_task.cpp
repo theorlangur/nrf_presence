@@ -50,10 +50,11 @@ namespace c4001
 
     dfr::C4001* Instance::sensor()
     {
-	if (c4001_thread)
-	    return &c4001;
-	else
-	    return nullptr;
+	return &c4001;
+	//if (c4001_thread)
+	//    return &c4001;
+	//else
+	//    return nullptr;
     }
 
     void Instance::set_range(float from, float to)
