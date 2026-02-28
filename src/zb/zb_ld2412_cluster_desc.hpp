@@ -35,7 +35,7 @@ namespace zb
         }
         static bool validate_stat_sample_count(uint8_t *value)
         {
-            return *value <= 128;
+            return *value <= 255;
         }
 
         struct [[gnu::packed]] base_cfg_t

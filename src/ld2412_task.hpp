@@ -121,7 +121,7 @@ namespace ld2412
         /**********************************************************************/
         static void thread_func(void *, void *, void *);
 
-        static constexpr uint8_t MAX_STAT_SAMPLE_SIZE = 128;
+        static constexpr uint8_t MAX_STAT_SAMPLE_SIZE = 255;
         static constexpr size_t THREAD_STACK_SIZE = 1024 * 2;
         static constexpr size_t THREAD_PRIORITY=7;
 
