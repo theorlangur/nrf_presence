@@ -533,8 +533,9 @@ void on_zigbee_start()
     g_EnvironmentSensorFetcher.Setup(update_environment_sensors, 15000);
     g_PeriodicOnOffSend.Setup([]{
 	    send_on_off(g_DummyPresence);
+	    g_DummyPresence ^= 1;
 	    return true;
-    }, 10000);
+    }, 30000);
 }
 
 /**@brief Zigbee stack event handler.
@@ -626,6 +627,7 @@ int config_pir()
 
 int main(void)
 {
+    k_msleep(5000);
     int err = settings_subsys_init();
     err = settings_load();
 
