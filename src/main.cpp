@@ -400,8 +400,45 @@ zb::CmdHandlingResult on_cmd_do_stat_snapshot()
     return {};
 }
 
+constexpr uint8_t kOccupancyClearFromTimer = 0x80;
+zb::ZbAlarmExt g_OccupancyResetProtection;
+uint8_t g_LastRegisteredOccupancyState = 0;
+
+void on_occupancy_protection_finished()
+{
+    if (g_LastRegisteredOccupancyState == 0)
+    {
+	//last registered is 'clear'
+	zb_schedule_app_callback(&send_on_off, kOccupancyClearFromTimer);
+    }
+}
+
 void send_on_off(uint8_t val)
 {
+    auto prevRegisteredState = g_LastRegisteredOccupancyState;
+    if (!(val & 0xfe))//no 'higher' bits (all bits but bit 0) a present
+    {
+	g_LastRegisteredOccupancyState = val;
+    }else
+    {
+	val &= 0xfe;
+	if (!val && g_LastRegisteredOccupancyState)
+	    return;//we still have occupancy 
+    }
+
+    if (g_OccupancyResetProtection.IsRunning())
+	return;
+    else if (!prevRegisteredState && g_LastRegisteredOccupancyState)
+    {   //0->1
+	//start occupancy protection timer
+	auto min_clear_delay = std::min(
+		dev_ctx.ld2412_main.base_config->clear_delay
+		,dev_ctx.ld2412_aux.base_config->clear_delay
+	);
+	if (min_clear_delay)
+	    g_OccupancyResetProtection.Setup(on_occupancy_protection_finished, min_clear_delay * 1000);
+    }
+
     zb_ep.attr<kAttrOccupancy>() = val == 1;
     if (val == 1)
 	zb_ep.send_cmd<kCmdOn>();
