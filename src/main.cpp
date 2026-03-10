@@ -280,6 +280,22 @@ auto as_print_dest(zb::ZigbeeStr<N> &str)
 }
 
 void send_on_off(uint8_t val);
+void log_presence_change(uint8_t val);
+
+union PresenceChange
+{
+    struct
+    {
+	uint8_t pir : 1;
+	uint8_t main : 1;
+	uint8_t aux : 1;
+	uint8_t pir_changed : 1;
+	uint8_t main_changed : 1;
+	uint8_t aux_changed : 1;
+	uint8_t unused : 2;
+    }bits;
+    uint8_t val;
+};
 
 gpio_callback g_on_ld2412_triggered_main;
 gpio_callback g_on_ld2412_triggered_aux;
@@ -311,6 +327,18 @@ void presence_triggered(const struct device *port,
 	new_presence_state = true;
     else if (!new_pir && !new_main && !new_aux)
 	new_presence_state = false;
+
+    if (g_ZigbeeReady) //post to zigbee and shoot commands
+    {
+	PresenceChange v = {.val = 0};
+	v.bits.pir_changed = pir_changed;
+	v.bits.main_changed = main_changed;
+	v.bits.aux_changed = aux_changed;
+	v.bits.pir = new_pir;
+	v.bits.main = new_main;
+	v.bits.aux = new_aux;
+	zb_schedule_app_callback(&log_presence_change, v.val);
+    }
 
     if (new_presence_state != g_presence_state)
     {
@@ -444,6 +472,15 @@ void send_on_off(uint8_t val)
 	zb_ep.send_cmd<kCmdOn>();
     else
 	zb_ep.send_cmd<kCmdOff>();
+}
+
+void log_presence_change(uint8_t val)
+{
+    PresenceChange v = {.val = val};
+    if (v.bits.pir_changed) printk("pir=%d; ", v.bits.pir);
+    if (v.bits.main_changed) printk("main=%d; ", v.bits.main);
+    if (v.bits.aux_changed) printk("aux=%d; ", v.bits.aux);
+    printk("\r\n");
 }
 
 void on_dev_cb_error(int err)
@@ -883,6 +920,7 @@ int configure_presence_pins()
 	return err;
     }
     g_ld2412_main_presence_out = gpio_pin_get_dt(&presence);
+    printk("(main)initial: %d\r\n", g_ld2412_main_presence_out);
 
     err = gpio_pin_interrupt_configure_dt(&presence2, GPIO_INT_EDGE_BOTH);
     if (err != 0)
@@ -891,6 +929,7 @@ int configure_presence_pins()
 	return err;
     }
     g_ld2412_aux_presence_out = gpio_pin_get_dt(&presence2);
+    printk("(aux)initial: %d\r\n", g_ld2412_aux_presence_out);
 
     err = gpio_pin_configure_dt(&pir, GPIO_INPUT);
     if (err != 0)
