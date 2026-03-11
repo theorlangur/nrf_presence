@@ -474,6 +474,11 @@ void send_on_off(uint8_t val)
 	zb_ep.send_cmd<kCmdOff>();
 }
 
+int16_t get_presence_as_status(uint8_t val)
+{
+    return int16_t(val & 0x07) | int16_t(((val >> 3) & 0x07) << 8);
+}
+
 void log_presence_change(uint8_t val)
 {
     PresenceChange v = {.val = val};
@@ -481,6 +486,8 @@ void log_presence_change(uint8_t val)
     if (v.bits.main_changed) printk("main=%d; ", v.bits.main);
     if (v.bits.aux_changed) printk("aux=%d; ", v.bits.aux);
     printk("\r\n");
+
+    zb_ep.attr<kAttrStatus2>() = get_presence_as_status(val);
 }
 
 void on_dev_cb_error(int err)
@@ -904,6 +911,7 @@ int main(void)
 
 int configure_presence_pins()
 {
+    PresenceChange state;
     gpio_pin_configure_dt(&led0, GPIO_OUTPUT_ACTIVE);
     int err = gpio_pin_configure_dt(&presence, GPIO_INPUT);
     if (err != 0)
@@ -920,6 +928,7 @@ int configure_presence_pins()
 	return err;
     }
     g_ld2412_main_presence_out = gpio_pin_get_dt(&presence);
+    state.bits.main = g_ld2412_main_presence_out;
     printk("(main)initial: %d\r\n", g_ld2412_main_presence_out);
 
     err = gpio_pin_interrupt_configure_dt(&presence2, GPIO_INT_EDGE_BOTH);
@@ -929,6 +938,7 @@ int configure_presence_pins()
 	return err;
     }
     g_ld2412_aux_presence_out = gpio_pin_get_dt(&presence2);
+    state.bits.aux = g_ld2412_aux_presence_out;
     printk("(aux)initial: %d\r\n", g_ld2412_aux_presence_out);
 
     err = gpio_pin_configure_dt(&pir, GPIO_INPUT);
@@ -944,8 +954,10 @@ int configure_presence_pins()
 	return err;
     }
     g_pir_presence = gpio_pin_get_dt(&pir);
+    state.bits.pir = g_pir_presence;
 
     dev_ctx.occupancy.occupancy = g_pir_presence;//initially only conservatively by PIR
+    dev_ctx.status_attr.status2 = get_presence_as_status(state.val);
 
     gpio_init_callback(&g_on_ld2412_triggered_main, presence_triggered, BIT(presence.pin));
     err = gpio_add_callback_dt(&presence, &g_on_ld2412_triggered_main);
