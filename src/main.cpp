@@ -213,7 +213,7 @@ auto& get_zb_ep_for_ld2412()
 {
     if constexpr (&i == &ld2412_1)
 	return zb_ep;
-    else if (&i == &ld2412_2)
+    else if constexpr (&i == &ld2412_2)
 	return zb_ep_aux;
 }
 
@@ -222,7 +222,7 @@ zb::zb_zcl_ld2412_t& get_data_for_ld2412()
 {
     if constexpr (&i == &ld2412_1)
 	return dev_ctx.ld2412_main;
-    else if (&i == &ld2412_2)
+    else if constexpr (&i == &ld2412_2)
 	return dev_ctx.ld2412_aux;
 }
 
@@ -231,7 +231,7 @@ const char* get_name_for_ld2412()
 {
     if constexpr (&i == &ld2412_1)
 	return "main";
-    else if (&i == &ld2412_2)
+    else if constexpr (&i == &ld2412_2)
 	return "aux";
 }
 
