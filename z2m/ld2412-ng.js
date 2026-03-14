@@ -154,6 +154,14 @@ const tzLocal = {
         const state = meta.state[stateKey] || {};
         let payload = {};
 
+        let targetEntity = entity;
+        if (meta.endpoint_name && meta.mapped && meta.mapped.endpoint) {
+            const epMap = meta.mapped.endpoint(meta.device);
+            if (epMap[meta.endpoint_name]) {
+                targetEntity = meta.device.getEndpoint(epMap[meta.endpoint_name]) || entity;
+            }
+        }
+
         if (key === 'base_config') {
             const merged = { ...state, ...value };
             const buf = Buffer.alloc(11);
@@ -167,7 +175,7 @@ const tzLocal = {
             buf.writeUInt8(res, 10);
             payload = { baseConfig: buf };
             
-            await entity.write('hlkLD2412', payload, { customCluster: hlkLD2412Cluster });
+            await targetEntity.write('hlkLD2412', payload, { customCluster: hlkLD2412Cluster });
             return { state: { [stateKey]: merged } };
         } 
         
@@ -179,7 +187,7 @@ const tzLocal = {
             }
             payload = key === 'still_energy_thresholds' ? { stillEnergyThresholds: buf } : { moveEnergyThresholds: buf };
             
-            await entity.write('hlkLD2412', payload, { customCluster: hlkLD2412Cluster });
+            await targetEntity.write('hlkLD2412', payload, { customCluster: hlkLD2412Cluster });
             return { state: { [stateKey]: merged } };
         }
 
@@ -193,17 +201,17 @@ const tzLocal = {
             buf.writeUInt8(merged[`threshold${ep}`] !== undefined ? merged[`threshold${ep}`] : 128, 1);
             payload = { lightSense: buf };
             
-            await entity.write('hlkLD2412', payload, { customCluster: hlkLD2412Cluster });
+            await targetEntity.write('hlkLD2412', payload, { customCluster: hlkLD2412Cluster });
             return { state: { [stateKey]: merged } };
         }
 
         if (key === 'statistics_sample_count_window') {
-            await entity.write('hlkLD2412', { statSampleWindow: value }, { customCluster: hlkLD2412Cluster });
+            await targetEntity.write('hlkLD2412', { statSampleWindow: value }, { customCluster: hlkLD2412Cluster });
             return { state: { [stateKey]: value } };
         }
 
         if (key === 'bluetooth_state') {
-            await entity.write('hlkLD2412', { bluetoothState: value ? 1 : 0 }, { customCluster: hlkLD2412Cluster });
+            await targetEntity.write('hlkLD2412', { bluetoothState: value ? 1 : 0 }, { customCluster: hlkLD2412Cluster });
             return { state: { [stateKey]: value } };
         }
 
@@ -215,7 +223,7 @@ const tzLocal = {
                 'take_stat_snapshot': 'takeStatSnapshot'
             };
             if (cmdMap[value]) {
-                await entity.command('hlkLD2412', cmdMap[value], {}, { customCluster: hlkLD2412Cluster });
+                await targetEntity.command('hlkLD2412', cmdMap[value], {}, { customCluster: hlkLD2412Cluster });
             }
             return; 
         }
