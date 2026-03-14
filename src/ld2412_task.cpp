@@ -175,7 +175,8 @@ namespace ld2412
 		    last_frame_time = k_uptime_get();
 		    collect_sample();
 		    check_back_analysis();
-		}
+		}else
+		    ++m_FrameReadErrorCount;
 		processMessage = m_Q.Recv(q, K_NO_WAIT) == 0;
 	    }
 	    else
@@ -295,6 +296,18 @@ namespace ld2412
 				m_StatSampleCount = MAX_STAT_SAMPLE_SIZE;
 			    m_StatSampleIndex = 0;
 			    m_TotalSamplesWritten = 0;
+			    FMT_PRINTLN("{}: Collecting stats with window {}", m_ThreadName, m_StatSampleCount);
+			    if (m_Sensor.GetSystemMode() != hlk::LD2412::SystemMode::Energy)
+			    {
+				FMT_PRINTLN("{}: changing mode to 'Energy'", m_ThreadName);
+				auto r = m_Sensor.ChangeConfiguration()
+				    .SetSystemMode(hlk::LD2412::SystemMode::Energy)
+				.EndChange();
+				if (!r)
+				{
+				    FMT_PRINTLN("{}: changing mode failed with {}", m_ThreadName, r.error());
+				}
+			    }
 			}
 			,[&](snapshot_statistics_cfg_t const& cfg)
 			{
@@ -302,6 +315,7 @@ namespace ld2412
 			    {
 				if (!m_TotalSamplesWritten)
 				{
+				    FMT_PRINTLN("{}: no samples collected. Frame reading errors: {}", m_ThreadName, m_FrameReadErrorCount);
 				    if (m_ErrCB)
 					m_ErrCB(err_t::SnapshotStatistics);
 				    return;

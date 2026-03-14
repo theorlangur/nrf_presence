@@ -152,6 +152,7 @@ namespace ld2412
         size_t m_StatSampleIndex = 0;
         size_t m_StatSampleCount = 0;
         size_t m_TotalSamplesWritten = 0;
+        size_t m_FrameReadErrorCount = 0;
 
         size_t m_LightSensorUpdateInterval = 5;//seconds
     };

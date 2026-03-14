@@ -226,6 +226,15 @@ zb::zb_zcl_ld2412_t& get_data_for_ld2412()
 	return dev_ctx.ld2412_aux;
 }
 
+template<ld2412::Instance &i>
+const char* get_name_for_ld2412()
+{
+    if constexpr (&i == &ld2412_1)
+	return "main";
+    else if (&i == &ld2412_2)
+	return "aux";
+}
+
 /**********************************************************************/
 /* Device defines                                                     */
 /**********************************************************************/
@@ -340,6 +349,11 @@ void presence_triggered(const struct device *port,
 	zb_schedule_app_callback(&log_presence_change, v.val);
     }
 
+    g_pir_presence = new_pir;
+    g_ld2412_main_presence_out = new_main;
+    g_ld2412_aux_presence_out = new_aux;
+
+
     if (new_presence_state != g_presence_state)
     {
 	g_presence_state = new_presence_state;
@@ -404,6 +418,7 @@ void on_get_stat_snapshot(hlk::LD2412::energy_stat_array_t const& still, hlk::LD
 {
     auto &d = get_data_for_ld2412<i>();
     auto &ep = get_zb_ep_for_ld2412<i>();
+    printk("stats for  %s:\r\n", get_name_for_ld2412<i>());
     printk("stat still: ");
     for(int j = 0; j < 14; ++j)
     {
@@ -423,7 +438,7 @@ void on_get_stat_snapshot(hlk::LD2412::energy_stat_array_t const& still, hlk::LD
 template<ld2412::Instance &i>
 zb::CmdHandlingResult on_cmd_do_stat_snapshot()
 {
-    printk("ld2412::do_stat_snapshot\r\n");
+    printk("(%s)ld2412::do_stat_snapshot\r\n", get_name_for_ld2412<i>());
     i.take_statistic_snapshot({&on_get_stat_snapshot<i>});
     return {};
 }
