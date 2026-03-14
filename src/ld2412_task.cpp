@@ -82,12 +82,12 @@ namespace ld2412
     }
     void Instance::set_still_thresholds(still_thresholds_cfg_t const& cfg)
     {
-	FMT_PRINTLN("still thresholds: {}", cfg.still_thresholds);
+	FMT_PRINTLN("{} still thresholds: {}", m_ThreadName, cfg.still_thresholds);
 	m_Q << cfg;
     }
     void Instance::set_move_thresholds(move_thresholds_cfg_t const& cfg)
     {
-	FMT_PRINTLN("move thresholds: {}", cfg.move_thresholds);
+	FMT_PRINTLN("{} move thresholds: {}", m_ThreadName, cfg.move_thresholds);
 	m_Q << cfg;
     }
     void Instance::run_back_analysis(run_background_analysis_t const& cfg)
@@ -193,7 +193,7 @@ namespace ld2412
 			{
 			    if (auto r = m_Sensor.Restart(); !r)
 			    {
-				FMT_PRINTLN("Restart failed with: {}", r.error());
+				FMT_PRINTLN("{} Restart failed with: {}", m_ThreadName, r.error());
 				if (m_ErrCB) m_ErrCB(err_t::Restart);
 			    }
 			}
@@ -201,7 +201,7 @@ namespace ld2412
 			{
 			    if (auto r = m_Sensor.ReloadConfig(); !r)
 			    {
-				FMT_PRINTLN("Reload failed with: {}", r.error());
+				FMT_PRINTLN("{} Reload failed with: {}", m_ThreadName, r.error());
 				if (m_ErrCB) m_ErrCB(err_t::ReloadConfig);
 			    }
 			}
@@ -209,7 +209,7 @@ namespace ld2412
 			{
 			    if (auto r = m_Sensor.FactoryReset(); !r)
 			    {
-				FMT_PRINTLN("Factory reset failed with: {}", r.error());
+				FMT_PRINTLN("{} Factory reset failed with: {}", m_ThreadName, r.error());
 				if (m_ErrCB) m_ErrCB(err_t::FactoryReset);
 			    }
 			}
@@ -217,7 +217,7 @@ namespace ld2412
 			{
 			    if (auto r = m_Sensor.SwitchBluetooth(cfg.on); !r)
 			    {
-				FMT_PRINTLN("BT switch failed with: {}", r.error());
+				FMT_PRINTLN("{} BT switch failed with: {}", m_ThreadName, r.error());
 				if (m_ErrCB) m_ErrCB(err_t::Bluetooth);
 			    }
 			}
@@ -231,7 +231,7 @@ namespace ld2412
 			    .EndChange();
 			    if (!r)
 			    {
-				FMT_PRINTLN("Basic config set failed with: {}", r.error());
+				FMT_PRINTLN("{} Basic config set failed with: {}", m_ThreadName, r.error());
 			    }
 			    else if (r && m_NotifyCB)
 				m_NotifyCB(notification_id_t::SetBasicCfgDone);
@@ -245,7 +245,7 @@ namespace ld2412
 			    .EndChange();
 			    if (!r)
 			    {
-				FMT_PRINTLN("Light sense set failed with: {}", r.error());
+				FMT_PRINTLN("{} Light sense set failed with: {}", m_ThreadName, r.error());
 			    }
 			    else if (r && m_NotifyCB)
 				m_NotifyCB(notification_id_t::SetLightSenseDone);
@@ -259,7 +259,7 @@ namespace ld2412
 			    .EndChange();
 			    if (!r)
 			    {
-				FMT_PRINTLN("Still thr set failed with: {}", r.error());
+				FMT_PRINTLN("{} Still thr set failed with: {}", m_ThreadName, r.error());
 			    }
 			    else if (r && m_NotifyCB)
 				m_NotifyCB(notification_id_t::SetEnergyThresholdsDone);
@@ -273,7 +273,7 @@ namespace ld2412
 			    .EndChange();
 			    if (!r)
 			    {
-				FMT_PRINTLN("Move thr set failed with: {}", r.error());
+				FMT_PRINTLN("{} Move thr set failed with: {}", m_ThreadName, r.error());
 			    }
 			    else if (r && m_NotifyCB)
 				m_NotifyCB(notification_id_t::SetEnergyThresholdsDone);
