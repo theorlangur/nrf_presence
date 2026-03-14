@@ -254,7 +254,7 @@ const tzLocal = {
 };
 
 // 3. ModernExtend Factory Function
-function hlkLd2412(ep) {
+function hlkLd2412(ep, epId) {
     const createThresholdExpose = (name, desc) => {
         const comp = e.composite(name, name, ea.ALL).withDescription(desc).withEndpoint(ep);
         for (let i = 0; i < 14; i++) {
@@ -301,45 +301,48 @@ function hlkLd2412(ep) {
     ];
 
     const configureLocal = async (device, coordinatorEndpoint, logger) => {
-        const validEndpoints = device.endpoints.filter((ep) => ep.ID !== 242);
+        const endpoint = device.getEndpoint(epId);
         
-        for (const endpoint of validEndpoints) {
-            await endpoint.bind('hlkLD2412', coordinatorEndpoint, { customCluster: hlkLD2412Cluster });
+        if (!endpoint) {
+            logger.error(`[hlkLD2412] Endpoint ${epId} (${ep}) not found on device.`);
+            return;
+        }
 
-            await endpoint.configureReporting('hlkLD2412', [
-                {
-                    attribute: 'lightLevel',
-                    minimumReportInterval: 5,
-                    maximumReportInterval: 3600,
-                    reportableChange: 5,
-                },
-                {
-                    attribute: 'flags',
-                    minimumReportInterval: 1,
-                    maximumReportInterval: 3600,
-                    reportableChange: 1, 
-                }
-            ], { customCluster: hlkLD2412Cluster });
+        await endpoint.bind('hlkLD2412', coordinatorEndpoint, { customCluster: hlkLD2412Cluster });
 
-            // 3. NEW: Read initial states (chunked to prevent oversized Zigbee packets)
-            try {
-                // Chunk 1: Basic Config & System Info
-                await endpoint.read('hlkLD2412', ['baseConfig', 'swVer', 'bluetoothMac', 'bluetoothState'], { customCluster: hlkLD2412Cluster });
-                
-                // Chunk 2: Threshold Gates (14 bytes each = 28 bytes total response payload)
-                await endpoint.read('hlkLD2412', ['stillEnergyThresholds', 'moveEnergyThresholds'], { customCluster: hlkLD2412Cluster });
-                
-                // Chunk 3: Small misc settings
-                await endpoint.read('hlkLD2412', ['lightSense', 'lightLevel', 'flags', 'statSampleWindow'], { customCluster: hlkLD2412Cluster });
-                
-                // (Optional) Chunk 4: If you want the massive 42-byte stats read immediately too:
-                // await endpoint.read('hlkLD2412', ['energyStatStill'], { customCluster: hlkLD2412Cluster });
-                // await endpoint.read('hlkLD2412', ['energyStatMove'], { customCluster: hlkLD2412Cluster });
-                
-            } catch (error) {
-                // If the device is asleep or drops a packet, we log it but don't crash the whole config process
-                logger.error(`[hlkLD2412] Failed to read initial states for endpoint ${endpoint.ID}: ${error.message}`);
+        await endpoint.configureReporting('hlkLD2412', [
+            {
+                attribute: 'lightLevel',
+                minimumReportInterval: 5,
+                maximumReportInterval: 3600,
+                reportableChange: 5,
+            },
+            {
+                attribute: 'flags',
+                minimumReportInterval: 1,
+                maximumReportInterval: 3600,
+                reportableChange: 1, 
             }
+        ], { customCluster: hlkLD2412Cluster });
+
+        // 3. NEW: Read initial states (chunked to prevent oversized Zigbee packets)
+        try {
+            // Chunk 1: Basic Config & System Info
+            await endpoint.read('hlkLD2412', ['baseConfig', 'swVer', 'bluetoothMac', 'bluetoothState'], { customCluster: hlkLD2412Cluster });
+            
+            // Chunk 2: Threshold Gates (14 bytes each = 28 bytes total response payload)
+            await endpoint.read('hlkLD2412', ['stillEnergyThresholds', 'moveEnergyThresholds'], { customCluster: hlkLD2412Cluster });
+            
+            // Chunk 3: Small misc settings
+            await endpoint.read('hlkLD2412', ['lightSense', 'lightLevel', 'flags', 'statSampleWindow'], { customCluster: hlkLD2412Cluster });
+            
+            // (Optional) Chunk 4: If you want the massive 42-byte stats read immediately too:
+            // await endpoint.read('hlkLD2412', ['energyStatStill'], { customCluster: hlkLD2412Cluster });
+            // await endpoint.read('hlkLD2412', ['energyStatMove'], { customCluster: hlkLD2412Cluster });
+            
+        } catch (error) {
+            // If the device is asleep or drops a packet, we log it but don't crash the whole config process
+            logger.error(`[hlkLD2412] Failed to read initial states for endpoint ${endpoint.ID}: ${error.message}`);
         }
     };
 
@@ -524,8 +527,8 @@ const definition = {
             label: "TVOC",
             precision: 0
         }),
-        hlkLd2412("main")
-        ,hlkLd2412("aux")
+        hlkLd2412("main", 1)
+        ,hlkLd2412("aux", 2)
     ]
 };
 
