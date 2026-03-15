@@ -343,6 +343,11 @@ namespace ld2412
 
 					sum_still[g] += still_e;
 					sum_move[g] += move_e;
+
+					if(still[g].min > still_e) still[g].min = still_e;
+					if(still[g].max < still_e) still[g].max = still_e;
+					if(move[g].min > move_e) move[g].min = move_e;
+					if(move[g].max < move_e) move[g].max = move_e;
 				    }
 				}
 
