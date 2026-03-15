@@ -464,7 +464,7 @@ void send_on_off(uint8_t val)
 	g_LastRegisteredOccupancyState = val;
     }else
     {
-	val &= 0xfe;
+	val &= ~0xfe;
 	if (!val && g_LastRegisteredOccupancyState)
 	    return;//we still have occupancy 
     }
