@@ -21,7 +21,7 @@
 /* Zigbee                                                             */
 /**********************************************************************/
 #include <nrfzbcpp/zb_main.hpp>
-//#include "zb/zb_mem_cfg.hpp"
+#include "zb/zb_mem_cfg.hpp"
 #include <nrfzbcpp/zb_std_cluster_desc.hpp>
 #include <nrfzbcpp/zb_status_cluster_desc.hpp>
 #include <nrfzbcpp/zb_occupancy_sensing_cluster_desc.hpp>
