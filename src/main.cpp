@@ -74,6 +74,8 @@ constexpr uint8_t kMMW_EP = 1;
 constexpr uint8_t kMMW_AUX_EP = 2;
 constexpr uint16_t kDEV_ID = 0xBAAD;
 
+constexpr uint16_t kInitialMinClearTimeout = 3;//seconds
+
 struct device_ctx_t{
     zb::zb_zcl_basic_names_t basic_attr;
     zb::zb_zcl_status_t status_attr;
@@ -474,9 +476,9 @@ void send_on_off(uint8_t val)
     else if (!prevRegisteredState && g_LastRegisteredOccupancyState)
     {   //0->1
 	//start occupancy protection timer
-	auto min_clear_delay = std::min(
-		dev_ctx.ld2412_main.base_config->clear_delay
-		,dev_ctx.ld2412_aux.base_config->clear_delay
+	auto min_clear_delay = std::max(
+		kInitialMinClearTimeout
+		,dev_ctx.occupancy.UltrasonicOccupiedToUnoccupiedDelay
 	);
 	if (min_clear_delay)
 	    g_OccupancyResetProtection.Setup(on_occupancy_protection_finished, min_clear_delay * 1000);
