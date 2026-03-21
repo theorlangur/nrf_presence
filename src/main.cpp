@@ -359,13 +359,12 @@ void presence_triggered(const struct device *port,
     if (new_presence_state != g_presence_state)
     {
 	g_presence_state = new_presence_state;
-	//TODO: remove me
-	gpio_pin_set_dt(&led0, g_presence_state);
 
 	if (g_ZigbeeReady) //post to zigbee and shoot commands
 	    zb_schedule_app_callback(&send_on_off, g_presence_state);
 	else
 	{
+	    gpio_pin_set_dt(&led0, g_presence_state);
 	    //write latest state directly
 	    dev_ctx.occupancy.occupancy = g_presence_state;
 	}
@@ -484,6 +483,7 @@ void send_on_off(uint8_t val)
 	    g_OccupancyResetProtection.Setup(on_occupancy_protection_finished, min_clear_delay * 1000);
     }
 
+    gpio_pin_set_dt(&led0, val == 1);
     zb_ep.attr<kAttrOccupancy>() = val == 1;
     if (val == 1)
 	zb_ep.send_cmd<kCmdOn>();
