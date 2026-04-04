@@ -31,27 +31,28 @@ const NS = 'zhc:orlangur';
 
 // 1. Cluster Definition using named Zcl constants
 const hlkLD2412Cluster = {
+    name: "hlkLD2412",
     ID: 0xFC82,
     manufacturerCode: null,
     attributes: {
-        baseConfig: { ID: 0x0000, type: Zcl.DataType.OCTET_STR, read: true, write: true },
-        swVer: { ID: 0x0001, type: Zcl.DataType.CHAR_STR, read: true, write: false },
-        bluetoothMac: { ID: 0x0002, type: Zcl.DataType.OCTET_STR, read: true, write: false },
-        stillEnergyThresholds: { ID: 0x0003, type: Zcl.DataType.OCTET_STR, read: true, write: true },
-        moveEnergyThresholds: { ID: 0x0004, type: Zcl.DataType.OCTET_STR, read: true, write: true },
-        lightLevel: { ID: 0x0005, type: Zcl.DataType.UINT8, read: true, write: false },
-        flags: { ID: 0x0006, type: Zcl.DataType.UINT8, read: true, write: true },
-        statSampleWindow: { ID: 0x0007, type: Zcl.DataType.UINT8, read: true, write: true },
-        energyStatStill: { ID: 0x0008, type: Zcl.DataType.OCTET_STR, read: true, write: false },
-        energyStatMove: { ID: 0x0009, type: Zcl.DataType.OCTET_STR, read: true, write: false },
-        lightSense: { ID: 0x000a, type: Zcl.DataType.OCTET_STR, read: true, write: true },
-        bluetoothState: { ID: 0x000b, type: Zcl.DataType.BOOLEAN, read: true, write: true },
+        baseConfig: { name: "baseConfig", ID: 0x0000, type: Zcl.DataType.OCTET_STR, read: true, write: true },
+        swVer: { name: "swVer", ID: 0x0001, type: Zcl.DataType.CHAR_STR, read: true, write: false },
+        bluetoothMac: { name: "bluetoothMac", ID: 0x0002, type: Zcl.DataType.OCTET_STR, read: true, write: false },
+        stillEnergyThresholds: { name: "stillEnergyThresholds", ID: 0x0003, type: Zcl.DataType.OCTET_STR, read: true, write: true },
+        moveEnergyThresholds: { name: "moveEnergyThresholds", ID: 0x0004, type: Zcl.DataType.OCTET_STR, read: true, write: true },
+        lightLevel: { name: "lightLevel", ID: 0x0005, type: Zcl.DataType.UINT8, read: true, write: false },
+        flags: { name: "flags", ID: 0x0006, type: Zcl.DataType.UINT8, read: true, write: true },
+        statSampleWindow: { name: "statSampleWindow", ID: 0x0007, type: Zcl.DataType.UINT8, read: true, write: true },
+        energyStatStill: { name: "energyStatStill", ID: 0x0008, type: Zcl.DataType.OCTET_STR, read: true, write: false },
+        energyStatMove: { name: "energyStatMove", ID: 0x0009, type: Zcl.DataType.OCTET_STR, read: true, write: false },
+        lightSense: { name: "lightSense", ID: 0x000a, type: Zcl.DataType.OCTET_STR, read: true, write: true },
+        bluetoothState: { name: "bluetoothState", ID: 0x000b, type: Zcl.DataType.BOOLEAN, read: true, write: true },
     },
     commands: {
-        restart: { ID: 0x0001, parameters: [] },
-        factoryReset: { ID: 0x0002, parameters: [] },
-        runBackAnalysis: { ID: 0x0003, parameters: [] },
-        takeStatSnapshot: { ID: 0x0004, parameters: [] },
+        restart: { name: "restart", ID: 0x0001, parameters: [] },
+        factoryReset: { name: "factoryReset", ID: 0x0002, parameters: [] },
+        runBackAnalysis: { name: "runBackAnalysis", IID: 0x0003, parameters: [] },
+        takeStatSnapshot: { name: "takeStatSnapshot", IID: 0x0004, parameters: [] },
     },
     commandsResponse: {},
 };
@@ -477,20 +478,22 @@ const definition = {
     extend: [
         deviceEndpoints({endpoints: {main: 1, aux: 2}}),
         deviceAddCustomCluster('customStatus', {
+            name: "customStatus",
             ID: 0xfc80,
             attributes: {
-                status1: {ID: 0x0000, type: Zcl.DataType.INT16},
-                status2: {ID: 0x0001, type: Zcl.DataType.INT16},
-                status3: {ID: 0x0002, type: Zcl.DataType.INT16},
+                status1: { name: "status1", ID: 0x0000, type: Zcl.DataType.INT16},
+                status2: { name: "status2", ID: 0x0001, type: Zcl.DataType.INT16},
+                status3: { name: "status3", ID: 0x0002, type: Zcl.DataType.INT16},
             },
             commands: {},
             commandsResponse: {}
         }),
         deviceAddCustomCluster('ens160airQuality', {
+            name: "ens160airQuality",
             ID: 0xfc08,
             attributes: {
-                tvoc: {ID: 0x0000, type: Zcl.DataType.SINGLE_PREC},
-                aqi:  {ID: 0x0001, type: Zcl.DataType.ENUM8},
+                tvoc: { name: "tvoc", ID: 0x0000, type: Zcl.DataType.SINGLE_PREC},
+                aqi:  { name: "aqi", ID: 0x0001, type: Zcl.DataType.ENUM8},
             },
             commands: {},
             commandsResponse: {}
