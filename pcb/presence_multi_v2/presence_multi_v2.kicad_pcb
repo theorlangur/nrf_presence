@@ -3,7 +3,7 @@
 	(generator "pcbnew")
 	(generator_version "9.0")
 	(general
-		(thickness 1.6)
+		(thickness 1.69)
 		(legacy_teardrops no)
 	)
 	(paper "A4")
@@ -39,7 +39,7 @@
 			)
 			(layer "dielectric 1"
 				(type "core")
-				(thickness 1.51)
+				(thickness 1.6)
 				(material "FR4")
 				(epsilon_r 4.5)
 				(loss_tangent 0.02)
@@ -64,6 +64,7 @@
 		(pad_to_mask_clearance 0.1)
 		(allow_soldermask_bridges_in_footprints no)
 		(tenting front back)
+		(grid_origin 121.9004 112.30048)
 		(pcbplotparams
 			(layerselection 0x00000000_00000000_55555555_5755f5ff)
 			(plot_on_all_layers_selection 0x00000000_00000000_00000000_00000000)
@@ -968,7 +969,7 @@
 			(net 2 "GND")
 			(pinfunction "1")
 			(pintype "passive")
-			(uuid "cc45a5d9-2f5a-4f8a-89fe-8e28eab2269d")
+			(uuid "b0b171cd-4844-401a-b7de-321cf7051dcb")
 		)
 		(pad "2" smd rect
 			(at -2.05 0.8 90)
@@ -986,7 +987,7 @@
 			(net 20 "/nRST")
 			(pinfunction "2")
 			(pintype "passive")
-			(uuid "d522d0bb-97a2-4ef8-94a7-f248b9fd45e5")
+			(uuid "65278086-aec4-416e-9a94-0f51bfd11404")
 		)
 		(embedded_fonts no)
 		(model "${KICAD9_3DMODEL_DIR}/Button_Switch_SMD.3dshapes/SW_Push_1P1T_NO_CK_KMR2.step"
@@ -6227,7 +6228,7 @@
 			(net 2 "GND")
 			(pinfunction "1")
 			(pintype "passive")
-			(uuid "6578571a-94dd-46e0-a555-339960867e74")
+			(uuid "d8ad2dd2-e200-4f53-ad40-4e3d77a112ad")
 		)
 		(pad "2" smd rect
 			(at -2.05 0.8 90)
@@ -6245,7 +6246,7 @@
 			(net 46 "/BTN_ZB")
 			(pinfunction "2")
 			(pintype "passive")
-			(uuid "b3e0a97e-d5d8-4fba-afd2-6ef840cb48e9")
+			(uuid "57b9d386-56a0-45d2-8f73-a89a111e821e")
 		)
 		(embedded_fonts no)
 		(model "${KICAD9_3DMODEL_DIR}/Button_Switch_SMD.3dshapes/SW_Push_1P1T_NO_CK_KMR2.step"
@@ -9827,7 +9828,7 @@
 			(net 2 "GND")
 			(pinfunction "1")
 			(pintype "passive")
-			(uuid "d9b50e23-114e-492f-bac8-f53f8dddc248")
+			(uuid "a56571b4-0be1-40f7-bf28-02a3d2848c60")
 		)
 		(pad "2" smd rect
 			(at -2.05 0.8 90)
@@ -9845,7 +9846,7 @@
 			(net 38 "/BTN_MCUBoot")
 			(pinfunction "2")
 			(pintype "passive")
-			(uuid "52b2a856-c036-4921-bb46-869212dba5b8")
+			(uuid "dc31a2e4-b19e-4be2-8846-3aeda1e1f212")
 		)
 		(embedded_fonts no)
 		(model "${KICAD9_3DMODEL_DIR}/Button_Switch_SMD.3dshapes/SW_Push_1P1T_NO_CK_KMR2.step"
@@ -9871,15 +9872,15 @@
 		(uuid "49267dbb-86ed-45f3-a83d-1a84f873a55b")
 	)
 	(gr_arc
-		(start 156 124.5)
-		(mid 154.681981 127.681981)
-		(end 151.5 129)
+		(start 87 99.5)
+		(mid 88.318019 96.318019)
+		(end 91.5 95)
 		(stroke
 			(width 0.05)
 			(type default)
 		)
 		(layer "Edge.Cuts")
-		(uuid "4f5fc796-c15c-416d-a13c-8773f0f0f65f")
+		(uuid "76eceb1a-1330-4e67-a14d-6a90030594dc")
 	)
 	(gr_line
 		(start 91.5 95)
@@ -9892,36 +9893,15 @@
 		(uuid "66e0d044-bfda-443f-b638-1bcf8f2902b4")
 	)
 	(gr_arc
-		(start 151.5 95)
-		(mid 154.681981 96.318019)
-		(end 156 99.5)
+		(start 91.5 129)
+		(mid 88.318019 127.681981)
+		(end 87 124.5)
 		(stroke
 			(width 0.05)
 			(type default)
 		)
 		(layer "Edge.Cuts")
-		(uuid "73d5841e-b63c-4985-b2ae-b51c3f873875")
-	)
-	(gr_arc
-		(start 87 99.5)
-		(mid 88.318019 96.318019)
-		(end 91.5 95)
-		(stroke
-			(width 0.05)
-			(type default)
-		)
-		(layer "Edge.Cuts")
-		(uuid "76eceb1a-1330-4e67-a14d-6a90030594dc")
-	)
-	(gr_line
-		(start 156 99.5)
-		(end 156 124.5)
-		(stroke
-			(width 0.05)
-			(type default)
-		)
-		(layer "Edge.Cuts")
-		(uuid "bcf51a57-dfae-4356-bd0d-9e223314d845")
+		(uuid "c72cad37-7907-4ae6-9134-1bb84774a840")
 	)
 	(gr_line
 		(start 91.5 129)
@@ -9934,20 +9914,65 @@
 		(uuid "c0e02918-4bf6-4e1c-8cc5-776c230c78e2")
 	)
 	(gr_arc
-		(start 91.5 129)
-		(mid 88.318019 127.681981)
-		(end 87 124.5)
+		(start 151.5 95)
+		(mid 154.681981 96.318019)
+		(end 156 99.5)
 		(stroke
 			(width 0.05)
 			(type default)
 		)
 		(layer "Edge.Cuts")
-		(uuid "c72cad37-7907-4ae6-9134-1bb84774a840")
+		(uuid "73d5841e-b63c-4985-b2ae-b51c3f873875")
+	)
+	(gr_line
+		(start 156 99.5)
+		(end 156 124.5)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "Edge.Cuts")
+		(uuid "bcf51a57-dfae-4356-bd0d-9e223314d845")
+	)
+	(gr_arc
+		(start 156 124.5)
+		(mid 154.681981 127.681981)
+		(end 151.5 129)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "Edge.Cuts")
+		(uuid "4f5fc796-c15c-416d-a13c-8773f0f0f65f")
+	)
+	(gr_text "2.06"
+		(at 87.8 106.45 0)
+		(layer "F.SilkS")
+		(uuid "7ef26949-ef57-4000-bbde-3d6c9a0450d1")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+			(justify left bottom)
+		)
 	)
 	(gr_text "2.10"
 		(at 87.8 109.2 0)
 		(layer "F.SilkS")
 		(uuid "458d4be9-0ab3-40dc-b034-e19a5681c285")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+			(justify left bottom)
+		)
+	)
+	(gr_text "0.03"
+		(at 87.8 111.7 0)
+		(layer "F.SilkS")
+		(uuid "ea1c4fbd-5a4c-4279-a1f6-72fbd00a945c")
 		(effects
 			(font
 				(size 1 1)
@@ -9972,30 +9997,6 @@
 		(at 97.4 101.5 0)
 		(layer "F.SilkS")
 		(uuid "5eb4ad29-26d9-4728-aa54-9af65d4c0ab2")
-		(effects
-			(font
-				(size 1 1)
-				(thickness 0.15)
-			)
-			(justify left bottom)
-		)
-	)
-	(gr_text "2.06"
-		(at 87.8 106.45 0)
-		(layer "F.SilkS")
-		(uuid "7ef26949-ef57-4000-bbde-3d6c9a0450d1")
-		(effects
-			(font
-				(size 1 1)
-				(thickness 0.15)
-			)
-			(justify left bottom)
-		)
-	)
-	(gr_text "0.03"
-		(at 87.8 111.7 0)
-		(layer "F.SilkS")
-		(uuid "ea1c4fbd-5a4c-4279-a1f6-72fbd00a945c")
 		(effects
 			(font
 				(size 1 1)
