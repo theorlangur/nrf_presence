@@ -51,8 +51,8 @@ const hlkLD2412Cluster = {
     commands: {
         restart: { name: "restart", ID: 0x0001, parameters: [] },
         factoryReset: { name: "factoryReset", ID: 0x0002, parameters: [] },
-        runBackAnalysis: { name: "runBackAnalysis", IID: 0x0003, parameters: [] },
-        takeStatSnapshot: { name: "takeStatSnapshot", IID: 0x0004, parameters: [] },
+        runBackAnalysis: { name: "runBackAnalysis", ID: 0x0003, parameters: [] },
+        takeStatSnapshot: { name: "takeStatSnapshot", ID: 0x0004, parameters: [] },
     },
     commandsResponse: {},
 };
