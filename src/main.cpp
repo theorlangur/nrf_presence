@@ -287,7 +287,7 @@ void method_fwd(arg1_type_t<M> a)
 template<size_t N>
 auto as_print_dest(zb::ZigbeeStr<N> &str)
 {
-    return tools::BufferFormatter(str.name + 1, str.size());
+    return tools::BufferFormatter(str.name + 1, str.capacity());
 }
 
 
@@ -316,6 +316,16 @@ void ultimate_cmd_fail()
     }
 }
 
+void ultimate_zb_fail(zb_ret_t r)
+{
+    printk("ultimate_zb_fail: %d", r);
+    constexpr uint32_t kPATTERN_rapid_blinking = 0xaaaaaaaa;
+    while(true)
+    {
+	led::show_pattern(kPATTERN_rapid_blinking, 2000);
+	k_msleep(2000);
+    }
+}
 
 /**********************************************************************/
 /* Presence                                                           */
@@ -865,6 +875,7 @@ int main(void)
     led::setup();
     led::start();
 
+    zb::g_GlobalErrorHandler = ultimate_zb_fail;
 
     //configure button handler
     err = dk_buttons_init(button_changed);
