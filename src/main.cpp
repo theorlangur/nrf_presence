@@ -290,6 +290,37 @@ auto as_print_dest(zb::ZigbeeStr<N> &str)
     return tools::BufferFormatter(str.name + 1, str.size());
 }
 
+
+/**********************************************************************/
+/* Fault end-handling                                                 */
+/**********************************************************************/
+void ultimate_timer_fail()
+{
+    printk("ultimate_timer_fail");
+    constexpr uint32_t kPATTERN_dot_dash_dot = 0xf00ff00f;
+    while(true)
+    {
+	led::show_pattern(kPATTERN_dot_dash_dot, 2000);
+	k_msleep(2000);
+    }
+}
+
+void ultimate_cmd_fail()
+{
+    printk("ultimate_cmd_fail");
+    constexpr uint32_t kPATTERN_dash_dot_dash = 0xff03c0ff;
+    while(true)
+    {
+	led::show_pattern(kPATTERN_dash_dot_dash, 2000);
+	k_msleep(2000);
+    }
+}
+
+
+/**********************************************************************/
+/* Presence                                                           */
+/**********************************************************************/
+
 void send_on_off(uint8_t val);
 void log_presence_change(uint8_t val);
 
@@ -480,15 +511,24 @@ void send_on_off(uint8_t val)
 		,dev_ctx.occupancy.UltrasonicOccupiedToUnoccupiedDelay
 	);
 	if (min_clear_delay)
-	    g_OccupancyResetProtection.Setup(on_occupancy_protection_finished, min_clear_delay * 1000);
+	{
+	    if (g_OccupancyResetProtection.Setup(on_occupancy_protection_finished, min_clear_delay * 1000) != RET_OK)
+		ultimate_timer_fail();
+	}
     }
 
     gpio_pin_set_dt(&led0, val == 1);
     zb_ep.attr<kAttrOccupancy>() = val == 1;
     if (val == 1)
-	zb_ep.send_cmd<kCmdOn>();
+    {
+	if (!zb_ep.send_cmd<kCmdOn>())
+	    ultimate_cmd_fail();
+    }
     else
-	zb_ep.send_cmd<kCmdOff>();
+    {
+	if (!zb_ep.send_cmd<kCmdOff>())
+	    ultimate_cmd_fail();
+    }
 }
 
 int16_t get_presence_as_status(uint8_t val)
@@ -713,6 +753,7 @@ bool update_environment_sensors()
 {
     if (device_is_ready(rht2sensor))
     {
+	zb_ep.dump_info<kCmdOn, kCmdOff>();
 	sensor_sample_fetch(rht2sensor);
 	sensor_value v;
 	sensor_channel_get(rht2sensor, sensor_channel::SENSOR_CHAN_AMBIENT_TEMP, &v);
@@ -738,7 +779,8 @@ void on_zigbee_start()
 {
     printk("on_zigbee_start\r\n");
     g_ZigbeeReady = true;
-    g_EnvironmentSensorFetcher.Setup(update_environment_sensors, 15000);
+    if (g_EnvironmentSensorFetcher.Setup(update_environment_sensors, 15000) != RET_OK)
+	ultimate_timer_fail();
 }
 
 /**@brief Zigbee stack event handler.
@@ -776,7 +818,7 @@ static void button_changed(uint32_t button_state, uint32_t has_changed)
     if (FACTORY_RESET_BUTTON & has_changed) {
 	if (FACTORY_RESET_BUTTON & button_state) {
 	    /* Button changed its state to pressed */
-	    g_FactoryResetDoneChecker.Setup([]{
+	    auto r = g_FactoryResetDoneChecker.Setup([]{
 		    if (was_factory_reset_done()) {
 			/* The long press was for Factory Reset */
 			led::show_pattern(led::kPATTERN_2_BLIPS_NORMED, 2000);
@@ -784,6 +826,8 @@ static void button_changed(uint32_t button_state, uint32_t has_changed)
 		    }
 		    return true;
 	    }, 1000);
+	    if (r != RET_OK)
+		ultimate_timer_fail();
 	} else {
 	    /* Button changed its state to released */
 	    if (!was_factory_reset_done()) {
