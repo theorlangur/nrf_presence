@@ -32,6 +32,10 @@
 #include "zb/zb_ld2412_cluster_desc.hpp"
 #include <osif/mac_platform.h>
 
+#include <atomic>
+
+constexpr bool kDebug = false;
+
 #define MMWAVE_UART_NODE DT_ALIAS(mmwave_uart)
 #define MMWAVE_UART_NODE2 DT_ALIAS(mmwave_uart2)
 constinit const struct device *mmwave_uart1 = DEVICE_DT_GET(MMWAVE_UART_NODE);
@@ -331,11 +335,17 @@ void ultimate_zb_fail(zb_ret_t r)
 /* Presence                                                           */
 /**********************************************************************/
 
+constinit std::atomic<uint8_t> g_PresenceChangeState{0};
+constexpr uint8_t HWUnsetState = 0xff;
+constexpr uint8_t OnOffVirtualMask = 0xfe;
+constinit std::atomic<uint8_t> g_PresenceHWState{HWUnsetState};
+
 void send_on_off(uint8_t val);
 void log_presence_change(uint8_t val);
 
 union PresenceChange
 {
+    static constexpr uint8_t kChangedOnlyMask = 0x7 << 3;
     struct
     {
 	uint8_t pir : 1;
@@ -356,7 +366,7 @@ gpio_callback g_on_pir_triggered;
 int g_ld2412_main_presence_out = 0;
 int g_ld2412_aux_presence_out = 0;
 int g_pir_presence = 0;
-bool g_presence_state = false;
+uint8_t g_presence_state = false;
 
 void presence_triggered(const struct device *port,
 					struct gpio_callback *cb,
@@ -369,7 +379,7 @@ void presence_triggered(const struct device *port,
     int new_main = g_ld2412_main_presence_out;
     int new_aux = g_ld2412_aux_presence_out;
 
-    bool new_presence_state = g_presence_state;
+    uint8_t new_presence_state = g_presence_state;
 
     if (pir_changed) new_pir = gpio_pin_get_dt(&pir);
     if (main_changed) new_main = gpio_pin_get_dt(&presence);
@@ -389,7 +399,13 @@ void presence_triggered(const struct device *port,
 	v.bits.pir = new_pir;
 	v.bits.main = new_main;
 	v.bits.aux = new_aux;
-	zb_schedule_app_callback(&log_presence_change, v.val);
+
+	{
+	    uint8_t cur = g_PresenceChangeState.load();
+	    while(!g_PresenceChangeState.compare_exchange_strong(cur, ((cur & PresenceChange::kChangedOnlyMask) | v.val)));
+	    if (!cur)//completely clear
+		zb_schedule_app_callback(&log_presence_change, v.val);
+	}
     }
 
     g_pir_presence = new_pir;
@@ -402,7 +418,10 @@ void presence_triggered(const struct device *port,
 	g_presence_state = new_presence_state;
 
 	if (g_ZigbeeReady) //post to zigbee and shoot commands
-	    zb_schedule_app_callback(&send_on_off, g_presence_state);
+	{
+	    if (g_PresenceHWState.exchange(g_presence_state) == HWUnsetState)
+		zb_schedule_app_callback(&send_on_off, g_presence_state);
+	}
 	else
 	{
 	    gpio_pin_set_dt(&led0, g_presence_state);
@@ -485,6 +504,7 @@ zb::CmdHandlingResult on_cmd_do_stat_snapshot()
     return {};
 }
 
+constexpr uint8_t kOccupancyFromDebug = 0x40;
 constexpr uint8_t kOccupancyClearFromTimer = 0x80;
 zb::ZbAlarmExt g_OccupancyResetProtection;
 uint8_t g_LastRegisteredOccupancyState = 0;
@@ -501,12 +521,19 @@ void on_occupancy_protection_finished()
 void send_on_off(uint8_t val)
 {
     auto prevRegisteredState = g_LastRegisteredOccupancyState;
-    if (!(val & 0xfe))//no 'higher' bits (all bits but bit 0) a present
+    if ((val & kOccupancyFromDebug))
     {
+	g_LastRegisteredOccupancyState = val & 1;
+    }
+
+    if (!(val & OnOffVirtualMask))//no 'higher' bits (all bits but bit 0) a present
+    {
+	//taking last state
+	val = g_PresenceHWState.exchange(HWUnsetState);
 	g_LastRegisteredOccupancyState = val;
     }else
     {
-	val &= ~0xfe;
+	val &= ~OnOffVirtualMask;
 	if (!val && g_LastRegisteredOccupancyState)
 	    return;//we still have occupancy 
     }
@@ -548,6 +575,7 @@ int16_t get_presence_as_status(uint8_t val)
 
 void log_presence_change(uint8_t val)
 {
+    val = g_PresenceChangeState.exchange(0);
     PresenceChange v = {.val = val};
     if (v.bits.pir_changed) printk("pir=%d; ", v.bits.pir);
     if (v.bits.main_changed) printk("main=%d; ", v.bits.main);
