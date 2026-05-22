@@ -335,10 +335,11 @@ void ultimate_zb_fail(zb_ret_t r)
 /* Presence                                                           */
 /**********************************************************************/
 
-constinit std::atomic<uint8_t> g_PresenceChangeState{0};
+using atomic_state_t = std::atomic<uint8_t>;
+constinit atomic_state_t g_PresenceChangeState{0};
 constexpr uint8_t HWUnsetState = 0xff;
 constexpr uint8_t OnOffVirtualMask = 0xfe;
-constinit std::atomic<uint8_t> g_PresenceHWState{HWUnsetState};
+constinit atomic_state_t g_PresenceHWState{HWUnsetState};
 
 void send_on_off(uint8_t val);
 void log_presence_change(uint8_t val);
@@ -897,6 +898,7 @@ void print_ld2412_config(hlk::LD2412 &ld)
 
 int main(void)
 {
+    static_assert(atomic_state_t::is_always_lock_free);
     int err = settings_subsys_init();
     err = settings_load();
 
