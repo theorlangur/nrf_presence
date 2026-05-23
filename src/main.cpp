@@ -79,6 +79,7 @@ constexpr uint8_t kMMW_AUX_EP = 2;
 constexpr uint16_t kDEV_ID = 0xBAAD;
 
 constexpr uint16_t kInitialMinClearTimeout = 3;//seconds
+constexpr uint32_t kZigbeeFloodProtectionTimeout = 1000;//ms
 
 struct device_ctx_t{
     zb::zb_zcl_basic_names_t basic_attr;
@@ -519,6 +520,39 @@ void on_occupancy_protection_finished()
     }
 }
 
+void send_on_off_zb(uint8_t val)
+{
+    zb_ep.attr<kAttrOccupancy>() = val == 1;
+    if (val == 1)
+    {
+	if (!zb_ep.send_cmd<kCmdOn>())
+	    ultimate_cmd_fail();
+    }
+    else
+    {
+	if (!zb_ep.send_cmd<kCmdOff>())
+	    ultimate_cmd_fail();
+    }
+}
+
+zb::ZbAlarmExt g_ZbFloodGate;
+constinit uint8_t g_DelayedVal = HWUnsetState;
+void send_on_off_zb_flood_protected(uint8_t val)
+{
+    if (g_ZbFloodGate.IsRunning())
+	g_DelayedVal = val;
+    else
+    {
+	send_on_off_zb(val);
+	g_ZbFloodGate.Setup([]{
+		if (g_DelayedVal != HWUnsetState)
+		{
+		    send_on_off_zb_flood_protected(std::exchange(g_DelayedVal, HWUnsetState));
+		}
+	    }, kZigbeeFloodProtectionTimeout);
+    }
+}
+
 void send_on_off(uint8_t val)
 {
     auto prevRegisteredState = g_LastRegisteredOccupancyState;
@@ -541,7 +575,8 @@ void send_on_off(uint8_t val)
 
     if (g_OccupancyResetProtection.IsRunning())
 	return;
-    else if (!prevRegisteredState && g_LastRegisteredOccupancyState)
+
+    if (!prevRegisteredState && g_LastRegisteredOccupancyState)
     {   //0->1
 	//start occupancy protection timer
 	auto min_clear_delay = std::max(
@@ -556,17 +591,8 @@ void send_on_off(uint8_t val)
     }
 
     gpio_pin_set_dt(&led0, val == 1);
-    zb_ep.attr<kAttrOccupancy>() = val == 1;
-    if (val == 1)
-    {
-	if (!zb_ep.send_cmd<kCmdOn>())
-	    ultimate_cmd_fail();
-    }
-    else
-    {
-	if (!zb_ep.send_cmd<kCmdOff>())
-	    ultimate_cmd_fail();
-    }
+
+    send_on_off_zb_flood_protected(val);
 }
 
 int16_t get_presence_as_status(uint8_t val)
