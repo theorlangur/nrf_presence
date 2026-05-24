@@ -13,6 +13,10 @@
 			label = "image-0";
 			reg = <0xf800 DT_SIZE_K(902)>;
 		};
+		coredump_partition: partition@f1000 {
+			label = "coredump-partition";
+			reg = <0xf1000 DT_SIZE_K(256)>;
+		};
 		/* slot1_partition: partition@8D000 { */
 		/* 	label = "image-1"; */
 		/* 	reg = <0x8D000 DT_SIZE_K(500)>; */
