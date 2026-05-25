@@ -4,6 +4,7 @@
 	chosen {
 		ncs,zigbee-timer = &timer20;
 		zephyr,code-partition = &slot0_partition;
+		zephyr,shell-uart = &uart00;
 		zephyr,console = &uart00;
 	};
 
