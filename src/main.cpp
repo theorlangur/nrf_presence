@@ -853,7 +853,7 @@ void on_zigbee_start()
     if (g_EnvironmentSensorFetcher.Setup(update_environment_sensors, 15000) != RET_OK)
 	ultimate_timer_fail();
 
-    bool hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr);
+    bool hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
     int coredumpSize = coredump_query(COREDUMP_QUERY_GET_STORED_DUMP_SIZE, nullptr);
 
     zb_ep.attr<kAttrStatus3>() = hasCoredump;
