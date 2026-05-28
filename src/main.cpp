@@ -844,8 +844,6 @@ bool update_environment_sensors()
     return true;
 }
 
-constinit volatile int *pCrash = nullptr;
-zb::ZbAlarmExt g_SimulateCrash;
 void on_zigbee_start()
 {
     printk("on_zigbee_start\r\n");
@@ -854,16 +852,7 @@ void on_zigbee_start()
 	ultimate_timer_fail();
 
     bool hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
-    int coredumpSize = coredump_query(COREDUMP_QUERY_GET_STORED_DUMP_SIZE, nullptr);
-
     zb_ep.attr<kAttrStatus3>() = hasCoredump;
-    //dbg
-    if (!hasCoredump)
-    {
-	g_SimulateCrash.Setup([]{
-		*pCrash = 42;
-	    }, 5000);
-    }
 }
 
 /**@brief Zigbee stack event handler.
