@@ -65,6 +65,31 @@
             "command": "./lcxx_nrf52.sh west flash -d build52"
         },
         {
+            "label": "Core: extract",
+            "type": "shell",
+            "command": "coredumps/scripts/extract_coredump.sh"
+        },
+        {
+            "label": "Core: info",
+            "type": "shell",
+            "command": "coredumps/scripts/show_coredump_info.sh"
+        },
+        {
+            "label": "Core: clear",
+            "type": "shell",
+            "command": "coredumps/scripts/clear_coredump.sh"
+        },
+        {
+            "label": "Core: run",
+            "type": "shell",
+            "command": "coredumps/scripts/start_coredump_server.sh &"
+        },
+        {
+            "label": "Core: stop",
+            "type": "shell",
+            "command": "coredumps/scripts/kill_existing_coredump_server.sh"
+        },
+        {
             "label": "NRFUtil Reset",
             "type": "shell",
             "command": "nrfutil device reset"

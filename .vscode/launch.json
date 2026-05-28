@@ -48,6 +48,19 @@
             "MIMode": "gdb"
         },
         {
+            "name": "CoreDump",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build_ezurio_llvm/presence_multi_v2/zephyr/zephyr.elf",
+            "cwd": "${workspaceFolder}",
+            "miDebuggerPath": "/home/theorlangur/ncs/toolchains/7cbc0036f4/opt/zephyr-sdk/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
+            "miDebuggerServerAddress": "localhost:1234",
+            "useExtendedRemote": true,
+            "stopAtConnect": false,
+            "stopAtEntry": false,
+            "MIMode": "gdb"
+        },
+        {
             "name": "Launch MCUBoot",
             "type": "cppdbg",
             "request": "launch",
