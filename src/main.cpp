@@ -17,6 +17,8 @@
 
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/sensor/ens160.h>
+
+#include <zephyr/drivers/watchdog.h>
 /**********************************************************************/
 /* Zigbee                                                             */
 /**********************************************************************/
@@ -337,6 +339,14 @@ void ultimate_zb_fail(zb_ret_t r)
 }
 
 /**********************************************************************/
+/* Watchdog                                                           */
+/**********************************************************************/
+const struct device *const wdt = DEVICE_DT_GET(DT_ALIAS(watchdog0));
+zb::ZbTimerExt16 g_WDTFeeder;
+int wdt_channel_id = -1;
+int configure_wdt();
+
+/**********************************************************************/
 /* Presence                                                           */
 /**********************************************************************/
 
@@ -345,6 +355,7 @@ constinit atomic_state_t g_PresenceChangeState{0};
 constexpr uint8_t HWUnsetState = 0xff;
 constexpr uint8_t OnOffVirtualMask = 0xfe;
 constinit atomic_state_t g_PresenceHWState{HWUnsetState};
+
 
 void send_on_off(uint8_t val);
 void log_presence_change(uint8_t val);
@@ -851,8 +862,12 @@ void on_zigbee_start()
     if (g_EnvironmentSensorFetcher.Setup(update_environment_sensors, 15000) != RET_OK)
 	ultimate_timer_fail();
 
-    bool hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
-    zb_ep.attr<kAttrStatus3>() = hasCoredump;
+    uint16_t hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
+    uint16_t wdt_error = 0;
+
+    if (configure_wdt() == -1)
+	wdt_error = 1 << 1;
+    zb_ep.attr<kAttrStatus3>() = hasCoredump | wdt_error;
 }
 
 /**@brief Zigbee stack event handler.
@@ -927,6 +942,62 @@ void print_ld2412_config(hlk::LD2412 &ld)
     {
 	FMT_PRINTLN("Gate {}; Threshold: move: {}; still: {}", i + 1, ld.GetMoveThreshold(i), ld.GetStillThreshold(i));
     }
+}
+
+static void wdt_callback(const struct device *wdt_dev, int channel_id)
+{
+	static bool handled_event = false;
+
+	if (handled_event) {
+		return;
+	}
+
+	wdt_feed(wdt_dev, channel_id);
+
+	handled_event = true;
+	k_oops();
+}
+
+int configure_wdt()
+{
+
+    if (!device_is_ready(wdt)) {
+	printk("%s: device not ready.\n", wdt->name);
+	return -1;
+    }
+
+    struct wdt_timeout_cfg wdt_config = {
+		/* Expire watchdog after max window */
+		.window = {
+		    .min = 0,
+		    .max = 2000,
+		},
+
+		/* Reset SoC when watchdog timer expires. */
+		.flags = WDT_FLAG_RESET_SOC,
+	};
+
+    wdt_channel_id = wdt_install_timeout(wdt, &wdt_config);
+    if (wdt_channel_id == -ENOTSUP) {
+	/* IWDG driver for STM32 doesn't support callback */
+	printk("Callback support rejected, continuing anyway\n");
+	wdt_config.callback = NULL;
+	wdt_channel_id = wdt_install_timeout(wdt, &wdt_config);
+    }
+    if (wdt_channel_id < 0) {
+	printk("Watchdog install error\n");
+	return wdt_channel_id;
+    }
+
+    int err = wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG);
+    if (err < 0) {
+	printk("Watchdog setup error\n");
+	return err;
+    }
+
+    //starting the feeding sequence
+    g_WDTFeeder.Setup([]{ wdt_feed(wdt, wdt_channel_id); return true;}, 500);
+    return 0;
 }
 
 int main(void)

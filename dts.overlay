@@ -29,6 +29,7 @@
 	};
 
 	aliases {
+		watchdog0=&wdt31;
 		userled0 = &led0;
 		presence = &mmwave_sensor_1;
 		presence2 = &mmwave_sensor_2;
@@ -161,5 +162,8 @@
 };
 
 &gpio1 {
+	status = "okay";
+};
+&wdt31 {
 	status = "okay";
 };
