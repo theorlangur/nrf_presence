@@ -955,7 +955,12 @@ static void wdt_callback(const struct device *wdt_dev, int channel_id)
 	wdt_feed(wdt_dev, channel_id);
 
 	handled_event = true;
-	k_oops();
+	//k_oops();
+	if (coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) != 1)
+	{
+	    //save
+	    coredump(0xDEAD, nullptr, nullptr);
+	}
 }
 
 int configure_wdt()
