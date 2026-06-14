@@ -14,40 +14,34 @@
             "group": { "kind": "build" }
         },
         {
-            "label": "Build 52 LLVM lcxx",
+            "label": "West Build Ezurio LLVM",
             "type": "shell",
-            "command": "./lcxx_nrf52.sh cmake --build build52",
-            "group": { "kind": "build" }
+            "command": "./e.sh ./build-ezurio-llvm-log.sh",
+            "group": "build"
+        },
+        {
+            "label": "West Build Ezurio LLVM (no log)",
+            "type": "shell",
+            "command": "./e.sh ./build-ezurio-llvm.sh",
+            "group": "build"
         },
         {
             "label": "West Build Ezurio LLVM lcxx",
             "type": "shell",
             "command": "./lcxx.sh ./build-ezurio-llvm.sh",
-            "group": { "kind": "build" }
+            "group": "build"
         },
         {
             "label": "West Build Ezurio LLVM Log with libc++",
             "type": "shell",
             "command": "./lcxx.sh ./build-ezurio-llvm-log-lcxx.sh",
-            "group": { "kind": "build" }
-        },
-        {
-            "label": "West Build 52 LLVM lcxx",
-            "type": "shell",
-            "command": "./lcxx_nrf52.sh ./build-52840-llvm-lcxx.sh",
-            "group": { "kind": "build" }
-        },
-        {
-            "label": "West Build 52 LLVM Log with libc++",
-            "type": "shell",
-            "command": "./lcxx_nrf52.sh ./build-52840-llvm-log-lcxx.sh",
-            "group": { "kind": "build" }
+            "group": "build"
         },
         {
             "label": "West Build Ezurio LLVM Log",
             "type": "shell",
             "command": "./e.sh ./build-ezurio-llvm-log.sh",
-            "group": { "kind": "build" }
+            "group": "build"
         },
         {
             "label": "Flash Ezurio LLVM over JLINK-EDU",
@@ -58,11 +52,6 @@
             "label": "Flash Ezurio LLVM over JLINK-EDU (Erase)",
             "type": "shell",
             "command": "./e.sh west flash -d build_ezurio_llvm --dev-id 802005000 --erase"
-        },
-        {
-            "label": "Flash West 52",
-            "type": "shell",
-            "command": "./lcxx_nrf52.sh west flash -d build52"
         },
         {
             "label": "Core: extract",
