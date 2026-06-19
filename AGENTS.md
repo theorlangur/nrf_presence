@@ -54,10 +54,14 @@ Or use the helper:
 ## Sibling directories expected
 
 The build uses `-DBOARD_ROOT=~/myapps/cpp/nrf` which points to a parent NRF workspace containing:
-- `zephyr/` — Zephyr RTOS
 - `nrf/` — Nordic nRF modules
 - `bootloader/mcuboot/` — MCUBoot bootloader
 - `toolchains/` — SDK toolchains
+
+## Key sources
+
+- **Nordic Zigbee add-on**: `~/myapps/cpp/nrf/zbvscode/ncs-zigbee`
+- **Zephyr (this app's version)**: `~/myapps/cpp/nrf/zbvscode/zephyr`
 
 ## Sensors / hardware
 
