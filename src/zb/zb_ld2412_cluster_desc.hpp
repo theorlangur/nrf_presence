@@ -24,7 +24,7 @@ namespace zb
 
         static bool validate_gates(uint8_t *value)
         {
-            ZigbeeBinTyped<gate_array_t> *pT = (ZigbeeBinTyped<gate_array_t>*)value;
+            zigbee_bin_typed_t<gate_array_t> *pT = (zigbee_bin_typed_t<gate_array_t>*)value;
             if (pT->len_bytes != 14)
                 return false;
 
@@ -83,16 +83,16 @@ namespace zb
             uint8_t unused                      : 6 = 0;
         } flags = {};
 
-        ZigbeeBinTyped<base_cfg_t> base_config;
-        ZigbeeBinTyped<gate_array_t> still_energy_thresholds = gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
-        ZigbeeBinTyped<gate_array_t> move_energy_thresholds = gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
-        ZigbeeBin<7> bluetooth_mac;
-        ZigbeeStr<32> sw_ver;
+        zigbee_bin_typed_t<base_cfg_t> base_config;
+        zigbee_bin_typed_t<gate_array_t> still_energy_thresholds = gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
+        zigbee_bin_typed_t<gate_array_t> move_energy_thresholds = gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
+        zigbee_bin_t<7> bluetooth_mac;
+        zigbee_str_t<32> sw_ver;
         bool bluetooth_state = false;
         uint8_t statistics_sample_count_window = 0;
-        ZigbeeBinTypedArray<energy_stat_t, 14> energy_stat_still;
-        ZigbeeBinTypedArray<energy_stat_t, 14> energy_stat_move;
-        ZigbeeBinTyped<light_sense_cfg_t> light_sense = light_sense_cfg_t{}; 
+        zigbee_bin_typed_array_t<energy_stat_t, 14> energy_stat_still;
+        zigbee_bin_typed_array_t<energy_stat_t, 14> energy_stat_move;
+        zigbee_bin_typed_t<light_sense_cfg_t> light_sense = light_sense_cfg_t{}; 
 
         /**********************************************************************/
         /* Commands                                                           */
@@ -110,18 +110,18 @@ namespace zb
             return cluster_t<
                 cluster_info_t{.id = kZB_ZCL_CLUSTER_ID_LD2412},
                 attributes_t<
-                     attribute_t{.m = &T::base_config,                        .id = 0x0000, .a=Access::RW}
-                    ,attribute_t{.m = &T::sw_ver,                             .id = 0x0001, .a=Access::Read}
-                    ,attribute_t{.m = &T::bluetooth_mac,                      .id = 0x0002, .a=Access::Read}
-                    ,attribute_t{.m = &T::still_energy_thresholds,            .id = 0x0003, .a=Access::RW, .validator = &T::validate_gates}
-                    ,attribute_t{.m = &T::move_energy_thresholds,             .id = 0x0004, .a=Access::RW, .validator = &T::validate_gates}
-                    ,attribute_t{.m = &T::light_level,                        .id = 0x0005, .a=Access::RP}
-                    ,attribute_t{.m = &T::flags,                              .id = 0x0006, .a=Access::RWP, .type=Type::U8}
-                    ,attribute_t{.m = &T::statistics_sample_count_window,     .id = 0x0007, .a=Access::RW, .validator = &T::validate_stat_sample_count}
-                    ,attribute_t{.m = &T::energy_stat_still,                  .id = 0x0008, .a=Access::Read}
-                    ,attribute_t{.m = &T::energy_stat_move,                   .id = 0x0009, .a=Access::Read}
-                    ,attribute_t{.m = &T::light_sense,                        .id = 0x000a, .a=Access::RW}
-                    ,attribute_t{.m = &T::bluetooth_state,                    .id = 0x000b, .a=Access::RW}
+                     attribute_t{.m = &T::base_config,                        .id = 0x0000, .a=access_t::RW}
+                    ,attribute_t{.m = &T::sw_ver,                             .id = 0x0001, .a=access_t::Read}
+                    ,attribute_t{.m = &T::bluetooth_mac,                      .id = 0x0002, .a=access_t::Read}
+                    ,attribute_t{.m = &T::still_energy_thresholds,            .id = 0x0003, .a=access_t::RW, .validator = &T::validate_gates}
+                    ,attribute_t{.m = &T::move_energy_thresholds,             .id = 0x0004, .a=access_t::RW, .validator = &T::validate_gates}
+                    ,attribute_t{.m = &T::light_level,                        .id = 0x0005, .a=access_t::RP}
+                    ,attribute_t{.m = &T::flags,                              .id = 0x0006, .a=access_t::RWP, .type=type_t::U8}
+                    ,attribute_t{.m = &T::statistics_sample_count_window,     .id = 0x0007, .a=access_t::RW, .validator = &T::validate_stat_sample_count}
+                    ,attribute_t{.m = &T::energy_stat_still,                  .id = 0x0008, .a=access_t::Read}
+                    ,attribute_t{.m = &T::energy_stat_move,                   .id = 0x0009, .a=access_t::Read}
+                    ,attribute_t{.m = &T::light_sense,                        .id = 0x000a, .a=access_t::RW}
+                    ,attribute_t{.m = &T::bluetooth_state,                    .id = 0x000b, .a=access_t::RW}
                 >{},
                 commands_t<
                     &T::cmd_restart, 

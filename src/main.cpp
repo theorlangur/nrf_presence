@@ -155,13 +155,13 @@ constexpr auto kCmdOn = &zb::zb_zcl_on_off_attrs_client_t::on;
 constexpr auto kCmdOff = &zb::zb_zcl_on_off_attrs_client_t::off;
 
 template<ld2412::Instance &i>
-zb::CmdHandlingResult on_cmd_restart();
+zb::cmd_handling_result_t on_cmd_restart();
 template<ld2412::Instance &i>
-zb::CmdHandlingResult on_cmd_factory_reset();
+zb::cmd_handling_result_t on_cmd_factory_reset();
 template<ld2412::Instance &i>
-zb::CmdHandlingResult on_cmd_run_back_analysis();
+zb::cmd_handling_result_t on_cmd_run_back_analysis();
 template<ld2412::Instance &i>
-zb::CmdHandlingResult on_cmd_do_stat_snapshot();
+zb::cmd_handling_result_t on_cmd_do_stat_snapshot();
 
 /* Zigbee device application context storage. */
 static constinit device_ctx_t dev_ctx{
@@ -296,7 +296,7 @@ void method_fwd(arg1_type_t<M> a)
 }
 
 template<size_t N>
-auto as_print_dest(zb::ZigbeeStr<N> &str)
+auto as_print_dest(zb::zigbee_str_t<N> &str)
 {
     return tools::BufferFormatter(str.name + 1, str.capacity());
 }
@@ -342,7 +342,7 @@ void ultimate_zb_fail(zb_ret_t r)
 /* Watchdog                                                           */
 /**********************************************************************/
 const struct device *const wdt = DEVICE_DT_GET(DT_ALIAS(watchdog0));
-zb::ZbTimerExt16 g_WDTFeeder;
+zb::zb_timer_ext_16_t g_WDTFeeder;
 int wdt_channel_id = -1;
 int configure_wdt();
 
@@ -449,7 +449,7 @@ void presence_triggered(const struct device *port,
 }
 
 template<ld2412::Instance &i>
-zb::CmdHandlingResult on_cmd_restart()
+zb::cmd_handling_result_t on_cmd_restart()
 {
     printk("ld2412::restart\r\n");
     i.restart();
@@ -457,7 +457,7 @@ zb::CmdHandlingResult on_cmd_restart()
 }
 
 template<ld2412::Instance &i>
-zb::CmdHandlingResult on_cmd_factory_reset()
+zb::cmd_handling_result_t on_cmd_factory_reset()
 {
     printk("ld2412::factory_reset\r\n");
     i.factory_reset();
@@ -476,7 +476,7 @@ void on_back_analysis_done(ld2412::run_background_analysis_t::Result result)
 }
 
 template<ld2412::Instance &i>
-zb::CmdHandlingResult on_cmd_run_back_analysis()
+zb::cmd_handling_result_t on_cmd_run_back_analysis()
 {
     printk("ld2412::run_back_analysis\r\n");
     i.run_back_analysis({&on_back_analysis_done<i>});
@@ -514,7 +514,7 @@ void on_get_stat_snapshot(hlk::LD2412::energy_stat_array_t const& still, hlk::LD
 }
 
 template<ld2412::Instance &i>
-zb::CmdHandlingResult on_cmd_do_stat_snapshot()
+zb::cmd_handling_result_t on_cmd_do_stat_snapshot()
 {
     printk("(%s)ld2412::do_stat_snapshot\r\n", get_name_for_ld2412<i>());
     i.take_statistic_snapshot({&on_get_stat_snapshot<i>});
@@ -523,7 +523,7 @@ zb::CmdHandlingResult on_cmd_do_stat_snapshot()
 
 constexpr uint8_t kOccupancyFromDebug = 0x40;
 constexpr uint8_t kOccupancyClearFromTimer = 0x80;
-zb::ZbAlarmExt g_OccupancyResetProtection;
+zb::zb_alarm_ext_t<> g_OccupancyResetProtection;
 uint8_t g_LastRegisteredOccupancyState = 0;
 
 void on_occupancy_protection_finished()
@@ -550,7 +550,7 @@ void send_on_off_zb(uint8_t val)
     }
 }
 
-zb::ZbAlarmExt g_ZbFloodGate;
+zb::zb_alarm_ext_t<> g_ZbFloodGate;
 constinit uint8_t g_DelayedVal = HWUnsetState;
 void send_on_off_zb_flood_protected(uint8_t val)
 {
@@ -827,7 +827,7 @@ void on_set_light_sense(zb::zb_zcl_ld2412_t::light_sense_cfg_t const& cfg)
 
 int configure_presence_pins();
 
-zb::ZbTimerExt g_EnvironmentSensorFetcher;
+zb::zb_timer_ext_t<> g_EnvironmentSensorFetcher;
 
 bool update_environment_sensors()
 {
@@ -894,7 +894,7 @@ void zboss_signal_handler(zb_bufid_t bufid)
     }							
 }
 
-zb::ZbTimerExt g_FactoryResetDoneChecker;
+zb::zb_timer_ext_t<> g_FactoryResetDoneChecker;
 /**@brief Callback for button events.
  *
  * @param[in]   button_state  Bitmask containing the state of the buttons.
@@ -1071,7 +1071,7 @@ int main(void)
 
     /* Register callback for handling ZCL commands. */
     auto dev_cb = zb::tpl_device_cb<
-	zb::dev_cb_handlers_desc{ .error_handler = on_dev_cb_error }
+	zb::dev_cb_handlers_desc_t{ .error_handler = on_dev_cb_error }
 	//main instance
 	, zb::handle_set_for<kAttrBaseCfg,               &on_set_base_config<ld2412_1>>(zb_ep)
 	, zb::handle_set_for<kAttrLightSense,            &on_set_light_sense<ld2412_1>>(zb_ep)
