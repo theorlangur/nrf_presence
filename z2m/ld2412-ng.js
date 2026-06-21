@@ -289,6 +289,7 @@ function hlkLd2412(ep, epId) {
 
         e.numeric('light_level', ea.STATE).withDescription('Current Light Level').withEndpoint(ep),
         e.numeric('statistics_sample_count_window', ea.ALL).withValueMin(0).withValueMax(128).withEndpoint(ep),
+        e.enum('exec_cmd', ea.SET, ['restart', 'factory_reset', 'run_back_analysis', 'take_stat_snapshot']).withEndpoint(ep),
         createStatExpose('energy_stat_still', 'Still Energy Stats'),
         createStatExpose('energy_stat_move', 'Move Energy Stats'),
 
@@ -297,8 +298,6 @@ function hlkLd2412(ep, epId) {
         e.binary('bluetooth_state', ea.ALL, true, false).withDescription('Bluetooth State').withEndpoint(ep),
         e.text('bluetooth_mac', ea.STATE).withDescription('Bluetooth MAC').withEndpoint(ep),
         e.text('sw_ver', ea.STATE).withDescription('Firmware Version').withEndpoint(ep),
-        
-        e.enum('exec_cmd', ea.SET, ['restart', 'factory_reset', 'run_back_analysis', 'take_stat_snapshot']).withEndpoint(ep),
     ];
 
     const configureLocal = async (device, coordinatorEndpoint, logger) => {
