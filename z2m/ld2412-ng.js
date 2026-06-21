@@ -365,7 +365,7 @@ const orlangurLD2412Extended = {
             "Unhealthy"  : 5,
         };
         const exposes = [
-            e.numeric('tvoc', ea.STATE_GET).withLabel('TVOC').withCategory('diagnostic'),
+            e.numeric('voc', ea.STATE_GET).withLabel('TVOC').withCategory('diagnostic'),
             e.enum('aqi', ea.STATE_GET, Object.keys(aqi_lookup)).withLabel('AQI').withCategory('diagnostic'),
         ];
 
@@ -377,7 +377,7 @@ const orlangurLD2412Extended = {
                     const result = {};
                     const data = msg.data;
                     if (data['tvoc'] !== undefined) 
-                        result['tvoc'] = data['tvoc'];
+                        result['voc'] = data['tvoc'];
                     if (data['aqi'] !== undefined) 
                     {
                         const v = data['aqi']
@@ -392,7 +392,7 @@ const orlangurLD2412Extended = {
 
         const toZigbee = [
             {
-                key: ['tvoc', 'aqi'],
+                key: ['voc', 'aqi'],
                 convertGet: async (entity, key, meta) => {
                     await entity.read('ens160airQuality', [key]);
                 },
@@ -522,7 +522,7 @@ const definition = {
         numeric({
             cluster: "ens160airQuality",
             attribute: "tvoc",
-            name: "tvoc",
+            name: "voc",
             access: "STATE_GET",
             reporting: {min: 5, max: 120, change: 1},
             entityCategory: "diagnostic",
