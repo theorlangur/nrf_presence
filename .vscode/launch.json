@@ -35,6 +35,20 @@
           ]
         },
         {
+          "name": "Cortex-Debug Attach GCC",
+          "cwd": "${workspaceRoot}",
+          "executable": "${workspaceFolder}/build_ezurio_gcc16_human/presence_multi_v2/zephyr/zephyr.elf",
+          "request": "attach",
+          "type": "cortex-debug",
+          "servertype": "jlink",
+          "interface": "swd",
+          "device": "cortex-m33",
+          "rtos": "Zephyr",
+          "preRestartCommands": [
+            "enable breakpoint"
+          ]
+        },
+        {
             "name": "Launch",
             "type": "cppdbg",
             "request": "launch",

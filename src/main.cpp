@@ -35,6 +35,7 @@
 #include <osif/mac_platform.h>
 
 #include <atomic>
+//#include <meta>
 
 extern "C"{
 #include <zephyr/debug/coredump.h>
@@ -191,7 +192,7 @@ static constinit device_ctx_t dev_ctx{
     },
 };
 
-constinit static auto zb_ctx = zb::make_device(
+constinit static zb::device_full_t zb_ctx{
 	zb::make_ep_args<{.ep=kMMW_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
 	    dev_ctx.basic_attr
 	    , dev_ctx.status_attr
@@ -206,7 +207,24 @@ constinit static auto zb_ctx = zb::make_device(
 	zb::make_ep_args<{.ep=kMMW_AUX_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
 	    dev_ctx.ld2412_aux
 	)
-    );
+};
+
+//constinit static auto zb_ctx_test = zb::make_device(
+//	zb::make_ep_args<{.ep=kMMW_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
+//	    dev_ctx.basic_attr
+//	    , dev_ctx.status_attr
+//	    , dev_ctx.occupancy
+//	    , dev_ctx.ld2412_main
+//	    , dev_ctx.humidity
+//	    , dev_ctx.temperature
+//	    , dev_ctx.co2
+//	    , dev_ctx.airq
+//	    , dev_ctx.on_off_client
+//	),
+//	zb::make_ep_args<{.ep=kMMW_AUX_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
+//	    dev_ctx.ld2412_aux
+//	)
+//    );
 
 /**********************************************************************/
 /* Defining access to the global zigbee device context                */
@@ -687,7 +705,7 @@ void zb_ld2412_update_base_config()
     base.distance_resolution = pLD2412->GetDistanceRes();
     base.range_min = pLD2412->GetMinDistance() / 100.f;
     base.range_max = pLD2412->GetMaxDistance() / 100.f;
-    FMT_PRINTLN("Base cfg updated to: [r_from={}, r_min={}, res={}, del={}]", base.range_min, base.range_max, base.distance_resolution, base.clear_delay);
+    FMT_PRINTLN("Base cfg updated to: [r_from={}, r_min={}, res={}, del={}]", (float)base.range_min, (float)base.range_max, base.distance_resolution, (uint16_t)base.clear_delay);
     ep.template attr<kAttrBaseCfg>() = base;
 }
 
@@ -1112,6 +1130,11 @@ int main(void)
     print_ld2412_config(*pLD2412_1);
     FMT_PRINTLN("-----LD2412 aux-----");
     print_ld2412_config(*pLD2412_2);
+
+    //auto e_cnt =  std::meta::enumerators_of(^^ld2412::err_t).size();
+    //printk("%d", e_cnt);
+    //std::string_view sv = std::meta::display_string_of(^^ld2412::err_t);
+    //printk("%s", sv.data());
 
     while (1) {
 	k_sleep(K_FOREVER);

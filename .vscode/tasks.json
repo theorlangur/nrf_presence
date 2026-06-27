@@ -20,6 +20,12 @@
             "group": "build"
         },
         {
+            "label": "West Build Ezurio GCC",
+            "type": "shell",
+            "command": "./build-ezurio-gcc-human.sh",
+            "group": "build"
+        },
+        {
             "label": "West Build Ezurio LLVM (no log)",
             "type": "shell",
             "command": "./e.sh ./build-ezurio-llvm.sh",
@@ -54,6 +60,16 @@
             "command": "./e.sh west flash -d build_ezurio_llvm --dev-id 802005000 --erase"
         },
         {
+            "label": "Flash Ezurio GCC over JLINK-EDU",
+            "type": "shell",
+            "command": "./e.sh west flash -d build_ezurio_gcc16_human --dev-id 802005000"
+        },
+        {
+            "label": "Flash Ezurio GCC over JLINK-EDU (Erase)",
+            "type": "shell",
+            "command": "./e.sh west flash -d build_ezurio_gcc16_human --dev-id 802005000 --erase"
+        },
+        {
             "label": "Core: extract",
             "type": "shell",
             "command": "coredumps/scripts/extract_coredump.sh"
@@ -82,6 +98,21 @@
             "label": "NRFUtil Reset",
             "type": "shell",
             "command": "nrfutil device reset"
+        },
+        {
+            "label": "Run VSCode GCC",
+            "type": "shell",
+            "command": "./h.sh code ."
+        },
+        {
+            "label": "Run VSCode LLVM libc++",
+            "type": "shell",
+            "command": "./lcxx.sh code ."
+        },
+        {
+            "label": "Run VSCode LLVM",
+            "type": "shell",
+            "command": "./e.sh code ."
         }
     ]
 }
