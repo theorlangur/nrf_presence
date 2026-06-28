@@ -5,6 +5,9 @@ extern "C" {
 #include <zboss_api.h>
 }
 #include <type_traits>
+#include <meta>
+#include <ranges>
+#include <format>
 
 namespace zbm
 {

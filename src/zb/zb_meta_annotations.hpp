@@ -69,6 +69,83 @@ namespace zbm
         .manuf_code = ZB_ZCL_NON_MANUFACTURER_SPECIFIC,
         .data_p = nullptr
     };
+
+    struct ep_base_cfg_t
+    {
+        size_t server_clusters = 0;
+        size_t client_clusters = 0;
+        size_t reporting_attributes = 0;
+        size_t cvc_attributes = 0;
+
+        constexpr ep_base_cfg_t& operator+=(ep_base_cfg_t r)
+        {
+            server_clusters += r.server_clusters;
+            client_clusters += r.client_clusters;
+            reporting_attributes += r.reporting_attributes;
+            cvc_attributes += r.cvc_attributes;
+            return *this;
+        }
+        constexpr bool operator==(const ep_base_cfg_t&) const = default;
+    };
+
+    consteval attribute_a derive_member_annotation(std::meta::info mem, std::meta::info declared_a)
+    {
+        attribute_a res = std::meta::extract<attribute_a>(declared_a);
+        if (res.type == type_t::Invalid)
+        {
+            //need to derive type
+            auto mem_type = std::meta::type_of(mem);
+            auto type_to_type_id_inst = std::meta::substitute(^^TypeToTypeId, {mem_type});
+            auto get_type = std::meta::extract<type_t(*)()>(type_to_type_id_inst);
+            res.type = get_type();
+        }
+        return res;
+    }
+
+
+    struct cluster_with_annotation
+    {
+        std::meta::info cluster;
+        cluster_a annotation;
+    };
+    consteval std::vector<cluster_with_annotation> extract_clusters_from_ep(std::meta::info ep)
+    {
+        ep_base_cfg_t res;
+        std::meta::info ep_type = std::meta::remove_cvref(std::meta::type_of(ep));
+        auto mems = std::meta::nonstatic_data_members_of(ep_type, std::meta::access_context::current());
+        std::vector<cluster_with_annotation> clusters;
+        for(auto mem_cluster : mems)
+        {
+            auto cluster_type = std::meta::type_of(mem_cluster);
+            auto cluster_annotations = std::meta::annotations_of_with_type(cluster_type, ^^zbm::cluster_a);
+            if (!cluster_annotations.empty())
+                clusters.emplace_back(mem_cluster, std::meta::extract<cluster_a>(cluster_annotations[0]));
+        }
+        //sort clusters: first server, then client. cluster_a knows how, see operator<
+        std::ranges::sort(clusters, {}, &cluster_with_annotation::annotation);
+        return clusters;
+    }
+
+    struct attribute_with_annotation
+    {
+        std::meta::info attribute;
+        attribute_a annotation;
+    };
+    consteval std::vector<attribute_with_annotation> extract_attributes_from_cluster(std::meta::info cluster)
+    {
+        ep_base_cfg_t res;
+        std::meta::info cluster_type = std::meta::remove_cvref(std::meta::type_of(cluster));
+        auto mems = std::meta::nonstatic_data_members_of(cluster_type, std::meta::access_context::current());
+        std::vector<attribute_with_annotation> attributes;
+        for(auto mem_attr : mems)
+        {
+            auto attr_type = std::meta::type_of(mem_attr);
+            auto attribute_annotations = std::meta::annotations_of_with_type(attr_type, ^^zbm::attribute_a);
+            if (!attribute_annotations.empty())
+                attributes.emplace_back(mem_attr, std::meta::extract<attribute_a>(attribute_annotations[0]));
+        }
+        return attributes;
+    }
 }
 
 #endif
