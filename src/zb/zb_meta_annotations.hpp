@@ -102,6 +102,31 @@ namespace zbm
         return res;
     }
 
+    consteval std::optional<cluster_a> get_cluster_annotation(std::meta::info r_cluster)
+    {
+        std::meta::info cluster_type = r_cluster;
+        if (!std::meta::is_type(cluster_type))
+            cluster_type = std::meta::type_of(r_cluster);
+        cluster_type = std::meta::remove_cvref(cluster_type);
+        std::vector<std::meta::info> annotations;
+        do
+        {
+            annotations = std::meta::annotations_of_with_type(r_cluster, ^^zbm::cluster_a);
+            if (!annotations.empty())
+                break;
+            auto bases = std::meta::bases_of(cluster_type, std::meta::access_context::current());
+            if (bases.empty())
+                break;
+            cluster_type = bases[0];
+        }while(true);
+
+        if (!annotations.empty())
+        {
+            auto a = annotations[0];
+            return std::meta::extract<cluster_a>(a);
+        }
+        return std::nullopt;
+    }
 
     struct cluster_with_annotation
     {
@@ -117,9 +142,9 @@ namespace zbm
         for(auto mem_cluster : mems)
         {
             auto cluster_type = std::meta::type_of(mem_cluster);
-            auto cluster_annotations = std::meta::annotations_of_with_type(cluster_type, ^^zbm::cluster_a);
-            if (!cluster_annotations.empty())
-                clusters.emplace_back(mem_cluster, std::meta::extract<cluster_a>(cluster_annotations[0]));
+            auto cluster_annotations = get_cluster_annotation(cluster_type);//std::meta::annotations_of_with_type(cluster_type, ^^zbm::cluster_a);
+            if (cluster_annotations)
+                clusters.emplace_back(mem_cluster, *cluster_annotations);
         }
         //sort clusters: first server, then client. cluster_a knows how, see operator<
         std::ranges::sort(clusters, {}, &cluster_with_annotation::annotation);
@@ -145,6 +170,40 @@ namespace zbm
                 attributes.emplace_back(mem_attr, std::meta::extract<attribute_a>(attribute_annotations[0]));
         }
         return attributes;
+    }
+
+    consteval ep_base_cfg_t analyze_cluster(std::meta::info r_cluster)
+    {
+        ep_base_cfg_t res;
+        auto mems = std::meta::nonstatic_data_members_of(r_cluster, std::meta::access_context::current());
+        for(auto m : mems)
+        {
+            auto annotations = std::meta::annotations_of_with_type(m, ^^zbm::attribute_a);
+            if (!annotations.empty())
+            {
+                auto attr_desc = derive_member_annotation(m, annotations[0]);
+                res.reporting_attributes += (attr_desc.a & access_t::Report) ? 1 : 0;
+                res.cvc_attributes += attr_desc.is_cvc();
+            }
+        }
+        auto cluster_annotations = std::meta::annotations_of_with_type(r_cluster, ^^zbm::cluster_a);
+        if (!cluster_annotations.empty())
+        {
+            auto cluster_desc = std::meta::extract<cluster_a>(cluster_annotations[0]);
+            if (cluster_desc.role == role_t::Server)
+                res.server_clusters += 1;
+            else if (cluster_desc.role == role_t::Client)
+                res.client_clusters += 1;
+        }
+        return res;
+    }
+
+    consteval ep_base_cfg_t analyze_clusters(std::vector<std::meta::info> r_clusters)
+    {
+        ep_base_cfg_t res;
+        for(auto c : r_clusters)
+            res += analyze_cluster(c);
+        return res;
     }
 }
 

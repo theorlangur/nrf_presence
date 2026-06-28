@@ -93,40 +93,6 @@ namespace zbm
         alignas(4) zb_af_endpoint_desc_t ep;
     };
 
-    consteval ep_base_cfg_t analyze_cluster(std::meta::info r_cluster)
-    {
-        ep_base_cfg_t res;
-        auto mems = std::meta::nonstatic_data_members_of(r_cluster, std::meta::access_context::current());
-        for(auto m : mems)
-        {
-            auto annotations = std::meta::annotations_of_with_type(m, ^^zbm::attribute_a);
-            if (!annotations.empty())
-            {
-                auto attr_desc = derive_member_annotation(m, annotations[0]);
-                res.reporting_attributes += (attr_desc.a & access_t::Report) ? 1 : 0;
-                res.cvc_attributes += attr_desc.is_cvc();
-            }
-        }
-        auto cluster_annotations = std::meta::annotations_of_with_type(r_cluster, ^^zbm::cluster_a);
-        if (!cluster_annotations.empty())
-        {
-            auto cluster_desc = std::meta::extract<cluster_a>(cluster_annotations[0]);
-            if (cluster_desc.role == role_t::Server)
-                res.server_clusters += 1;
-            else if (cluster_desc.role == role_t::Client)
-                res.client_clusters += 1;
-        }
-        return res;
-    }
-
-    consteval ep_base_cfg_t analyze_clusters(std::vector<std::meta::info> r_clusters)
-    {
-        ep_base_cfg_t res;
-        for(auto c : r_clusters)
-            res += analyze_cluster(c);
-        return res;
-    }
-
     template<std::meta::info epm>
     struct ep_factory_t
     {

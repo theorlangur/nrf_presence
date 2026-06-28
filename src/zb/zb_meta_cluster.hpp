@@ -13,8 +13,8 @@ namespace zbm
         static constexpr cluster_a g_ClusterA = []() consteval{
             return std::meta::extract<zbm::cluster_a>(std::meta::annotations_of_with_type(std::meta::dealias(^^cluster_data_type_t), ^^zbm::cluster_a)[0]);
         }();
-        static constexpr size_t N = extract_attributes_from_cluster(cluster_ref).size();
         static constexpr auto attributes_info = std::define_static_array(extract_attributes_from_cluster(cluster_ref));
+        static constexpr size_t N = attributes_info.size();
 
         consteval cluster_t():
             cluster_struct([:cluster_ref:]),
@@ -92,6 +92,52 @@ namespace zbm
             std::meta::define_aggregate(^^cluster_list_t, mems);
         };
     };
+
+    template<std::meta::info cluster_r, uint8_t ep>
+    void generic_cluster_init()
+    {
+        //using zcl_desc_t = zcl_description_t<StructTag>;
+        //constexpr auto d = zcl_description_t<StructTag>::get();
+        //if constexpr (requires { zcl_desc_t::zboss_init_func(d.info().role); })
+        //{
+        //    //there's a default ZBOSS init func -> try and call it
+        //    auto zboss_init_f = zcl_desc_t::zboss_init_func(d.info().role);
+        //    //Note: this will work poorly when same cluster is used for different end points
+        //    if (zboss_init_f) zboss_init_f();
+        //}
+        zb_zcl_cluster_check_value_t check_val = nullptr;
+        zb_zcl_cluster_write_attr_hook_t write_hook = nullptr;
+        zb_zcl_cluster_handler_t cmd_handler = nullptr;
+        //if constexpr (d.count_received() > 0)
+        //    cmd_handler = &on_cluster_cmd_handling<StructTag, ep>;
+        //
+        //if constexpr (d.count_members_with_validators() > 0)
+        //    check_val = &on_cluster_check_value<StructTag, ep>;
+
+        if (check_val || write_hook || cmd_handler)
+        {
+            //constexpr auto i = d.info();
+            //zb_ret_t ret = zb_zcl_add_cluster_handlers(i.id, (uint8_t)i.role
+            //        , check_val /*cluster_check_value*/
+            //        , write_hook /*cluster_write_attr_hook*/
+            //        , cmd_handler /*cluster_handler*/
+            //        );
+            //if (ret == RET_ALREADY_EXISTS)
+            {
+                //auto *pSlot = g_AdditionalClusterHandlers.add();
+                //if (pSlot)
+                //{
+                //    pSlot->ep = ep;
+                //    pSlot->cluster = i.id;
+                //    pSlot->checker = check_val;
+                //    pSlot->cmd_handler = cmd_handler;
+                //}else if (g_GlobalErrorHandler)
+                //{
+                //    g_GlobalErrorHandler(RET_NO_MEMORY);
+                //}
+            }
+        }
+    }
 }
 
 #endif
