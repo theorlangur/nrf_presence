@@ -26,6 +26,12 @@
             "group": "build"
         },
         {
+            "label": "Build Ezurio GCC",
+            "type": "shell",
+            "command": "./h.sh cmake --build build_ezurio_gcc16_human",
+            "group": "build"
+        },
+        {
             "label": "West Build Ezurio LLVM (no log)",
             "type": "shell",
             "command": "./e.sh ./build-ezurio-llvm.sh",

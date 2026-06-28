@@ -35,7 +35,58 @@
 #include <osif/mac_platform.h>
 
 #include <atomic>
-//#include <meta>
+
+#include "zb/zb_meta_ep.hpp"
+
+
+//static_assert(sizeof(zbm::ep_base_t<{.server_clusters = 1, .client_clusters = 1, .reporting_attributes = 1, .cvc_attributes = 1}>)
+//	== sizeof(typename [:zbm::make_ep_base(1, 1, 1, 1):])
+//	);
+
+struct [[=zbm::cluster_a{.id = 0xfefe, .role = zbm::role_t::Client}]] dummy_cluster_t
+{
+    [[=zbm::attribute_a{.id = 1, .a = zbm::access_t::RP}]] uint8_t f1;
+    [[=zbm::attribute_a{.id = 2}]] float f2;
+    [[=zbm::attribute_a{.id = 3, .a = zbm::access_t::Write}]] int16_t f3;
+};
+
+struct [[=zbm::cluster_a{.id = 0xfeff}]] smart_cluster_t
+{
+    [[=zbm::attribute_a{.id = 10, .a = zbm::access_t::Read}]] uint8_t f1;
+    [[=zbm::attribute_a{.id = 30, .a = zbm::access_t::Write}]] int16_t f3;
+};
+
+static_assert(
+	zbm::analyze_clusters({^^dummy_cluster_t, ^^smart_cluster_t}) == 
+	zbm::ep_base_cfg_t{.server_clusters = 1, .client_clusters = 1, .reporting_attributes = 1, .cvc_attributes = 1}
+	);
+//static_assert(zbm::analyze_cluster(^^dummy_cluster_t).cvc_attributes == 1);
+
+struct ep_test_t
+{
+    dummy_cluster_t dummy;
+    smart_cluster_t smart;
+};
+
+[[=zbm::ep_a{.ep = 1, .dev_id=2, .dev_ver = 0}]]constinit static ep_test_t ep_test{
+    .dummy = {
+	.f1 = {},
+	.f2 = {},
+	.f3 = {},
+    },
+    .smart = {
+	.f1 = {},
+	.f3 = {},
+    }
+};
+
+auto &gen_ep = zbm::ep_create_t<^^ep_test>::value;
+constinit static zbm::cluster_t<std::meta::reflect_object(ep_test.smart)> cluster_test;
+constinit static zbm::cluster_list_factory_t<^^ep_test>::cluster_list_t c_list{};
+
+//static_assert(&c_list.cluster_fefe.cluster_struct == &ep_test.dummy);
+//static_assert(&c_list.cluster_feff.cluster_struct == &ep_test.smart);
+//static_assert(sizeof(c_list.cluster_feff) == 0);
 
 extern "C"{
 #include <zephyr/debug/coredump.h>
