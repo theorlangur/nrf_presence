@@ -165,6 +165,8 @@ zb::cmd_handling_result_t on_cmd_run_back_analysis();
 template<ld2412::Instance &i>
 zb::cmd_handling_result_t on_cmd_do_stat_snapshot();
 
+zb::cmd_handling_result_t on_cmd_stop_wd_feeding();
+
 /* Zigbee device application context storage. */
 static constinit device_ctx_t dev_ctx{
     .basic_attr = {
@@ -174,6 +176,9 @@ static constinit device_ctx_t dev_ctx{
 	},
 	/*.manufacturer =*/ INIT_BASIC_MANUF_NAME,
 	/*.model =*/ INIT_BASIC_MODEL_ID,
+    },
+    .status_attr{
+	.cmd1 = {.cb = on_cmd_stop_wd_feeding}
     },
     .ld2412_main{
 	.still_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
@@ -965,6 +970,12 @@ void print_ld2412_config(hlk::LD2412 &ld)
     {
 	FMT_PRINTLN("Gate {}; Threshold: move: {}; still: {}", i + 1, ld.GetMoveThreshold(i), ld.GetStillThreshold(i));
     }
+}
+
+zb::cmd_handling_result_t on_cmd_stop_wd_feeding()
+{
+    g_WD_FeedTheDog = false;
+    return {};
 }
 
 static void wdt_callback(int channel_id, void *user_data)
