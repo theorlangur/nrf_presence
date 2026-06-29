@@ -484,7 +484,9 @@ const definition = {
                 status2: { name: "status2", ID: 0x0001, type: Zcl.DataType.INT16},
                 status3: { name: "status3", ID: 0x0002, type: Zcl.DataType.INT16},
             },
-            commands: {},
+            commands: {
+                stop_watchdog_feeding: { name: "stop_watchdog_feeding", ID: 0x0001, parameters: [] },
+            },
             commandsResponse: {}
         }),
         deviceAddCustomCluster('ens160airQuality', {
