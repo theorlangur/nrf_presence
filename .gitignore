@@ -7,3 +7,4 @@ pcb/*/fabrication-toolkit-options.json
 compile_commands.json
 fp-info-cache
 *-backups/
+coredumps/coredump.bin
