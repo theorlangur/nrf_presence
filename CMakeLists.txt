@@ -42,3 +42,7 @@ else()
     target_compile_options(app PRIVATE -D__cpp_concepts=202002L -Wno-builtin-macro-redefined -Wno-invalid-offsetof -Wno-unused-variable)
 endif()
 
+if(CONFIG_DEBUG_COREDUMP)
+    target_compile_options(app PRIVATE -fno-omit-frame-pointer)
+endif()
+

@@ -19,6 +19,7 @@
 #include <zephyr/drivers/sensor/ens160.h>
 
 #include <zephyr/drivers/watchdog.h>
+#include <zephyr/task_wdt/task_wdt.h>
 /**********************************************************************/
 /* Zigbee                                                             */
 /**********************************************************************/
@@ -359,6 +360,9 @@ void ultimate_zb_fail(zb_ret_t r)
 /**********************************************************************/
 /* Watchdog                                                           */
 /**********************************************************************/
+constexpr static uint32_t WD_SWTimeoutMS = 2000;
+constexpr static uint32_t WD_CoredumpReservedTime = 1500;
+constexpr static uint32_t WD_HWTimeoutMS = WD_SWTimeoutMS + WD_CoredumpReservedTime;
 const struct device *const wdt = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 zb::zb_timer_ext_16_t g_WDTFeeder;
 int wdt_channel_id = -1;
@@ -962,23 +966,9 @@ void print_ld2412_config(hlk::LD2412 &ld)
     }
 }
 
-static void wdt_callback(const struct device *wdt_dev, int channel_id)
+static void wdt_callback(int channel_id, void *user_data)
 {
-	static bool handled_event = false;
-
-	if (handled_event) {
-		return;
-	}
-
-	wdt_feed(wdt_dev, channel_id);
-
-	handled_event = true;
-	//k_oops();
-	if (coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) != 1)
-	{
-	    //save
-	    coredump(0xDEAD, nullptr, nullptr);
-	}
+    k_panic();
 }
 
 int configure_wdt()
@@ -993,7 +983,7 @@ int configure_wdt()
 		/* Expire watchdog after max window */
 		.window = {
 		    .min = 0,
-		    .max = 2000,
+		    .max = WD_HWTimeoutMS,
 		},
 
 		/* Reset SoC when watchdog timer expires. */
@@ -1001,12 +991,6 @@ int configure_wdt()
 	};
 
     wdt_channel_id = wdt_install_timeout(wdt, &wdt_config);
-    if (wdt_channel_id == -ENOTSUP) {
-	/* IWDG driver for STM32 doesn't support callback */
-	printk("Callback support rejected, continuing anyway\n");
-	wdt_config.callback = NULL;
-	wdt_channel_id = wdt_install_timeout(wdt, &wdt_config);
-    }
     if (wdt_channel_id < 0) {
 	printk("Watchdog install error\n");
 	return wdt_channel_id;
@@ -1018,8 +1002,22 @@ int configure_wdt()
 	return err;
     }
 
+    int ret = task_wdt_init(wdt);
+    if (ret < 0)
+    {
+	printk("Could not initialize WDT task.\n");
+	return ret;
+    }
+
+    wdt_channel_id = task_wdt_add(WD_SWTimeoutMS, wdt_callback, nullptr);
+    if (wdt_channel_id < 0)
+    {
+	printk("Could not create a channel from WDT task.\n");
+	return wdt_channel_id;
+    }
+
     //starting the feeding sequence
-    g_WDTFeeder.Setup([]{ wdt_feed(wdt, wdt_channel_id); return true;}, 500);
+    g_WDTFeeder.Setup([]{ task_wdt_feed(wdt_channel_id); return true;}, 1000);
     return 0;
 }
 
