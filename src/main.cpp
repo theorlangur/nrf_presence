@@ -363,6 +363,7 @@ void ultimate_zb_fail(zb_ret_t r)
 constexpr static uint32_t WD_SWTimeoutMS = 2000;
 constexpr static uint32_t WD_CoredumpReservedTime = 1500;
 constexpr static uint32_t WD_HWTimeoutMS = WD_SWTimeoutMS + WD_CoredumpReservedTime;
+bool g_WD_FeedTheDog = true;
 const struct device *const wdt = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 zb::zb_timer_ext_16_t g_WDTFeeder;
 int wdt_channel_id = -1;
@@ -1017,7 +1018,12 @@ int configure_wdt()
     }
 
     //starting the feeding sequence
-    g_WDTFeeder.Setup([]{ task_wdt_feed(wdt_channel_id); return true;}, 1000);
+    g_WDTFeeder.Setup([]{ 
+	    if (g_WD_FeedTheDog) 
+		task_wdt_feed(wdt_channel_id); 
+	    return true;
+	}, 
+    1000);
     return 0;
 }
 
