@@ -101,8 +101,17 @@
             "MIMode": "gdb"
         },
         {
+            "name": "Attach NRF",
+            "type": "nrf-connect",
+            "request": "attach",
+            "gdbPath": "/home/theorlangur/ncs/toolchains/7cbc0036f4/opt/zephyr-sdk/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb"
+        },
+        {
             "name": "Launch NRF",
             "type": "nrf-connect",
+            "request": "launch",
+            "runToEntryPoint": "main",
+            "gdbPath": "/home/theorlangur/ncs/toolchains/7cbc0036f4/opt/zephyr-sdk/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb"
         }
     ]
 }
