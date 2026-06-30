@@ -455,7 +455,7 @@ const orlangurLD2412Extended = {
                 .withLabel('Watchdog Config Error').withCategory('diagnostic'),
             e.numeric('status3_raw', ea.STATE_GET).withLabel('Status3 Raw').withCategory('diagnostic'),
 
-            e.command('stop_watchdog_feeding', ea.SET)
+            e.enum('stop_watchdog_feeding', ea.SET, ['trigger'])
                 .withDescription('Stop feeding watchdog'),
         ];
 
@@ -509,7 +509,7 @@ const orlangurLD2412Extended = {
                     'stop_watchdog_feeding',
                 ],
                 convertSet: async (entity, key, value, meta) => {
-                    if (key === 'stop_watchdog_feeding') {
+                    if (key === 'stop_watchdog_feeding' && value === 'trigger') {
                         await entity.command('customStatus', 'stop_watchdog_feeding', {}, { customCluster: customStatusCluster });
                     }
                 },
