@@ -365,7 +365,7 @@ void ultimate_zb_fail(zb_ret_t r)
 /**********************************************************************/
 /* Watchdog                                                           */
 /**********************************************************************/
-constexpr static uint32_t WD_SWTimeoutMS = CONFIG_MEMFAULT_SOFTWARE_WATCHDOG_TIMEOUT_SECS;
+constexpr static uint32_t WD_SWTimeoutMS = CONFIG_MEMFAULT_SOFTWARE_WATCHDOG_TIMEOUT_SECS * 1000;
 constexpr static uint32_t WD_CoredumpReservedTime = 1500;
 constexpr static uint32_t WD_HWTimeoutMS = WD_SWTimeoutMS + WD_CoredumpReservedTime;
 constinit bool g_WD_FeedTheDog = true;
@@ -1011,6 +1011,7 @@ int configure_wdt()
 	return err;
     }
 
+    memfault_software_watchdog_update_timeout(WD_SWTimeoutMS);
     memfault_software_watchdog_enable();
 
     //starting the feeding sequence
@@ -1029,10 +1030,33 @@ int configure_wdt()
     return 0;
 }
 
+void disable_hw_wdt()
+{
+    if (!device_is_ready(wdt)) {
+	printk("%s: device not ready.\r\n", wdt->name);
+	return;
+    }
+
+    int err = wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG);
+    if (err < 0)
+    {
+	printk("disable_hw_wdt: setup failed with %d; %s\r\n", err, strerror(-err));
+	return;
+    }
+    int ret = wdt_disable(wdt);
+    if (ret < 0)
+    {
+	printk("wdt_disabled failed with %d; %s\r\n", ret, strerror(-ret));
+	return;
+    }
+    printk("hw wdt disabled\r\n");
+}
+
 int main(void)
 {
     static_assert(atomic_state_t::is_always_lock_free);
 
+    disable_hw_wdt();
     memfault_device_info_dump();
 
     int err = settings_subsys_init();
