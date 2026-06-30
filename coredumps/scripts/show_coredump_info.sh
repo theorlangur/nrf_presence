@@ -11,7 +11,7 @@ read COREDUMP_ADDR COREDUMP_SIZE < <(python3 -c '
 import sys, yaml
 with open(sys.argv[1]) as f:
     parts = yaml.safe_load(f)
-p = parts["coredump_partition"]
+p = parts["memfault_coredump_partition"]
 print(hex(p["address"]), hex(p["size"]))
 ' "$PARTITIONS_YML")
 

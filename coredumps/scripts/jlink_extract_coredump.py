@@ -12,9 +12,10 @@ This avoids dumping the whole partition: it reads the 16-byte header first,
 learns the real payload length, then reads only header+payload.
 
 Header layout (struct flash_hdr_t, __packed, 32-bit target), 16 bytes:
-    0  2  id[2] = 'C','D'
-    2  2  hdr_version (uint16 LE)
-    4  4  size        (size_t -> 4 bytes; payload size excl. header)
+    0  4  id[4] = 'C','O','R','E'
+    4  4  hdr_version (uint32 LE)
+    8  4  size        (size_t -> 4 bytes; payload size excl. header)
+    ...
     8  2  flags       (uint16)
     10 2  checksum    (uint16)
     12 4  error       (int32)
@@ -24,9 +25,13 @@ import argparse
 import struct
 import sys
 
-HDR_FORMAT = "<2sHIHHi"
-HDR_SIZE = struct.calcsize(HDR_FORMAT)  # 16
-EXPECTED_ID = b"CD"
+HDR_FORMAT = "<4sII"
+HDR_SIZE = struct.calcsize(HDR_FORMAT)  # 12
+EXPECTED_ID = b"CORE"
+
+FOOTER_FORMAT = "<4sI8s"
+EXPECTED_FOOTER_ID = b"DUMP"
+FOOTER_SIZE = struct.calcsize(FOOTER_FORMAT)  # 16
 
 # nRF54L15 application core. Adjust if your device/core name differs.
 DEFAULT_DEVICE = "nRF54L15_M33"
@@ -36,17 +41,24 @@ def err(msg):
     print(f"error: {msg}", file=sys.stderr)
 
 
-def parse_header(raw):
-    id_bytes, hdr_version, size, flags, checksum, error = struct.unpack(
+def parse_header(raw, base, jlink):
+    id_bytes, hdr_version, size = struct.unpack(
         HDR_FORMAT, raw[:HDR_SIZE]
     )
+    if id_bytes == EXPECTED_ID:
+        raw_footer = read_mem(jlink, base + size - FOOTER_SIZE, FOOTER_SIZE)
+        footer, flags, reserved = struct.unpack(
+            FOOTER_FORMAT, raw_footer[:FOOTER_SIZE]
+        )
+    else:
+        footer = "INVL"
+        flags = 0
     return {
         "id": id_bytes,
         "hdr_version": hdr_version,
         "size": size,
-        "flags": flags,
-        "checksum": checksum,
-        "error": error,
+        "footer": footer, 
+        "flags": flags
     }
 
 
@@ -78,7 +90,7 @@ def write_mem(jlink, addr, data):
 
 
 def clear_magic(jlink, base):
-    """Overwrite the 2-byte 'CD' magic with 0x00 and verify the write took.
+    """Overwrite the 4-byte 'CORE' magic with 0x00 and verify the write took.
 
     Returns True on verified clear, False otherwise.
 
@@ -88,15 +100,15 @@ def clear_magic(jlink, base):
     to read as "no valid dump", but the firmware-side `coredump erase` /
     COREDUMP_CMD_ERASE is the canonical clear if you hit any ambiguity.
     """
-    write_mem(jlink, base, b"\x00\x00")
+    write_mem(jlink, base, b"\x00\x00\x00\x00")
     # Read back to confirm -- a write that silently didn't stick is the
     # worst outcome (stale dump survives or next dump is mishandled).
-    check = read_mem(jlink, base, 2)
-    if check == b"\x00\x00":
+    check = read_mem(jlink, base, 4)
+    if check == b"\x00\x00\x00\x00":
         print(f"cleared coredump magic at 0x{base:x} (verified).")
         return True
     err(f"clear FAILED: magic at 0x{base:x} reads {check!r} after write, "
-        f"expected b'\\x00\\x00'. The write did not stick -- the dump is "
+        f"expected b'\\x00\\x00\\x00\\x00'. The write did not stick -- the dump is "
         f"NOT cleared. Consider the firmware-side `coredump erase` instead.")
     return False
 
@@ -163,7 +175,7 @@ def main():
 
         # --clear-only: verify a dump is actually present, then clear and exit.
         if args.clear_only:
-            magic = read_mem(jlink, base, 2)
+            magic = read_mem(jlink, base, 4)
             if magic != EXPECTED_ID and not args.force:
                 err(f"no dump to clear: magic at 0x{base:x} is {magic!r}, "
                     f"not {EXPECTED_ID!r}. Use --force to write zeros anyway.")
@@ -173,11 +185,11 @@ def main():
         # --info: report dump presence and header details, then exit.
         if args.info:
             raw_hdr = read_mem(jlink, base, HDR_SIZE)
-            hdr = parse_header(raw_hdr)
+            hdr = parse_header(raw_hdr, base, jlink)
 
             # An erased flash header (all 0xFF) or a cleared magic both mean
             # "no dump". The magic check is the primary signal.
-            if hdr["id"] == EXPECTED_ID:
+            if hdr["id"] == EXPECTED_ID and hdr["footer"] == EXPECTED_FOOTER_ID:
                 # Plausibility check on size to distinguish a real dump from
                 # garbage that happens to start with 'CD'.
                 size_ok = 0 < hdr["size"] <= args.max_payload
@@ -186,43 +198,37 @@ def main():
                     print(f"  hdr_version  : {hdr['hdr_version']}")
                     print(f"  payload size : {hdr['size']} "
                           f"(0x{hdr['size']:x}) bytes")
-                    print(f"  flags        : 0x{hdr['flags']:04x}")
-                    print(f"  checksum     : 0x{hdr['checksum']:04x}")
-                    print(f"  error        : {hdr['error']}"
-                          + ("  (backend reported a problem while storing)"
-                             if hdr["error"] != 0 else ""))
                     return 0
-                err(f"header magic is 'CD' but size {hdr['size']} "
+                err(f"header magic is 'CORE' but size {hdr['size']} "
                     f"(0x{hdr['size']:x}) is implausible; treating as no "
                     f"valid dump.")
                 return 1
 
-            if hdr["id"] == b"\x00\x00":
+            if hdr["id"] == b"\x00\x00\x00\x00":
                 print(f"no coredump at 0x{base:x} (magic cleared to zero -- "
                       f"previously extracted and cleared).")
-            elif hdr["id"] == b"\xff\xff":
+            elif hdr["id"] == b"\xff\xff\xff\xff":
                 print(f"no coredump at 0x{base:x} (erased flash).")
             else:
-                print(f"no coredump at 0x{base:x} (magic is {hdr['id']!r}, "
-                      f"not {EXPECTED_ID!r}).")
+                print(f"no coredump at 0x{base:x} (magic is {hdr['id']!r}, {hdr['footer']!r}"
+                      f"not {EXPECTED_ID!r}, {EXPECTED_FOOTER_ID!r}).")
             return 1
 
         # 1) Read just the header.
         raw_hdr = read_mem(jlink, base, HDR_SIZE)
-        hdr = parse_header(raw_hdr)
+        hdr = parse_header(raw_hdr, base, jlink)
 
         print("flash coredump header:")
         print(f"  id           : {hdr['id']!r}")
+        print(f"  footer       : {hdr['footer']!r}")
         print(f"  hdr_version  : {hdr['hdr_version']}")
         print(f"  payload size : {hdr['size']} (0x{hdr['size']:x}) bytes")
-        print(f"  flags        : 0x{hdr['flags']:04x}")
-        print(f"  checksum     : 0x{hdr['checksum']:04x}")
-        print(f"  error        : {hdr['error']}")
+        print(f"  flags        : {hdr['flags']:x}")
 
         # 2) Validate before reading a potentially bogus length.
         valid = True
-        if hdr["id"] != EXPECTED_ID:
-            err(f"bad magic {hdr['id']!r} (expected {EXPECTED_ID!r}); "
+        if hdr["id"] != EXPECTED_ID or hdr["footer"] != EXPECTED_FOOTER_ID:
+            err(f"bad magic {hdr['id']!r}, {hdr['footer']!r} (expected {EXPECTED_ID!r}, {EXPECTED_FOOTER_ID!r}); "
                 f"wrong address or no dump stored.")
             valid = False
         if hdr["size"] in (0, 0xFFFFFFFF):
@@ -248,7 +254,8 @@ def main():
             err(f"forcing read of {payload_size} bytes.")
 
         # 3) Read exactly header + payload.
-        total = HDR_SIZE + payload_size
+        # total = HDR_SIZE + payload_size
+        total = payload_size #payload_size includes header and footer
         region = read_mem(jlink, base, total)
 
         if args.raw:
@@ -256,14 +263,7 @@ def main():
                 f.write(region)
             print(f"wrote raw region ({total} bytes) to {args.raw}")
 
-        payload = region[HDR_SIZE:HDR_SIZE + payload_size]
-
-        # Best-effort checksum (additive 16-bit; algorithm varies by NCS
-        # version, so a mismatch is a warning, not fatal).
-        calc = sum(payload) & 0xFFFF
-        if calc != hdr["checksum"]:
-            err(f"WARNING: additive checksum 0x{calc:04x} != stored "
-                f"0x{hdr['checksum']:04x}; verify it loads in gdb anyway.")
+        payload = region[HDR_SIZE:payload_size - FOOTER_SIZE]
 
         with open(args.output, "wb") as f:
             f.write(payload)
