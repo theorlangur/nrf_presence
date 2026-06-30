@@ -365,8 +365,8 @@ void ultimate_zb_fail(zb_ret_t r)
 /**********************************************************************/
 /* Watchdog                                                           */
 /**********************************************************************/
-constexpr static uint32_t WD_SWTimeoutMS = 2000;
-constexpr static uint32_t WD_CoredumpReservedTime = 1500;
+constexpr static uint32_t WD_SWTimeoutMS = CONFIG_TASK_WDT_MIN_TIMEOUT;
+constexpr static uint32_t WD_CoredumpReservedTime = CONFIG_TASK_WDT_HW_FALLBACK_DELAY;
 constexpr static uint32_t WD_HWTimeoutMS = WD_SWTimeoutMS + WD_CoredumpReservedTime;
 bool g_WD_FeedTheDog = true;
 const struct device *const wdt = DEVICE_DT_GET(DT_ALIAS(watchdog0));
@@ -991,28 +991,28 @@ int configure_wdt()
 	return -1;
     }
 
-    struct wdt_timeout_cfg wdt_config = {
-		/* Expire watchdog after max window */
-		.window = {
-		    .min = 0,
-		    .max = WD_HWTimeoutMS,
-		},
-
-		/* Reset SoC when watchdog timer expires. */
-		.flags = WDT_FLAG_RESET_SOC,
-	};
-
-    wdt_channel_id = wdt_install_timeout(wdt, &wdt_config);
-    if (wdt_channel_id < 0) {
-	printk("Watchdog install error\n");
-	return wdt_channel_id;
-    }
-
-    int err = wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG);
-    if (err < 0) {
-	printk("Watchdog setup error\n");
-	return err;
-    }
+	//   struct wdt_timeout_cfg wdt_config = {
+	//	/* Expire watchdog after max window */
+	//	.window = {
+	//	    .min = 0,
+	//	    .max = WD_HWTimeoutMS,
+	//	},
+	//
+	//	/* Reset SoC when watchdog timer expires. */
+	//	.flags = WDT_FLAG_RESET_SOC,
+	//};
+	//
+	//   wdt_channel_id = wdt_install_timeout(wdt, &wdt_config);
+	//   if (wdt_channel_id < 0) {
+	//printk("Watchdog install error\n");
+	//return wdt_channel_id;
+	//   }
+	//
+	//   int err = wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG);
+	//   if (err < 0) {
+	//printk("Watchdog setup error\n");
+	//return err;
+	//   }
 
     int ret = task_wdt_init(wdt);
     if (ret < 0)
@@ -1028,19 +1028,46 @@ int configure_wdt()
 	return wdt_channel_id;
     }
 
+    printk("feeder configured: ch=%d\r\n", wdt_channel_id);
     //starting the feeding sequence
     g_WDTFeeder.Setup([]{ 
+	    printk("feeder: %d; ch=%d\r\n", g_WD_FeedTheDog, wdt_channel_id);
 	    if (g_WD_FeedTheDog) 
+	    {
 		task_wdt_feed(wdt_channel_id); 
+	    }
 	    return true;
 	}, 
     1000);
     return 0;
 }
 
+void disable_hw_wdt()
+{
+    if (!device_is_ready(wdt)) {
+	printk("%s: device not ready.\r\n", wdt->name);
+	return;
+    }
+
+    int err = wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG);
+    if (err < 0)
+    {
+	printk("disable_hw_wdt: setup failed with %d; %s\r\n", err, strerror(-err));
+	return;
+    }
+    int ret = wdt_disable(wdt);
+    if (ret < 0)
+    {
+	printk("wdt_disabled failed with %d; %s\r\n", ret, strerror(-ret));
+	return;
+    }
+    printk("hw wdt disabled\r\n");
+}
+
 int main(void)
 {
     static_assert(atomic_state_t::is_always_lock_free);
+    disable_hw_wdt();
     int err = settings_subsys_init();
     err = settings_load();
 
