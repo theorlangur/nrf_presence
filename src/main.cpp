@@ -40,6 +40,8 @@
 
 extern "C"{
 #include <zephyr/debug/coredump.h>
+
+void nrf_flash_skip_sync(bool skip);
 }
 
 constexpr bool kDebug = false;
@@ -980,6 +982,7 @@ zb::cmd_handling_result_t on_cmd_stop_wd_feeding()
 
 static void wdt_callback(int channel_id, void *user_data)
 {
+    nrf_flash_skip_sync(true);
     k_panic();
 }
 
