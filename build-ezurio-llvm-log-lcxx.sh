@@ -5,7 +5,7 @@
 west build --build-dir build_ezurio_llvm . --pristine \
     --board orlangur_ezurio_nrf54l15/nrf54l15/cpuapp -- \
     -DBOARD_ROOT=~/myapps/cpp/nrf \
-    -DCONF_FILE="prj.conf config/cpp_lcxx.conf config/nrf54l15.conf config/zb.conf config/log.conf" \
+    -DCONF_FILE="prj.conf config/cpp_lcxx.conf config/nrf54l15.conf config/zb.conf config/memfault.conf config/log.conf" \
     -DZEPHYR_TOOLCHAIN_VARIANT=llvm \
     -DCONFIG_LLVM_USE_LLD=y \
     -DCONFIG_COMPILER_RT_RTLIB=y \

@@ -30,7 +30,7 @@ app:
   size: 0x10c800
   region: flash_primary
 
-coredump_partition:
+memfault_coredump_partition:
   address: 0x11c000
   end_address: 0x15c000
   size: 0x40000

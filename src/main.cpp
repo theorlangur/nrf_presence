@@ -19,7 +19,6 @@
 #include <zephyr/drivers/sensor/ens160.h>
 
 #include <zephyr/drivers/watchdog.h>
-#include <zephyr/task_wdt/task_wdt.h>
 /**********************************************************************/
 /* Zigbee                                                             */
 /**********************************************************************/
@@ -36,11 +35,12 @@
 #include <osif/mac_platform.h>
 
 #include <atomic>
-//#include <meta>
 
-extern "C"{
-#include <zephyr/debug/coredump.h>
-}
+#include "memfault/ports/zephyr/include_compatibility.h"
+#include MEMFAULT_ZEPHYR_INCLUDE(drivers/hwinfo.h)
+#include MEMFAULT_ZEPHYR_INCLUDE(logging/log.h)
+#include <memfault/components.h>
+#include <memfault/ports/watchdog.h>
 
 constexpr bool kDebug = false;
 
@@ -365,10 +365,10 @@ void ultimate_zb_fail(zb_ret_t r)
 /**********************************************************************/
 /* Watchdog                                                           */
 /**********************************************************************/
-constexpr static uint32_t WD_SWTimeoutMS = 2000;
+constexpr static uint32_t WD_SWTimeoutMS = CONFIG_MEMFAULT_SOFTWARE_WATCHDOG_TIMEOUT_SECS;
 constexpr static uint32_t WD_CoredumpReservedTime = 1500;
 constexpr static uint32_t WD_HWTimeoutMS = WD_SWTimeoutMS + WD_CoredumpReservedTime;
-bool g_WD_FeedTheDog = true;
+constinit bool g_WD_FeedTheDog = true;
 const struct device *const wdt = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 zb::zb_timer_ext_16_t g_WDTFeeder;
 int wdt_channel_id = -1;
@@ -890,7 +890,9 @@ void on_zigbee_start()
     if (g_EnvironmentSensorFetcher.Setup(update_environment_sensors, 15000) != RET_OK)
 	ultimate_timer_fail();
 
-    uint16_t hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
+
+    size_t sz;
+    uint16_t hasCoredump = memfault_coredump_has_valid_coredump(&sz);
     uint16_t wdt_error = 0;
 
     if (configure_wdt() == -1)
@@ -978,11 +980,6 @@ zb::cmd_handling_result_t on_cmd_stop_wd_feeding()
     return {};
 }
 
-static void wdt_callback(int channel_id, void *user_data)
-{
-    k_panic();
-}
-
 int configure_wdt()
 {
 
@@ -992,15 +989,15 @@ int configure_wdt()
     }
 
     struct wdt_timeout_cfg wdt_config = {
-		/* Expire watchdog after max window */
-		.window = {
-		    .min = 0,
-		    .max = WD_HWTimeoutMS,
-		},
+	/* Expire watchdog after max window */
+	.window = {
+	    .min = 0,
+	    .max = WD_HWTimeoutMS,
+	},
 
-		/* Reset SoC when watchdog timer expires. */
-		.flags = WDT_FLAG_RESET_SOC,
-	};
+	/* Reset SoC when watchdog timer expires. */
+	.flags = WDT_FLAG_RESET_SOC,
+    };
 
     wdt_channel_id = wdt_install_timeout(wdt, &wdt_config);
     if (wdt_channel_id < 0) {
@@ -1014,33 +1011,30 @@ int configure_wdt()
 	return err;
     }
 
-    int ret = task_wdt_init(wdt);
-    if (ret < 0)
-    {
-	printk("Could not initialize WDT task.\n");
-	return ret;
-    }
-
-    wdt_channel_id = task_wdt_add(WD_SWTimeoutMS, wdt_callback, nullptr);
-    if (wdt_channel_id < 0)
-    {
-	printk("Could not create a channel from WDT task.\n");
-	return wdt_channel_id;
-    }
+    memfault_software_watchdog_enable();
 
     //starting the feeding sequence
     g_WDTFeeder.Setup([]{ 
+	    printk("wdt feeding: %d; ch=%d\r\n", (int)g_WD_FeedTheDog, wdt_channel_id);
 	    if (g_WD_FeedTheDog) 
-		task_wdt_feed(wdt_channel_id); 
+	    {
+		wdt_feed(wdt, wdt_channel_id);//HW watchdog as fallback
+		memfault_software_watchdog_feed();//SW watchdog
+	    }
 	    return true;
 	}, 
     1000);
+
+    printk("wdt: configured; channel %d\r\n", wdt_channel_id);
     return 0;
 }
 
 int main(void)
 {
     static_assert(atomic_state_t::is_always_lock_free);
+
+    memfault_device_info_dump();
+
     int err = settings_subsys_init();
     err = settings_load();
 
