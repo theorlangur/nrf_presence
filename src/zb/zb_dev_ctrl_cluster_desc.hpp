@@ -42,8 +42,8 @@ namespace zb
             return cluster_t<
                 cluster_info_t{.id = kZB_ZCL_CLUSTER_ID_DEV_CTRL},
                 attributes_t<
-                    attribute_t{.m = &T::main_still_energy_analysis,         .id = 0x0001, .a=access_t::Read}
-                    ,attribute_t{.m = &T::aux_still_energy_analysis,         .id = 0x0002, .a=access_t::Read}
+                    attribute_t{.m = &T::main_still_energy_analysis,         .id = 0x0000, .a=access_t::Read}
+                    ,attribute_t{.m = &T::aux_still_energy_analysis,         .id = 0x0001, .a=access_t::Read}
                 >{},
                 commands_t<
                     &T::cmd_start_analysis_for_presence, 
