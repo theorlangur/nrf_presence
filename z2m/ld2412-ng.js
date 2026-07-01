@@ -590,7 +590,7 @@ const definition = {
         }),
         deviceAddCustomCluster('hlkLD2412', hlkLD2412Cluster),
         orlangurLD2412Extended.extendedStatus(),
-        occupancy({ultrasonicConfig:["otu_delay", "uto_delay"], endpointNames: ["main"]}),
+        occupancy({ultrasonicConfig:["otu_delay"], endpointNames: ["main"]}),
         co2(),
         temperature(),
         humidity(),
