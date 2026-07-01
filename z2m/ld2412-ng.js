@@ -82,6 +82,23 @@ const customStatusCluster = {
     },
     commands: {
         stop_watchdog_feeding: { name: "stop_watchdog_feeding", ID: 0x0001, parameters: [] },
+        clear_coredump: { name: "clear_coredump", ID: 0x0002, parameters: [] },
+    },
+    commandsResponse: {},
+};
+
+const deviceControlCluster = {
+    name: "devCtrl",
+    ID: 0xfc83,
+    attributes: {
+        status1: { name: "status1", ID: 0x0000, type: Zcl.DataType.INT16 },
+        status2: { name: "status2", ID: 0x0001, type: Zcl.DataType.INT16 },
+        main_still_energy_analysis: { name: "main_still_energy_analysis", ID: 0x0000, type: Zcl.DataType.OCTET_STR, read: true },
+        aux_still_energy_analysis: { name: "aux_still_energy_analysis", ID: 0x0001, type: Zcl.DataType.OCTET_STR, read: true },
+    },
+    commands: {
+        start_analysis_for_presence: { name: "start_analysis_for_presence", ID: 0x0001, parameters: [] },
+        start_analysis_for_absense: { name: "start_analysis_for_absense", ID: 0x0002, parameters: [] },
     },
     commandsResponse: {},
 };
@@ -457,6 +474,8 @@ const orlangurLD2412Extended = {
 
             e.enum('stop_watchdog_feeding', ea.SET, ['trigger'])
                 .withDescription('Stop feeding watchdog'),
+            e.enum('clear_coredump', ea.SET, ['trigger'])
+                .withDescription('Clear Coredump'),
         ];
 
         const fromZigbee = [
@@ -506,11 +525,14 @@ const orlangurLD2412Extended = {
                     'status2_pir', 'status2_main', 'status2_aux',
                     'status2_pir_changed', 'status2_main_changed', 'status2_aux_changed', 'status2_raw',
                     'status3_coredump_exists', 'status3_watchdog_config_error', 'status3_raw',
-                    'stop_watchdog_feeding',
+                    'stop_watchdog_feeding', 'clear_coredump'
                 ],
                 convertSet: async (entity, key, value, meta) => {
                     if (key === 'stop_watchdog_feeding' && value === 'trigger') {
                         await entity.command('customStatus', 'stop_watchdog_feeding', {}, { customCluster: customStatusCluster });
+                    }
+                    else if (key === 'clear_coredump' && value === 'trigger') {
+                        await entity.command('customStatus', 'clear_coredump', {}, { customCluster: customStatusCluster });
                     }
                 },
                 convertGet: async (entity, key, meta) => {
