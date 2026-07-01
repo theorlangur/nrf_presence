@@ -129,6 +129,11 @@ constexpr auto kAttrStatMove    = &zb::zb_zcl_ld2412_t::energy_stat_move;
 constexpr auto kAttrLightSense  = &zb::zb_zcl_ld2412_t::light_sense;
 constexpr auto kAttrStatWinSize = &zb::zb_zcl_ld2412_t::statistics_sample_count_window;
 
+/**********************************************************************/
+/* Device control attributes                                          */
+/**********************************************************************/
+constexpr auto kAttrStillEnergyMain = &zb::zb_zcl_dev_ctrl_t::main_still_energy_analysis;
+constexpr auto kAttrStillEnergyAux = &zb::zb_zcl_dev_ctrl_t::aux_still_energy_analysis;
 
 /**********************************************************************/
 /* Humidity                                                           */
@@ -172,6 +177,10 @@ zb::cmd_handling_result_t on_cmd_do_stat_snapshot();
 zb::cmd_handling_result_t on_cmd_stop_wd_feeding();
 zb::cmd_handling_result_t on_cmd_clear_coredump();
 
+zb::cmd_handling_result_t on_cmd_start_analysis_for_presence();
+zb::cmd_handling_result_t on_cmd_start_analysis_for_absence();
+zb::cmd_handling_result_t on_cmd_stop_analysis();
+
 /* Zigbee device application context storage. */
 static constinit device_ctx_t dev_ctx{
     .basic_attr = {
@@ -187,6 +196,9 @@ static constinit device_ctx_t dev_ctx{
 	,.cmd2 = {.cb = on_cmd_clear_coredump}
     },
     .dev_attr{
+	.cmd_start_analysis_for_presence = { .cb = on_cmd_start_analysis_for_presence }
+	,.cmd_start_analysis_for_absense = { .cb = on_cmd_start_analysis_for_absence }
+	,.cmd_stop_analysis              = { .cb = on_cmd_stop_analysis }
     },
     .ld2412_main{
 	.still_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
@@ -979,6 +991,35 @@ void print_ld2412_config(hlk::LD2412 &ld)
     {
 	FMT_PRINTLN("Gate {}; Threshold: move: {}; still: {}", i + 1, ld.GetMoveThreshold(i), ld.GetStillThreshold(i));
     }
+}
+
+zb::cmd_handling_result_t on_cmd_start_analysis_for_presence()
+{
+    ld2412_1.start_analysis_for_presence({});
+    ld2412_2.start_analysis_for_presence({});
+    return {};
+}
+
+zb::cmd_handling_result_t on_cmd_start_analysis_for_absence()
+{
+    ld2412_1.start_analysis_for_absence({});
+    ld2412_2.start_analysis_for_absence({});
+    return {};
+}
+
+zb::cmd_handling_result_t on_cmd_stop_analysis()
+{
+    ld2412_1.stop_analysis({});
+    ld2412_2.stop_analysis({});
+
+    hlk::LD2412::gate_array_t resultsMain;
+    ld2412_1.get_analysis_results(resultsMain);
+    zb_ep.attr<kAttrStillEnergyMain>() = resultsMain;
+
+    hlk::LD2412::gate_array_t resultsAux;
+    ld2412_2.get_analysis_results(resultsAux);
+    zb_ep.attr<kAttrStillEnergyAux>() = resultsAux;
+    return {};
 }
 
 zb::cmd_handling_result_t on_cmd_clear_coredump()

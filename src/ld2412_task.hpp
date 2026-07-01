@@ -68,6 +68,9 @@ namespace ld2412
     struct reload_cfg_t{};
     struct factory_reset_cfg_t{};
     struct bt_cfg_t{bool on;};
+    struct start_analysis_for_presence_t{};
+    struct start_analysis_for_absence_t{};
+    struct stop_analysis_t{};
 
     using QueueItem = std::variant<
         restart_cfg_t
@@ -81,6 +84,9 @@ namespace ld2412
         , run_background_analysis_t
         , collect_statistics_cfg_t
         , snapshot_statistics_cfg_t
+        , start_analysis_for_presence_t
+        , start_analysis_for_absence_t
+        , stop_analysis_t
     >;
     using Queue = msgq::Queue<QueueItem,4>;
 
@@ -109,12 +115,24 @@ namespace ld2412
         void collect_statistics(uint8_t win_size);
         void take_statistic_snapshot(snapshot_statistics_cfg_t const& cfg);
 
+        void start_analysis_for_presence(start_analysis_for_presence_t const& cfg);
+        void start_analysis_for_absence(start_analysis_for_absence_t const& cfg);
+        void stop_analysis(stop_analysis_t const& cfg);
+        void get_analysis_results(hlk::LD2412::gate_array_t &results);
+
         auto get_stat_collect_window_size() const { return m_StatSampleCount; }
         bool is_running_back_analysis() const { return m_BackgroundAnalysisDoneCB != nullptr; }
     private:
         void mainloop();
         void collect_sample();
         void check_back_analysis();
+
+        enum AnalysisState
+        {
+            Stopped,
+            RunningForPresence,
+            RunningForAbsence,
+        };
 
         /**********************************************************************/
         /* Thread-related stuff                                               */
@@ -155,6 +173,9 @@ namespace ld2412
         size_t m_FrameReadErrorCount = 0;
 
         size_t m_LightSensorUpdateInterval = 5;//seconds
+
+        AnalysisState m_Analysis = AnalysisState::Stopped;
+        hlk::LD2412::gate_array_t m_AnalysisStillEnergies;
     };
 }
 #endif
