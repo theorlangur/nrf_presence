@@ -33,6 +33,7 @@
 #include <nrfzbcpp/zb_co2_cluster_desc.hpp>
 #include <nrfzbcpp/zb_nstd_air_q_cluster_desc.hpp>
 #include "zb/zb_ld2412_cluster_desc.hpp"
+#include "zb/zb_dev_ctrl_cluster_desc.hpp"
 #include <osif/mac_platform.h>
 
 #include <atomic>
@@ -94,6 +95,7 @@ constexpr uint32_t kZigbeeFloodProtectionTimeout = 1000;//ms
 struct device_ctx_t{
     zb::zb_zcl_basic_names_t basic_attr;
     zb::zb_zcl_status_t status_attr;
+    zb::zb_zcl_dev_ctrl_t dev_attr;
     zb::zb_zcl_occupancy_pir_and_ultrasonic_t occupancy;
     zb::zb_zcl_on_off_attrs_client_t on_off_client;
     zb::zb_zcl_ld2412_t ld2412_main;
@@ -168,6 +170,7 @@ template<ld2412::Instance &i>
 zb::cmd_handling_result_t on_cmd_do_stat_snapshot();
 
 zb::cmd_handling_result_t on_cmd_stop_wd_feeding();
+zb::cmd_handling_result_t on_cmd_clear_coredump();
 
 /* Zigbee device application context storage. */
 static constinit device_ctx_t dev_ctx{
@@ -181,6 +184,9 @@ static constinit device_ctx_t dev_ctx{
     },
     .status_attr{
 	.cmd1 = {.cb = on_cmd_stop_wd_feeding}
+	,.cmd2 = {.cb = on_cmd_clear_coredump}
+    },
+    .dev_attr{
     },
     .ld2412_main{
 	.still_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
@@ -204,6 +210,7 @@ constinit static zb::device_full_t zb_ctx{
 	zb::make_ep_args<{.ep=kMMW_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
 	    dev_ctx.basic_attr
 	    , dev_ctx.status_attr
+	    , dev_ctx.dev_attr
 	    , dev_ctx.occupancy
 	    , dev_ctx.ld2412_main
 	    , dev_ctx.humidity
@@ -972,6 +979,14 @@ void print_ld2412_config(hlk::LD2412 &ld)
     {
 	FMT_PRINTLN("Gate {}; Threshold: move: {}; still: {}", i + 1, ld.GetMoveThreshold(i), ld.GetStillThreshold(i));
     }
+}
+
+zb::cmd_handling_result_t on_cmd_clear_coredump()
+{
+    coredump_cmd(COREDUMP_CMD_INVALIDATE_STORED_DUMP, nullptr);
+    uint16_t hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
+    zb_ep.attr<kAttrStatus3>() = (dev_ctx.status_attr.status3 & ~1) | hasCoredump;
+    return {};
 }
 
 zb::cmd_handling_result_t on_cmd_stop_wd_feeding()
