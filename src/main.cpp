@@ -236,23 +236,6 @@ constinit static zb::device_full_t zb_ctx{
 	)
 };
 
-//constinit static auto zb_ctx_test = zb::make_device(
-//	zb::make_ep_args<{.ep=kMMW_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
-//	    dev_ctx.basic_attr
-//	    , dev_ctx.status_attr
-//	    , dev_ctx.occupancy
-//	    , dev_ctx.ld2412_main
-//	    , dev_ctx.humidity
-//	    , dev_ctx.temperature
-//	    , dev_ctx.co2
-//	    , dev_ctx.airq
-//	    , dev_ctx.on_off_client
-//	),
-//	zb::make_ep_args<{.ep=kMMW_AUX_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
-//	    dev_ctx.ld2412_aux
-//	)
-//    );
-
 /**********************************************************************/
 /* Defining access to the global zigbee device context                */
 /**********************************************************************/
@@ -260,6 +243,18 @@ constinit static zb::device_full_t zb_ctx{
 struct zb::global_device
 {
     static auto& get() { return zb_ctx; }
+};
+
+union status3_t
+{
+    uint16_t s;
+    struct{
+	uint16_t has_coredump: 1;
+	uint16_t wdt_error: 1;
+	uint16_t analysis_for_presence: 1;
+	uint16_t analysis_for_absence: 1;
+	uint16_t unused: 12;
+    }bits;
 };
 
 //a shortcut for a convenient access
@@ -911,12 +906,13 @@ void on_zigbee_start()
     if (g_EnvironmentSensorFetcher.Setup(update_environment_sensors, 15000) != RET_OK)
 	ultimate_timer_fail();
 
+    status3_t s;
+    s.s = dev_ctx.status_attr.status3;
     uint16_t hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
-    uint16_t wdt_error = 0;
 
-    if (configure_wdt() == -1)
-	wdt_error = 1 << 1;
-    zb_ep.attr<kAttrStatus3>() = hasCoredump | wdt_error;
+    s.bits.wdt_error = configure_wdt() == -1;
+    s.bits.has_coredump = hasCoredump;
+    zb_ep.attr<kAttrStatus3>() = s.s;
 }
 
 /**@brief Zigbee stack event handler.
@@ -997,6 +993,12 @@ zb::cmd_handling_result_t on_cmd_start_analysis_for_presence()
 {
     ld2412_1.start_analysis_for_presence({});
     ld2412_2.start_analysis_for_presence({});
+
+    status3_t s;
+    s.s = dev_ctx.status_attr.status3;
+    s.bits.analysis_for_absence = false;
+    s.bits.analysis_for_presence = true;
+    zb_ep.attr<kAttrStatus3>() = s.s;
     return {};
 }
 
@@ -1004,6 +1006,12 @@ zb::cmd_handling_result_t on_cmd_start_analysis_for_absence()
 {
     ld2412_1.start_analysis_for_absence({});
     ld2412_2.start_analysis_for_absence({});
+
+    status3_t s;
+    s.s = dev_ctx.status_attr.status3;
+    s.bits.analysis_for_absence = true;
+    s.bits.analysis_for_presence = false;
+    zb_ep.attr<kAttrStatus3>() = s.s;
     return {};
 }
 
@@ -1019,6 +1027,12 @@ zb::cmd_handling_result_t on_cmd_stop_analysis()
     hlk::LD2412::gate_array_t resultsAux;
     ld2412_2.get_analysis_results(resultsAux);
     zb_ep.attr<kAttrStillEnergyAux>() = resultsAux;
+
+    status3_t s;
+    s.s = dev_ctx.status_attr.status3;
+    s.bits.analysis_for_absence = false;
+    s.bits.analysis_for_presence = false;
+    zb_ep.attr<kAttrStatus3>() = s.s;
     return {};
 }
 
@@ -1026,7 +1040,10 @@ zb::cmd_handling_result_t on_cmd_clear_coredump()
 {
     coredump_cmd(COREDUMP_CMD_INVALIDATE_STORED_DUMP, nullptr);
     uint16_t hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
-    zb_ep.attr<kAttrStatus3>() = (dev_ctx.status_attr.status3 & ~1) | hasCoredump;
+    status3_t s;
+    s.s = dev_ctx.status_attr.status3;
+    s.bits.has_coredump = hasCoredump;
+    zb_ep.attr<kAttrStatus3>() = s.s;
     return {};
 }
 
