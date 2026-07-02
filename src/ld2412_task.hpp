@@ -20,7 +20,8 @@ namespace ld2412
         SetEnergyThresholds,
         RunBackAnalysis,
         ConfigureCollectStatistics,
-        SnapshotStatistics
+        SnapshotStatistics,
+        EnergyModeAfterBackAnalysis
     };
 
     enum class notification_id_t: uint8_t

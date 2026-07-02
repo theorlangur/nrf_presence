@@ -516,6 +516,7 @@ void on_back_analysis_done(ld2412::run_background_analysis_t::Result result)
     auto flags = d.flags;
     flags.background_analysis_active = false;
     flags.background_analysis_ok = result == ld2412::run_background_analysis_t::Result::Ok;
+    FMT_PRINTLN("on_back_analysis_done: ok={}", (int)flags.background_analysis_ok);
     ep.template attr<kAttrFlags>() = flags;
 }
 
@@ -532,6 +533,7 @@ zb::cmd_handling_result_t on_cmd_run_back_analysis()
     flags.background_analysis_ok = true;
     ep.template attr<kAttrFlags>() = flags;
 
+    zb_ep.attr<kAttrStatus1>() = 0;//reset error
     return {};
 }
 
@@ -766,6 +768,7 @@ void zb_ld2412_error(uint8_t e)
 	case SetEnergyThresholds:
 	    zb_ld2412_update_thresholds<i>();
 	break;
+	case EnergyModeAfterBackAnalysis:
 	case RunBackAnalysis:
 	    zb_ld2412_update_flags<i>();
 	break;
@@ -775,6 +778,7 @@ void zb_ld2412_error(uint8_t e)
 	default:
 	break;
     }
+    FMT_PRINTLN("zb_ld2412_error: e={}", (int)e);
     zb_ep.attr<kAttrStatus1>() = e;
 }
 
@@ -796,22 +800,27 @@ void zb_ld2412_notify(uint8_t id)
     switch(ld2412::notification_id_t(id))
     {
 	case ld2412::notification_id_t::BackgroundAnalysisDone:
+	    FMT_PRINTLN("zb notify: back done: ok");
 	    f.background_analysis_active = false;
 	    f.background_analysis_ok = true;
 	    ep.template attr<kAttrFlags>() = f;
 	    break;
 	case ld2412::notification_id_t::BackgroundAnalysisError:
+	    FMT_PRINTLN("zb notify: back done: failed");
 	    f.background_analysis_active = false;
 	    f.background_analysis_ok = false;
 	    ep.template attr<kAttrFlags>() = f;
 	    break;
 	case ld2412::notification_id_t::SetBasicCfgDone:
+	    FMT_PRINTLN("zb notify: set basic cfg: ok");
 	    zb_ld2412_update_base_config<i>();
 	    break;
 	case ld2412::notification_id_t::SetLightSenseDone:
+	    FMT_PRINTLN("zb notify: set light sesne: ok");
 	    zb_ld2412_update_light_sense<i>();
 	    break;
 	case ld2412::notification_id_t::SetEnergyThresholdsDone:
+	    FMT_PRINTLN("zb notify: set energy threshold: ok");
 	    zb_ld2412_update_thresholds<i>();
 	    break;
     }

@@ -184,6 +184,16 @@ namespace ld2412
 
 	    m_BackgroundAnalysisDoneCB(r);
 	    m_BackgroundAnalysisDoneCB = nullptr;
+
+	    auto res = m_Sensor.ChangeConfiguration()
+		.SetSystemMode(hlk::LD2412::SystemMode::Energy)
+	    .EndChange();
+	    if (!res)
+	    {
+		FMT_PRINTLN("{} Switching to Energy mode failed with: {}", m_ThreadName, res.error());
+		if (m_ErrCB)
+		    m_ErrCB(err_t::EnergyModeAfterBackAnalysis);
+	    }
 	}
     }
 
@@ -320,8 +330,9 @@ namespace ld2412
 			}
 			,[&](run_background_analysis_t const& cfg)
 			{
-			    if (!m_Sensor.RunDynamicBackgroundAnalysis())
+			    if (auto r = m_Sensor.RunDynamicBackgroundAnalysis(); !r)
 			    {
+				FMT_PRINTLN("{} starting back analysis failed with: {}", m_ThreadName, r.error());
 				if (m_ErrCB)
 				    m_ErrCB(err_t::RunBackAnalysis);
 			    }else
