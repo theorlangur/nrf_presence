@@ -40,6 +40,22 @@ namespace zbm
         } 
     };
 
+    struct cmd_a
+    {
+        uint8_t cmd_id;
+    }
+
+    struct cmd_in_a: cmd_a
+    {
+    };
+
+    struct cmd_out_a: cmd_a
+    {
+        uint8_t pool_size = 1;
+        uint16_t manuf_code = ZB_ZCL_MANUF_CODE_INVALID;
+        uint32_t timeout_ms = 0;//no timeout
+    };
+
     struct cluster_a
     {
         zb_uint16_t id;
@@ -170,6 +186,48 @@ namespace zbm
                 attributes.emplace_back(mem_attr, std::meta::extract<attribute_a>(attribute_annotations[0]));
         }
         return attributes;
+    }
+
+    struct cmd_in_with_annotation
+    {
+        std::meta::info cmd;
+        cmd_in_a annotation;
+    };
+    consteval std::vector<cmd_in_with_annotation> extract_incoming_commands_from_cluster(std::meta::info cluster)
+    {
+        ep_base_cfg_t res;
+        std::meta::info cluster_type = std::meta::remove_cvref(std::meta::type_of(cluster));
+        auto mems = std::meta::nonstatic_data_members_of(cluster_type, std::meta::access_context::current());
+        std::vector<cmd_in_with_annotation> cmds;
+        for(auto mem_attr : mems)
+        {
+            auto cmd_type = std::meta::type_of(mem_attr);
+            auto cmd_annotations = std::meta::annotations_of_with_type(attr_type, ^^zbm::cmd_in_a);
+            if (!cmd_annotations.empty())
+                cmds.emplace_back(mem_attr, std::meta::extract<cmd_in_a>(cmd_annotations[0]));
+        }
+        return cmds;
+    }
+
+    struct cmd_out_with_annotation
+    {
+        std::meta::info cmd;
+        cmd_out_a annotation;
+    };
+    consteval std::vector<cmd_in_with_annotation> extract_sending_commands_from_cluster(std::meta::info cluster)
+    {
+        ep_base_cfg_t res;
+        std::meta::info cluster_type = std::meta::remove_cvref(std::meta::type_of(cluster));
+        auto mems = std::meta::nonstatic_data_members_of(cluster_type, std::meta::access_context::current());
+        std::vector<cmd_out_with_annotation> cmds;
+        for(auto mem_attr : mems)
+        {
+            auto cmd_type = std::meta::type_of(mem_attr);
+            auto cmd_annotations = std::meta::annotations_of_with_type(attr_type, ^^zbm::cmd_out_a);
+            if (!cmd_annotations.empty())
+                cmds.emplace_back(mem_attr, std::meta::extract<cmd_out_a>(cmd_annotations[0]));
+        }
+        return cmds;
     }
 
     consteval ep_base_cfg_t analyze_cluster(std::meta::info r_cluster)

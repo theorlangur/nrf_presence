@@ -19,7 +19,7 @@ namespace zbm
     {
     } ZB_PACKED_STRUCT;
 
-    template<ep_base_cfg_t cfg>
+    template<ep_base_cfg_t cfg, uint8_t ep_id>
     struct ep_base_t
     {
         using SimpleDesc = simple_desc_t<cfg.server_clusters, cfg.client_clusters>;
@@ -74,13 +74,14 @@ namespace zbm
             template for(constexpr auto m : local_cluster_mems)
             {
                 auto const& ca = clusters[i];
+                static constexpr auto cluster_refl = ^^typename decltype(local_clusters.[:m:])::cluster_data_type_t;
                 clusters_descriptions[i] = zb_zcl_cluster_desc_t{
                     .cluster_id = ca.annotation.id,
                     .attr_count = std::size(local_clusters.[:m:].attributes),
                     .attr_desc_list = local_clusters.[:m:].attributes,
                     .role_mask = (zb_uint8_t)ca.annotation.role,
                     .manuf_code = ca.annotation.manuf_code,
-                    .cluster_init = nullptr//TODO: &generic_cluster_init<StructTag, ep>
+                    .cluster_init = &generic_cluster_init<cluster_refl, ep_id>
                 };
                 ++i;
             }
@@ -93,10 +94,17 @@ namespace zbm
         alignas(4) zb_af_endpoint_desc_t ep;
     };
 
+    consteval ep_a get_ep_annotations(std::meta::info ep_ref)
+    {
+        auto ep_annotations = std::meta::annotations_of_with_type(ep_ref, ^^zbm::ep_a);
+        return std::meta::extract<zbm::ep_a>(ep_annotations[0]);
+    } 
+
     template<std::meta::info epm>
     struct ep_factory_t
     {
-        struct ep_t;
+        struct ep_t;//it's important this is a first declaration
+        static constexpr ep_a g_Annotation = get_ep_annotations(epm);//source of constexpr template-capable ep_id
         consteval
         {
             std::meta::info ep_type = std::meta::remove_cvref(std::meta::type_of(epm));
@@ -107,7 +115,7 @@ namespace zbm
             if (!cluster_types.empty())
             {
                 ep_base_cfg_t cfg = analyze_clusters(cluster_types);
-                auto ep_data_type = std::meta::substitute(^^ep_base_t, {std::meta::reflect_constant(cfg)});
+                auto ep_data_type = std::meta::substitute(^^ep_base_t, {std::meta::reflect_constant(cfg), std::meta::reflect_constant(g_Annotation.ep)});
                 std::meta::define_aggregate(^^ep_t, {
                         std::meta::data_member_spec(ep_data_type, std::meta::data_member_options{"ep_data"})
                         });
@@ -119,12 +127,6 @@ namespace zbm
     {
         auto ep_fact_inst = std::meta::substitute(^^ep_factory_t, {std::meta::reflect_constant(ep_ref)});
         return std::define_static_array(std::meta::members_of(ep_fact_inst, std::meta::access_context::current()))[0];
-    } 
-
-    consteval ep_a get_ep_annotations(std::meta::info ep_ref)
-    {
-        auto ep_annotations = std::meta::annotations_of_with_type(ep_ref, ^^zbm::ep_a);
-        return std::meta::extract<zbm::ep_a>(ep_annotations[0]);
     } 
 
 

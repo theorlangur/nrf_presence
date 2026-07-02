@@ -46,6 +46,15 @@ namespace zbm
         cluster_data_type_t &cluster_struct;
         alignas(4) zb_zcl_attr_t attributes[N + 2];
         zb_uint16_t rev;
+
+        [[no_unique_address]]cmd_id_list_t<Tag::count_received()> received_commands;
+        //[[no_unique_address]]cmd_id_list_t<Tag::count_generated()> generated_commands;
+
+        zb_discover_cmd_list_t cmd_list =
+        {
+          Tag::count_received(), received_commands.cmds,
+          Tag::count_generated(), generated_commands.cmds
+        };
     };
 
     namespace detail {
