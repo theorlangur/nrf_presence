@@ -91,14 +91,13 @@ const deviceControlCluster = {
     name: "devCtrl",
     ID: 0xfc83,
     attributes: {
-        status1: { name: "status1", ID: 0x0000, type: Zcl.DataType.INT16 },
-        status2: { name: "status2", ID: 0x0001, type: Zcl.DataType.INT16 },
         main_still_energy_analysis: { name: "main_still_energy_analysis", ID: 0x0000, type: Zcl.DataType.OCTET_STR, read: true },
         aux_still_energy_analysis: { name: "aux_still_energy_analysis", ID: 0x0001, type: Zcl.DataType.OCTET_STR, read: true },
     },
     commands: {
         start_analysis_for_presence: { name: "start_analysis_for_presence", ID: 0x0001, parameters: [] },
         start_analysis_for_absense: { name: "start_analysis_for_absense", ID: 0x0002, parameters: [] },
+        stop_analysis: { name: "stop_analysis", ID: 0x0003, parameters: [] },
     },
     commandsResponse: {},
 };
@@ -567,6 +566,78 @@ const orlangurLD2412Extended = {
             isModernExtend: true,
         };
     },
+    deviceControl: () => {
+        const createStillGateEnergyExpose = (name, desc) => {
+            // Use ea.STATE_GET so the UI generates a read/refresh button
+            const comp = e.composite(name, name, ea.STATE_GET).withDescription(desc);
+            for (let i = 0; i < 14; i++) {
+                comp.withFeature(e.text(`gate_${i}`, ea.STATE_GET).withDescription(`Gate ${i} still energy`));
+            }
+            return comp;
+        };
+        const exposes = [
+            e.enum('start_analysis_for_presence', ea.SET, ['trigger']).withDescription('Start Analysis for Presence'),
+            e.enum('start_analysis_for_absense', ea.SET, ['trigger']).withDescription('Start Analysis for Absence'),
+            e.enum('stop_analysis', ea.SET, ['trigger']).withDescription('Stop Analysis'),
+            createStillGateEnergyExpose('main_still_energy_analysis', 'Main Still Energy Gates'),
+            createStillGateEnergyExpose('aux_still_energy_analysis', 'Aux Still Energy Gates'),
+        ];
+
+        const fromZigbee = [
+            {
+                cluster: 'devCtrl',
+                type: ['attributeReport', 'readResponse'],
+                convert: (model, msg, publish, options, meta) => {
+                    const result = {};
+                    const data = msg.data;
+
+                    if (data.main_still_energy_analysis !== undefined) {
+                        const parsed = {};
+                        for (let i = 0; i < 14; i++) parsed[`gate_${i}`] = data.main_still_energy_analysis.readUInt8(i);
+                        result[`main_still_energy_analysis`] = parsed;
+                    }
+
+                    if (data.aux_still_energy_analysis !== undefined) {
+                        const parsed = {};
+                        for (let i = 0; i < 14; i++) parsed[`gate_${i}`] = data.aux_still_energy_analysis.readUInt8(i);
+                        result[`aux_still_energy_analysis`] = parsed;
+                    }
+                    return result
+                }
+            }
+        ];
+
+        const toZigbee = [
+            {
+                key: [
+                    'start_analysis_for_presence', 'start_analysis_for_absense',
+                    'stop_analysis', 'main_still_energy_analysis', 'aux_still_energy_analysis'
+                ],
+                convertSet: async (entity, key, value, meta) => {
+                    if ( value === 'trigger'
+                          && 
+                            (
+                                key === 'start_analysis_for_presence'
+                                || key === 'start_analysis_for_absense'
+                                || key === 'stop_analysis'
+                            )
+                    ) {
+                        await entity.command('devCtrl', key, {}, { customCluster: deviceControlCluster });
+                    }
+                },
+                convertGet: async (entity, key, meta) => {
+                    await entity.read('devCtrl', [key]);
+                },
+            },
+        ];
+
+        return {
+            exposes,
+            fromZigbee,
+            toZigbee,
+            isModernExtend: true
+        }
+    }
 }
 
 const definition = {
@@ -622,6 +693,7 @@ const definition = {
         }),
         hlkLd2412("main", 1)
         ,hlkLd2412("aux", 2)
+        ,orlangurLD2412Extended.deviceControl()
     ]
 };
 
