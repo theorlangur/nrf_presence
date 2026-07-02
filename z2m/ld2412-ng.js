@@ -465,10 +465,10 @@ const orlangurLD2412Extended = {
             e.binary('status2_aux_changed', ea.STATE_GET, 1, 0).withLabel('Aux Changed').withCategory('diagnostic'),
             e.numeric('status2_raw', ea.STATE_GET).withLabel('Status2 Raw').withCategory('diagnostic'),
 
-            e.binary('status3_coredump_exists', ea.STATE_GET, 1, 0)
-                .withLabel('Coredump Exists').withCategory('diagnostic'),
-            e.binary('status3_watchdog_config_error', ea.STATE_GET, 1, 0)
-                .withLabel('Watchdog Config Error').withCategory('diagnostic'),
+            e.binary('status3_coredump_exists', ea.STATE_GET, 1, 0).withLabel('Coredump Exists').withCategory('diagnostic'),
+            e.binary('status3_watchdog_config_error', ea.STATE_GET, 1, 0).withLabel('Watchdog Config Error').withCategory('diagnostic'),
+            e.binary('status3_analysis_for_presence', ea.STATE_GET, 1, 0).withLabel('Analysis For Presence').withCategory('diagnostic'),
+            e.binary('status3_analysis_for_absence', ea.STATE_GET, 1, 0).withLabel('Analysis For Absence').withCategory('diagnostic'),
             e.numeric('status3_raw', ea.STATE_GET).withLabel('Status3 Raw').withCategory('diagnostic'),
 
             e.enum('stop_watchdog_feeding', ea.SET, ['trigger'])
@@ -509,6 +509,8 @@ const orlangurLD2412Extended = {
                         const raw = data['status3'];
                         result['status3_coredump_exists'] = (raw >> 0) & 1;
                         result['status3_watchdog_config_error'] = (raw >> 1) & 1;
+                        result['status3_analysis_for_presence'] = (raw >> 2) & 1;
+                        result['status3_analysis_for_absence'] = (raw >> 3) & 1;
                         result['status3_raw'] = raw;
                     }
 
@@ -523,8 +525,8 @@ const orlangurLD2412Extended = {
                     'status1_error', 'status1_raw',
                     'status2_pir', 'status2_main', 'status2_aux',
                     'status2_pir_changed', 'status2_main_changed', 'status2_aux_changed', 'status2_raw',
-                    'status3_coredump_exists', 'status3_watchdog_config_error', 'status3_raw',
-                    'stop_watchdog_feeding', 'clear_coredump'
+                    'status3_coredump_exists', 'status3_watchdog_config_error', 'status3_analysis_for_presence', 
+                    'status3_analysis_for_absence', 'status3_raw', 'stop_watchdog_feeding', 'clear_coredump'
                 ],
                 convertSet: async (entity, key, value, meta) => {
                     if (key === 'stop_watchdog_feeding' && value === 'trigger') {
@@ -660,6 +662,7 @@ const definition = {
             commandsResponse: {}
         }),
         deviceAddCustomCluster('hlkLD2412', hlkLD2412Cluster),
+        deviceAddCustomCluster('devCtrl', deviceControlCluster),
         orlangurLD2412Extended.extendedStatus(),
         occupancy({ultrasonicConfig:["otu_delay"], endpointNames: ["main"]}),
         co2(),
