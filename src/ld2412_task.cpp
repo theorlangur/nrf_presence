@@ -147,12 +147,12 @@ namespace ld2412
 	    {
 		if (m_Analysis == AnalysisState::RunningForPresence)
 		{
-		    if (m_AnalysisStillEnergies[i] < measured[i])
+		    if (m_AnalysisStillEnergies[i] > measured[i])
 			m_AnalysisStillEnergies[i] = measured[i];
 		}
 		if (m_Analysis == AnalysisState::RunningForAbsence)
 		{
-		    if (m_AnalysisStillEnergies[i] > measured[i])
+		    if (m_AnalysisStillEnergies[i] < measured[i])
 			m_AnalysisStillEnergies[i] = measured[i];
 		}
 	    }
@@ -404,6 +404,17 @@ namespace ld2412
 			    {
 				m_AnalysisStillEnergies.fill(100);
 				m_Analysis = AnalysisState::RunningForPresence;
+				if (m_Sensor.GetSystemMode() != hlk::LD2412::SystemMode::Energy)
+				{
+				    FMT_PRINTLN("{}: changing mode to 'Energy'", m_ThreadName);
+				    auto r = m_Sensor.ChangeConfiguration()
+					.SetSystemMode(hlk::LD2412::SystemMode::Energy)
+					.EndChange();
+				    if (!r)
+				    {
+					FMT_PRINTLN("{}: changing mode failed with {}", m_ThreadName, r.error());
+				    }
+				}
 			    }
 			}
 			,[&](start_analysis_for_absence_t const& cfg)
@@ -412,6 +423,17 @@ namespace ld2412
 			    {
 				m_AnalysisStillEnergies.fill(0);
 				m_Analysis = AnalysisState::RunningForAbsence;
+				if (m_Sensor.GetSystemMode() != hlk::LD2412::SystemMode::Energy)
+				{
+				    FMT_PRINTLN("{}: changing mode to 'Energy'", m_ThreadName);
+				    auto r = m_Sensor.ChangeConfiguration()
+					.SetSystemMode(hlk::LD2412::SystemMode::Energy)
+					.EndChange();
+				    if (!r)
+				    {
+					FMT_PRINTLN("{}: changing mode failed with {}", m_ThreadName, r.error());
+				    }
+				}
 			    }
 			}
 			,[&](stop_analysis_t const& cfg)
