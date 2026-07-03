@@ -42,8 +42,8 @@ namespace zbm
 
     struct cmd_a
     {
-        uint8_t cmd_id;
-    }
+        uint8_t id;
+    };
 
     struct cmd_in_a: cmd_a
     {
@@ -202,7 +202,7 @@ namespace zbm
         for(auto mem_attr : mems)
         {
             auto cmd_type = std::meta::type_of(mem_attr);
-            auto cmd_annotations = std::meta::annotations_of_with_type(attr_type, ^^zbm::cmd_in_a);
+            auto cmd_annotations = std::meta::annotations_of_with_type(cmd_type, ^^zbm::cmd_in_a);
             if (!cmd_annotations.empty())
                 cmds.emplace_back(mem_attr, std::meta::extract<cmd_in_a>(cmd_annotations[0]));
         }
@@ -214,7 +214,7 @@ namespace zbm
         std::meta::info cmd;
         cmd_out_a annotation;
     };
-    consteval std::vector<cmd_in_with_annotation> extract_sending_commands_from_cluster(std::meta::info cluster)
+    consteval std::vector<cmd_out_with_annotation> extract_sending_commands_from_cluster(std::meta::info cluster)
     {
         ep_base_cfg_t res;
         std::meta::info cluster_type = std::meta::remove_cvref(std::meta::type_of(cluster));
@@ -223,7 +223,7 @@ namespace zbm
         for(auto mem_attr : mems)
         {
             auto cmd_type = std::meta::type_of(mem_attr);
-            auto cmd_annotations = std::meta::annotations_of_with_type(attr_type, ^^zbm::cmd_out_a);
+            auto cmd_annotations = std::meta::annotations_of_with_type(cmd_type, ^^zbm::cmd_out_a);
             if (!cmd_annotations.empty())
                 cmds.emplace_back(mem_attr, std::meta::extract<cmd_out_a>(cmd_annotations[0]));
         }

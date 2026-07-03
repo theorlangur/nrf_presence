@@ -15,6 +15,10 @@ namespace zbm
         }();
         static constexpr auto attributes_info = std::define_static_array(extract_attributes_from_cluster(cluster_ref));
         static constexpr size_t N = attributes_info.size();
+        static constexpr auto cmd_in_info = std::define_static_array(extract_incoming_commands_from_cluster(cluster_ref));
+        static constexpr size_t N_cmd_in = cmd_in_info.size();
+        static constexpr auto cmd_out_info = std::define_static_array(extract_sending_commands_from_cluster(cluster_ref));
+        static constexpr size_t N_cmd_out = cmd_out_info.size();
 
         consteval cluster_t():
             cluster_struct([:cluster_ref:]),
@@ -29,6 +33,10 @@ namespace zbm
             },
             rev(g_ClusterA.rev)
             {
+
+                /**********************************************************************/
+                /* attributes                                                         */
+                /**********************************************************************/
                 size_t i = 1;
                 template for(constexpr auto a : attributes_info)
                 {
@@ -41,19 +49,33 @@ namespace zbm
                     };
                 }
                 attributes[N + 1] = g_LastAttribute;
+
+                /**********************************************************************/
+                /* incoming commands                                                  */
+                /**********************************************************************/
+                i = 0;
+                template for(constexpr auto a : cmd_in_info)
+                    received_commands[i++] = a.annotation.id; 
+
+                /**********************************************************************/
+                /* outgoing commands                                                  */
+                /**********************************************************************/
+                i = 0;
+                template for(constexpr auto a : cmd_out_info)
+                    generated_commands[i++] = a.annotation.id; 
             }
 
         cluster_data_type_t &cluster_struct;
         alignas(4) zb_zcl_attr_t attributes[N + 2];
         zb_uint16_t rev;
 
-        [[no_unique_address]]cmd_id_list_t<Tag::count_received()> received_commands;
-        //[[no_unique_address]]cmd_id_list_t<Tag::count_generated()> generated_commands;
+        zb_uint8_t received_commands[N_cmd_in];
+        zb_uint8_t generated_commands[N_cmd_out];
 
         zb_discover_cmd_list_t cmd_list =
         {
-          Tag::count_received(), received_commands.cmds,
-          Tag::count_generated(), generated_commands.cmds
+          zb_uint8_t(N_cmd_in), received_commands,
+          zb_uint8_t(N_cmd_out), generated_commands
         };
     };
 
