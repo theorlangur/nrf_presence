@@ -134,6 +134,96 @@ namespace zbm
         };
     };
 
+    struct cmd_to_arg_t
+    {
+        const uint8_t *pData;
+        template<class A> requires (alignof(A) == 1)
+        const A& extract()
+        {
+            const A *p = (const A*)pData;
+            pData += sizeof(A);
+            return *p;
+        }
+
+        template<class A> requires (alignof(A) > 1)
+        A extract()
+        {
+            static_assert(sizeof(A) <= 4, "type_t is too big");
+            const A *p = (const A*)pData;
+            pData += sizeof(A);
+            A ret;
+            memcpy(&ret, p, sizeof(A));
+            return ret;
+        }
+    };
+
+    struct cmd_handling_result_t
+    {
+        zb_ret_t status = RET_OK;
+        bool processed = true;
+    };
+
+    template<std::meta::info cmd_t_refl>
+    consteval std::optional<std::meta::info> get_fitting_call_operator_overload()
+    {
+        for(auto m : std::meta::members_of(cmd_t_refl, std::meta::access_context::current()))
+        {
+            auto t = std::meta::type_of(m);
+            if (std::meta::is_function_type(t))
+            {
+                if (std::meta::return_type_of(t) == ^^cmd_handling_result_t)
+                    return t;
+            }
+        }
+        return std::nullopt;
+    }
+
+    struct cmd_handler_info_t
+    {
+        size_t totalParameterSize;
+        std::meta::info functionType;
+    };
+    template<std::meta::info cmd_t_refl>
+    consteval cmd_handler_info_t analyze_cmd_handler()
+    {
+        if constexpr (std::meta::is_pointer_type(cmd_t_refl))
+        {
+            size_t res = 0;
+            constexpr auto no_ptr = std::meta::remove_pointer(cmd_t_refl);
+            static_assert(std::meta::is_function_type(no_ptr), "A handler of pointer type shall only be a pointer to a function");
+            static_assert(std::meta::return_type_of(no_ptr) == ^^cmd_handling_result_t, "Command handling must return cmd_handling_result_t");
+            for(auto m : std::meta::parameters_of(no_ptr))
+                res += std::meta::size_of(m);
+            return {res, no_ptr};
+        }else
+        {
+            size_t res = 0;
+            static_assert(std::meta::is_object_type(cmd_t_refl), "If not a function pointer, than it shall be a functor");
+            constexpr auto func_call_t_refl = get_fitting_call_operator_overload<cmd_t_refl>();
+            static_assert(func_call_t_refl, "Could not find fitting operator() overload");
+            for(auto m : std::meta::parameters_of(*func_call_t_refl))
+                res += std::meta::size_of(m);
+            return {res, *func_call_t_refl};
+        }
+    }
+
+    template<std::meta::info cluster_data_ref, cmd_in_with_annotation ci>
+    cmd_handling_result_t call_cmd(zb_zcl_parsed_hdr_t *cmd_info, std::span<uint8_t> raw_data)
+    {
+        constexpr auto cmd_t_refl = std::meta::type_of(ci.cmd);
+        if constexpr (std::meta::is_pointer_type(cmd_t_refl))
+            if (!([:cluster_data_ref:].[:ci.cmd:])) return {RET_OK, false};
+
+        constexpr cmd_handler_info_t handler_info = analyze_cmd_handler<cmd_t_refl>();
+        if (raw_data.size() < handler_info.totalParameterSize) return {RET_ILLEGAL_REQUEST, true};
+        static constexpr auto params = std::define_static_array(std::meta::parameters_of(handler_info.functionType));
+        return [&]<size_t... I>(std::index_sequence<I...>)
+        {
+            cmd_to_arg_t args(raw_data.data());
+            return ([:cluster_data_ref:].[:ci.cmd:])(args.extract<typename [:params[I]:]>()...);
+        }(std::make_index_sequence<params.size()>());
+    }
+
     template<std::meta::info cluster_ref, uint8_t ep/*is this really needed?*/>
     inline zb_bool_t on_cluster_cmd_handling(zb_uint8_t param)
     {
@@ -142,6 +232,7 @@ namespace zbm
             ZCL_CTX().zb_zcl_cluster_cmd_list = &[:cluster_ref:].cmd_list;
             return ZB_TRUE;
         }
+        //TODO: check ep
         zb_zcl_parsed_hdr_t *cmd_info = ZB_BUF_GET_PARAM(param, zb_zcl_parsed_hdr_t);
         using cluster_t = [:std::meta::remove_cvref(std::meta::type_of(cluster_ref)):];
         template for (constexpr auto cmdInfo : cluster_t::cmd_in_info)
@@ -149,44 +240,29 @@ namespace zbm
             if (cmdInfo.annotation.id == cmd_info->cmd_id)
             {
                 //call that command
-                ([:cluster_t::cluster_data_ref_refl:].[:cmdInfo.cmd:])(1);
+                cmd_handling_result_t r = call_cmd<cluster_t::cluster_data_ref_refl, cmdInfo>(cmd_info, std::span<uint8_t>{(uint8_t*)zb_buf_begin(param), zb_buf_len(param)});
+                auto const& [status, processed] = r;
+
+                if(processed)
+                {
+                    if( cmd_info->disable_default_response && status == RET_OK)
+                    {
+                        zb_buf_free(param);
+                    }
+                    else if (status == RET_NOT_IMPLEMENTED)
+                    {
+                        ZB_ZCL_PROCESS_COMMAND_FINISH(param, cmd_info, ZB_ZCL_STATUS_UNSUP_CMD);
+                    }
+                    else if (status != RET_BUSY)
+                    {
+                        ZB_ZCL_PROCESS_COMMAND_FINISH(param, cmd_info, status==RET_OK ? ZB_ZCL_STATUS_SUCCESS : ZB_ZCL_STATUS_INVALID_FIELD);
+                    }
+                }
+
+                return processed;
             }
         }
-        return 0;
-        //
-        //zb_zcl_parsed_hdr_t *cmd_info = ZB_BUF_GET_PARAM(param, zb_zcl_parsed_hdr_t);
-        //cmd_handling_result_t r;
-        //if (cmd_info->addr_data.common_data.dst_endpoint != ep)
-        //{
-        //    auto *pSlot = g_AdditionalClusterHandlers.find(cmd_info->addr_data.common_data.dst_endpoint, cmd_info->cluster_id);
-        //    if (!pSlot)
-        //    {
-        //        r.status = RET_NOT_FOUND;
-        //        r.processed = true;
-        //    }else
-        //        return pSlot->cmd_handler(param);
-        //}else
-        //    r = cluster_custom_handler_t<StructTag, ep>::on_cmd(cmd_info, std::span<uint8_t>{(uint8_t*)zb_buf_begin(param), zb_buf_len(param)});
-        //
-        //auto const& [status, processed] = r;
-        //
-        //if( processed )
-        //{
-        //    if( cmd_info->disable_default_response && status == RET_OK)
-        //    {
-        //        zb_buf_free(param);
-        //    }
-        //    else if (status == RET_NOT_IMPLEMENTED)
-        //    {
-        //        ZB_ZCL_PROCESS_COMMAND_FINISH(param, cmd_info, ZB_ZCL_STATUS_UNSUP_CMD);
-        //    }
-        //    else if (status != RET_BUSY)
-        //    {
-        //        ZB_ZCL_PROCESS_COMMAND_FINISH(param, cmd_info, status==RET_OK ? ZB_ZCL_STATUS_SUCCESS : ZB_ZCL_STATUS_INVALID_FIELD);
-        //    }
-        //}
-        //
-        //return processed;
+        return false;
     }
 
     template<std::meta::info cluster_r, uint8_t ep>

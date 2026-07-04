@@ -49,7 +49,7 @@ struct [[=zbm::cluster_a{.id = 0xfefe, .role = zbm::role_t::Client}]] dummy_clus
     [[=zbm::attribute_a{.id = 2}]] float f2;
     [[=zbm::attribute_a{.id = 3, .a = zbm::access_t::Write}]] int16_t f3;
 
-    [[=zbm::cmd_in_a{{.id = 1}}]] void(*my_cmd_handler)(int);
+    [[=zbm::cmd_in_a{{.id = 1}}]] zbm::cmd_handling_result_t(*my_cmd_handler)(int);
 };
 
 struct [[=zbm::cluster_a{.id = 0xfeff}]] smart_cluster_t
@@ -62,6 +62,36 @@ static_assert(
 	zbm::analyze_clusters({^^dummy_cluster_t, ^^smart_cluster_t}) == 
 	zbm::ep_base_cfg_t{.server_clusters = 1, .client_clusters = 1, .reporting_attributes = 1, .cvc_attributes = 1}
 	);
+
+struct fnctr_t
+{
+    zbm::cmd_handling_result_t operator()(int)
+    {
+	return {};
+    }
+};
+
+struct test_fnctr_t
+{
+    fnctr_t f;
+};
+
+template<const char*>
+struct fail_t;
+
+//constexpr auto f_refl = ^^test_fnctr_t::f;
+//constexpr auto f_is_obj = std::meta::is_object_type(std::meta::type_of(f_refl));
+//constexpr auto mem_cnt = std::meta::members_of(std::meta::type_of(f_refl), std::meta::access_context::current()).size();
+//constexpr auto call_op_refl = std::meta::members_of(std::meta::type_of(f_refl), std::meta::access_context::current())[0];
+//constexpr auto call_op_type_refl = std::meta::type_of(call_op_refl);
+//static_assert(f_is_obj, "Obj?");
+//static_assert(mem_cnt == 1, "1 mem");
+//static_assert(std::meta::is_member_function_pointer_type(std::meta::type_of(call_op_refl)), "is mem func ptr?");
+//static_assert(std::meta::is_function_type(call_op_type_refl), "is func type?");
+//static_assert(std::meta::return_type_of(call_op_type_refl) == ^^zbm::cmd_handling_result_t, "incorrect return type");
+//constexpr static auto test_display = std::define_static_string(std::meta::display_string_of(std::meta::remove_pointer(std::meta::type_of(^^dummy_cluster_t::my_cmd_handler))));
+//static_assert(sizeof(fail_t<test_display>) == 3, "Function"); 
+//static_assert(std::meta::is_function_type(std::meta::type_of(^^dummy_cluster_t::my_cmd_handler)), "Function");
 //static_assert(zbm::analyze_cluster(^^dummy_cluster_t).cvc_attributes == 1);
 
 struct ep_test_t
