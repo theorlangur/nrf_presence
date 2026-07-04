@@ -104,6 +104,25 @@ namespace zbm
         constexpr bool operator==(const ep_base_cfg_t&) const = default;
     };
 
+    struct ep_with_annotation
+    {
+        std::meta::info ep;
+        ep_a annotation;
+    };
+    consteval std::vector<ep_with_annotation> extract_ep_from_device(std::meta::info device)
+    {
+        std::meta::info device_type = std::meta::remove_cvref(std::meta::type_of(device));
+        auto mems = std::meta::nonstatic_data_members_of(device_type, std::meta::access_context::current());
+        std::vector<ep_with_annotation> eps;
+        for(auto mem_ep : mems)
+        {
+            auto ep_annotations = std::meta::annotations_of_with_type(mem_ep, ^^zbm::ep_a);
+            if (!ep_annotations.empty())
+                eps.emplace_back(mem_ep, std::meta::extract<ep_a>(ep_annotations[0]));
+        }
+        return eps;
+    }
+
     consteval attribute_a derive_member_annotation(std::meta::info mem, std::meta::info declared_a)
     {
         attribute_a res = std::meta::extract<attribute_a>(declared_a);
@@ -151,7 +170,6 @@ namespace zbm
     };
     consteval std::vector<cluster_with_annotation> extract_clusters_from_ep(std::meta::info ep)
     {
-        ep_base_cfg_t res;
         std::meta::info ep_type = std::meta::remove_cvref(std::meta::type_of(ep));
         auto mems = std::meta::nonstatic_data_members_of(ep_type, std::meta::access_context::current());
         std::vector<cluster_with_annotation> clusters;

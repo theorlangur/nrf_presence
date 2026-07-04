@@ -111,6 +111,15 @@ namespace zbm
     template<std::meta::info ep_ref>
     struct cluster_list_factory_t
     {
+        /*
+         * struct cluster_list_t
+         * {
+         *   cluster_t cluster_abcd;//0xabcd - cluster ID
+         *   cluster_t cluster_0012;//0x0012 - cluster ID
+         *   ...
+         *   cluster_t cluster_8321;
+         * };
+         * */
         struct cluster_list_t;
         consteval{
             std::vector<std::meta::info> mems;
@@ -124,9 +133,55 @@ namespace zbm
         };
     };
 
+    template<class StructTag, uint8_t ep>
+    inline zb_bool_t on_cluster_cmd_handling(zb_uint8_t param)
+    {
+        return 0;
+        //if ( ZB_ZCL_GENERAL_GET_CMD_LISTS_PARAM == param )
+        //{
+        //    ZCL_CTX().zb_zcl_cluster_cmd_list = cluster_custom_handler_t<StructTag, ep>::get_cmd_list();
+        //    return ZB_TRUE;
+        //}
+        //
+        //zb_zcl_parsed_hdr_t *cmd_info = ZB_BUF_GET_PARAM(param, zb_zcl_parsed_hdr_t);
+        //cmd_handling_result_t r;
+        //if (cmd_info->addr_data.common_data.dst_endpoint != ep)
+        //{
+        //    auto *pSlot = g_AdditionalClusterHandlers.find(cmd_info->addr_data.common_data.dst_endpoint, cmd_info->cluster_id);
+        //    if (!pSlot)
+        //    {
+        //        r.status = RET_NOT_FOUND;
+        //        r.processed = true;
+        //    }else
+        //        return pSlot->cmd_handler(param);
+        //}else
+        //    r = cluster_custom_handler_t<StructTag, ep>::on_cmd(cmd_info, std::span<uint8_t>{(uint8_t*)zb_buf_begin(param), zb_buf_len(param)});
+        //
+        //auto const& [status, processed] = r;
+        //
+        //if( processed )
+        //{
+        //    if( cmd_info->disable_default_response && status == RET_OK)
+        //    {
+        //        zb_buf_free(param);
+        //    }
+        //    else if (status == RET_NOT_IMPLEMENTED)
+        //    {
+        //        ZB_ZCL_PROCESS_COMMAND_FINISH(param, cmd_info, ZB_ZCL_STATUS_UNSUP_CMD);
+        //    }
+        //    else if (status != RET_BUSY)
+        //    {
+        //        ZB_ZCL_PROCESS_COMMAND_FINISH(param, cmd_info, status==RET_OK ? ZB_ZCL_STATUS_SUCCESS : ZB_ZCL_STATUS_INVALID_FIELD);
+        //    }
+        //}
+        //
+        //return processed;
+    }
+
     template<std::meta::info cluster_r, uint8_t ep>
     void generic_cluster_init()
     {
+        using cluster_desc_t = [:std::meta::remove_cvref(std::meta::type_of(cluster_r)):];
         //using zcl_desc_t = zcl_description_t<StructTag>;
         //constexpr auto d = zcl_description_t<StructTag>::get();
         //if constexpr (requires { zcl_desc_t::zboss_init_func(d.info().role); })
@@ -139,8 +194,10 @@ namespace zbm
         zb_zcl_cluster_check_value_t check_val = nullptr;
         zb_zcl_cluster_write_attr_hook_t write_hook = nullptr;
         zb_zcl_cluster_handler_t cmd_handler = nullptr;
-        //if constexpr (d.count_received() > 0)
-        //    cmd_handler = &on_cluster_cmd_handling<StructTag, ep>;
+        if constexpr (cluster_desc_t::N_cmd_in > 0)
+        {
+            //cmd_handler = &on_cluster_cmd_handling<StructTag, ep>;
+        }
         //
         //if constexpr (d.count_members_with_validators() > 0)
         //    check_val = &on_cluster_check_value<StructTag, ep>;

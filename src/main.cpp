@@ -36,7 +36,7 @@
 
 #include <atomic>
 
-#include "zb/zb_meta_ep.hpp"
+#include "zb/zb_meta_device.hpp"
 
 
 //static_assert(sizeof(zbm::ep_base_t<{.server_clusters = 1, .client_clusters = 1, .reporting_attributes = 1, .cvc_attributes = 1}>)
@@ -80,11 +80,21 @@ struct ep_test_t
     }
 };
 
-auto &gen_ep = zbm::ep_create_t<^^ep_test>::value;
-constinit static zbm::cluster_t<std::meta::reflect_object(ep_test.smart)> cluster_test;
-constinit static zbm::cluster_list_factory_t<^^ep_test>::cluster_list_t c_list{};
+struct dev_ctx
+{
+    [[=zbm::ep_a{.ep = 1, .dev_id=2, .dev_ver = 0}]]
+    ep_test_t ep1;
+    [[=zbm::ep_a{.ep = 2, .dev_id=2, .dev_ver = 0}]]
+    ep_test_t ep2;
+};
 
-//static_assert(&c_list.cluster_fefe.cluster_struct == &ep_test.dummy);
+//auto &gen_ep = zbm::ep_create_t<^^ep_test>::value;
+//constinit static zbm::cluster_t<std::meta::reflect_object(ep_test.smart)> cluster_test;
+//constinit static zbm::cluster_list_factory_t<^^ep_test>::cluster_list_t c_list{};
+constinit static dev_ctx my_dev{};
+constinit static zbm::device_full_t<^^my_dev> zb_dev{};
+
+static_assert(decltype(zb_dev)::ep_list.size() == 2);
 //static_assert(&c_list.cluster_feff.cluster_struct == &ep_test.smart);
 //static_assert(sizeof(c_list.cluster_feff) == 0);
 
@@ -1161,6 +1171,7 @@ int main(void)
 
     /* Register device context (endpoints). */
     ZB_AF_REGISTER_DEVICE_CTX(zb_ctx);
+    ZB_AF_REGISTER_DEVICE_CTX(zb_dev.device_context());
 
     if (int err = configure_presence_pins(); err != 0)
     {

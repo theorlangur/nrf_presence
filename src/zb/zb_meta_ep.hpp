@@ -19,6 +19,9 @@ namespace zbm
     {
     } ZB_PACKED_STRUCT;
 
+    template<std::meta::info local_clusters_r>
+    struct meta_ctr_param_t{};
+
     template<ep_base_cfg_t cfg, uint8_t ep_id>
     struct ep_base_t
     {
@@ -26,7 +29,8 @@ namespace zbm
 
         consteval ep_base_t(ep_base_t const&) = delete;
         consteval ep_base_t(ep_base_t &&) = delete;
-        consteval ep_base_t(ep_a epa, auto clusters, auto &local_clusters):
+        template<std::meta::info local_clusters_r>
+        consteval ep_base_t(ep_a epa, auto clusters, meta_ctr_param_t<local_clusters_r> dummy):
             simple_desc{ 
                 /*base struct*/{
                     .endpoint = epa.ep,
@@ -68,17 +72,18 @@ namespace zbm
                     simple_desc.app_cluster_list_ext[i - 2] = ca.annotation.id;
             }
 
-            static constexpr auto local_cluster_r = std::meta::remove_cvref(^^decltype(local_clusters));
+            //static constexpr auto local_cluster_r = std::meta::remove_cvref(^^decltype(local_clusters));
+            static constexpr auto local_cluster_r = std::meta::remove_cvref(std::meta::type_of(local_clusters_r));
             static constexpr auto local_cluster_mems = std::define_static_array(std::meta::nonstatic_data_members_of(local_cluster_r, std::meta::access_context::current()));
             int i = 0;
             template for(constexpr auto m : local_cluster_mems)
             {
                 auto const& ca = clusters[i];
-                static constexpr auto cluster_refl = ^^typename decltype(local_clusters.[:m:])::cluster_data_type_t;
+                static constexpr auto cluster_refl = std::meta::reflect_object([:local_clusters_r:].[:m:]);//cluster_t &
                 clusters_descriptions[i] = zb_zcl_cluster_desc_t{
                     .cluster_id = ca.annotation.id,
-                    .attr_count = std::size(local_clusters.[:m:].attributes),
-                    .attr_desc_list = local_clusters.[:m:].attributes,
+                    .attr_count = std::size([:local_clusters_r:].[:m:].attributes),
+                    .attr_desc_list = [:local_clusters_r:].[:m:].attributes,
                     .role_mask = (zb_uint8_t)ca.annotation.role,
                     .manuf_code = ca.annotation.manuf_code,
                     .cluster_init = &generic_cluster_init<cluster_refl, ep_id>
@@ -100,11 +105,17 @@ namespace zbm
         return std::meta::extract<zbm::ep_a>(ep_annotations[0]);
     } 
 
-    template<std::meta::info epm>
+    template<std::meta::info ep_mem_decl, std::meta::info epm>
     struct ep_factory_t
     {
+        /*
+         * struct ep_t
+         * {
+         *   ep_base_t<cfg, ep_a> ep_data;
+         * };
+         * */
         struct ep_t;//it's important this is a first declaration
-        static constexpr ep_a g_Annotation = get_ep_annotations(epm);//source of constexpr template-capable ep_id
+        static constexpr ep_a g_Annotation = get_ep_annotations(ep_mem_decl);//source of constexpr template-capable ep_id
         consteval
         {
             std::meta::info ep_type = std::meta::remove_cvref(std::meta::type_of(epm));
@@ -123,18 +134,18 @@ namespace zbm
         };
     };
 
-    consteval std::meta::info get_ep_type_from_factory(std::meta::info ep_ref)
+    consteval std::meta::info get_ep_type_from_factory(std::meta::info ep_mem_decl, std::meta::info ep_ref)
     {
-        auto ep_fact_inst = std::meta::substitute(^^ep_factory_t, {std::meta::reflect_constant(ep_ref)});
-        return std::define_static_array(std::meta::members_of(ep_fact_inst, std::meta::access_context::current()))[0];
+        auto ep_fact_inst = std::meta::substitute(^^ep_factory_t, {std::meta::reflect_constant(ep_mem_decl), std::meta::reflect_constant(ep_ref)});
+        return std::define_static_array(std::meta::members_of(ep_fact_inst, std::meta::access_context::current()))[0];//struct ep_t;
     } 
 
 
-    template<std::meta::info ep_ref> requires (!std::meta::annotations_of_with_type(ep_ref, ^^zbm::ep_a).empty() && !extract_clusters_from_ep(ep_ref).empty())
+    template<std::meta::info ep_mem_decl, std::meta::info ep_ref> requires (!std::meta::annotations_of_with_type(ep_mem_decl, ^^zbm::ep_a).empty() && !extract_clusters_from_ep(ep_ref).empty())
     struct ep_create_t
     {
-        using ep_type_t = [:get_ep_type_from_factory(ep_ref):];
-        static constexpr auto epa = get_ep_annotations(ep_ref);
+        using ep_type_t = [:get_ep_type_from_factory(ep_mem_decl, ep_ref):];
+        static constexpr auto epa = get_ep_annotations(ep_mem_decl);
         static constexpr auto cluster_list = define_static_array(extract_clusters_from_ep(ep_ref));
         static constexpr auto cluster_refs = []() consteval{
             std::vector<std::meta::info> refs;
@@ -145,7 +156,7 @@ namespace zbm
 
         constinit static inline cluster_list_factory_t<ep_ref>::cluster_list_t clusters{};
         constinit static inline ep_type_t value{
-            .ep_data{epa, cluster_list, clusters}
+            .ep_data{epa, cluster_list, meta_ctr_param_t<^^clusters>{}}
         };
     };
 }
