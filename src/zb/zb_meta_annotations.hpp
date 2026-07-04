@@ -219,8 +219,7 @@ namespace zbm
         std::vector<cmd_in_with_annotation> cmds;
         for(auto mem_attr : mems)
         {
-            auto cmd_type = std::meta::type_of(mem_attr);
-            auto cmd_annotations = std::meta::annotations_of_with_type(cmd_type, ^^zbm::cmd_in_a);
+            auto cmd_annotations = std::meta::annotations_of_with_type(mem_attr, ^^zbm::cmd_in_a);
             if (!cmd_annotations.empty())
                 cmds.emplace_back(mem_attr, std::meta::extract<cmd_in_a>(cmd_annotations[0]));
         }
@@ -240,8 +239,7 @@ namespace zbm
         std::vector<cmd_out_with_annotation> cmds;
         for(auto mem_attr : mems)
         {
-            auto cmd_type = std::meta::type_of(mem_attr);
-            auto cmd_annotations = std::meta::annotations_of_with_type(cmd_type, ^^zbm::cmd_out_a);
+            auto cmd_annotations = std::meta::annotations_of_with_type(mem_attr, ^^zbm::cmd_out_a);
             if (!cmd_annotations.empty())
                 cmds.emplace_back(mem_attr, std::meta::extract<cmd_out_a>(cmd_annotations[0]));
         }

@@ -48,6 +48,8 @@ struct [[=zbm::cluster_a{.id = 0xfefe, .role = zbm::role_t::Client}]] dummy_clus
     [[=zbm::attribute_a{.id = 1, .a = zbm::access_t::RP}]] uint8_t f1;
     [[=zbm::attribute_a{.id = 2}]] float f2;
     [[=zbm::attribute_a{.id = 3, .a = zbm::access_t::Write}]] int16_t f3;
+
+    [[=zbm::cmd_in_a{{.id = 1}}]] void(*my_cmd_handler)(int);
 };
 
 struct [[=zbm::cluster_a{.id = 0xfeff}]] smart_cluster_t
@@ -95,6 +97,7 @@ constinit static dev_ctx my_dev{};
 constinit static zbm::device_full_t<^^my_dev> zb_dev{};
 
 static_assert(decltype(zb_dev)::ep_list.size() == 2);
+static_assert(decltype(zbm::ep_create_t<^^dev_ctx::ep1, std::meta::reflect_object(my_dev.ep1)>::clusters.cluster_fefe)::N_cmd_in == 1);
 //static_assert(&c_list.cluster_feff.cluster_struct == &ep_test.smart);
 //static_assert(sizeof(c_list.cluster_feff) == 0);
 

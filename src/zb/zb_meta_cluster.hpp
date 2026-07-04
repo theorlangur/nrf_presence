@@ -13,6 +13,7 @@ namespace zbm
         static constexpr cluster_a g_ClusterA = []() consteval{
             return std::meta::extract<zbm::cluster_a>(std::meta::annotations_of_with_type(std::meta::dealias(^^cluster_data_type_t), ^^zbm::cluster_a)[0]);
         }();
+        static constexpr auto cluster_data_ref_refl = cluster_ref;
         static constexpr auto attributes_info = std::define_static_array(extract_attributes_from_cluster(cluster_ref));
         static constexpr size_t N = attributes_info.size();
         static constexpr auto cmd_in_info = std::define_static_array(extract_incoming_commands_from_cluster(cluster_ref));
@@ -45,7 +46,7 @@ namespace zbm
                             .type = (zb_uint8_t)a.annotation.type, 
                             .access = (zb_uint8_t)a.annotation.a, 
                             .manuf_code = ZB_ZCL_NON_MANUFACTURER_SPECIFIC, 
-                            .data_p = &[:a.attribute:]
+                            .data_p = &[:cluster_ref:].[:a.attribute:]
                     };
                 }
                 attributes[N + 1] = g_LastAttribute;
@@ -65,7 +66,7 @@ namespace zbm
                     generated_commands[i++] = a.annotation.id; 
             }
 
-        cluster_data_type_t &cluster_struct;
+        cluster_data_type_t &cluster_struct;//TODO: is it needed?
         alignas(4) zb_zcl_attr_t attributes[N + 2];
         zb_uint16_t rev;
 
@@ -133,15 +134,25 @@ namespace zbm
         };
     };
 
-    template<class StructTag, uint8_t ep>
+    template<std::meta::info cluster_ref, uint8_t ep/*is this really needed?*/>
     inline zb_bool_t on_cluster_cmd_handling(zb_uint8_t param)
     {
+        if ( ZB_ZCL_GENERAL_GET_CMD_LISTS_PARAM == param )
+        {
+            ZCL_CTX().zb_zcl_cluster_cmd_list = &[:cluster_ref:].cmd_list;
+            return ZB_TRUE;
+        }
+        zb_zcl_parsed_hdr_t *cmd_info = ZB_BUF_GET_PARAM(param, zb_zcl_parsed_hdr_t);
+        using cluster_t = [:std::meta::remove_cvref(std::meta::type_of(cluster_ref)):];
+        template for (constexpr auto cmdInfo : cluster_t::cmd_in_info)
+        {
+            if (cmdInfo.annotation.id == cmd_info->cmd_id)
+            {
+                //call that command
+                ([:cluster_t::cluster_data_ref_refl:].[:cmdInfo.cmd:])(1);
+            }
+        }
         return 0;
-        //if ( ZB_ZCL_GENERAL_GET_CMD_LISTS_PARAM == param )
-        //{
-        //    ZCL_CTX().zb_zcl_cluster_cmd_list = cluster_custom_handler_t<StructTag, ep>::get_cmd_list();
-        //    return ZB_TRUE;
-        //}
         //
         //zb_zcl_parsed_hdr_t *cmd_info = ZB_BUF_GET_PARAM(param, zb_zcl_parsed_hdr_t);
         //cmd_handling_result_t r;
@@ -194,9 +205,9 @@ namespace zbm
         zb_zcl_cluster_check_value_t check_val = nullptr;
         zb_zcl_cluster_write_attr_hook_t write_hook = nullptr;
         zb_zcl_cluster_handler_t cmd_handler = nullptr;
-        if constexpr (cluster_desc_t::N_cmd_in > 0)
+        if constexpr (cluster_desc_t::N_cmd_in >= 0)
         {
-            //cmd_handler = &on_cluster_cmd_handling<StructTag, ep>;
+            cmd_handler = &on_cluster_cmd_handling<cluster_r, ep>;
         }
         //
         //if constexpr (d.count_members_with_validators() > 0)
