@@ -375,9 +375,7 @@ namespace zbm
         zb_zcl_cluster_write_attr_hook_t write_hook = nullptr;
         zb_zcl_cluster_handler_t cmd_handler = nullptr;
         if constexpr (cluster_desc_t::N_cmd_in >= 0)
-        {
             cmd_handler = &on_cluster_cmd_handling<cluster_r, ep>;
-        }
 
         constexpr size_t attributes_want_check = []() consteval{
             size_t count = 0;

@@ -124,6 +124,15 @@ namespace zbm
         return eps;
     }
 
+    template<class T>
+    consteval attribute_a::value_checker_t get_attribute_validator_for_type()
+    {
+        if constexpr (requires { T::validate_value((uint8_t*)nullptr); })
+            return &T::validate_value;
+        else
+            return {};
+    }
+
     consteval attribute_a derive_member_annotation(std::meta::info mem, std::meta::info declared_a)
     {
         attribute_a res = std::meta::extract<attribute_a>(declared_a);
@@ -131,9 +140,18 @@ namespace zbm
         {
             //need to derive type
             auto mem_type = std::meta::type_of(mem);
-            auto type_to_type_id_inst = std::meta::substitute(^^TypeToTypeId, {mem_type});
+            auto type_to_type_id_inst = std::meta::substitute(^^type_to_type_id, {mem_type});
             auto get_type = std::meta::extract<type_t(*)()>(type_to_type_id_inst);
             res.type = get_type();
+        }
+
+        if (!res.validator)
+        {
+            //try and provide the default
+            auto mem_type = std::meta::type_of(mem);
+            auto get_type_validator_inst = std::meta::substitute(^^get_attribute_validator_for_type, {mem_type});
+            auto get_type_validator = std::meta::extract<attribute_a::value_checker_t(*)()>(get_type_validator_inst);
+            res.validator = get_type_validator();
         }
         return res;
     }
@@ -201,7 +219,10 @@ namespace zbm
         {
             auto attribute_annotations = std::meta::annotations_of_with_type(mem_attr, ^^zbm::attribute_a);
             if (!attribute_annotations.empty())
-                attributes.emplace_back(mem_attr, std::meta::extract<attribute_a>(attribute_annotations[0]));
+            {
+                auto derived_a = derive_member_annotation(mem_attr, attribute_annotations[0]);
+                attributes.emplace_back(mem_attr, derived_a);
+            }
         }
         return attributes;
     }

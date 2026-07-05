@@ -45,6 +45,21 @@
 
 zb_ret_t check_f1(uint8_t *v);
 
+struct MyType
+{
+    static constexpr zbm::type_t type_id()
+    {
+	return zbm::type_t::Map24;
+    }
+
+    static zb_ret_t validate_value(uint8_t* val)
+    {
+	return RET_OK;
+    }
+};
+
+static_assert(zbm::get_attribute_validator_for_type<MyType>() != nullptr);
+
 struct [[=zbm::cluster_a{.id = 0xfefe, .role = zbm::role_t::Client}]] dummy_cluster_t
 {
     [[=zbm::attribute_a{.id = 1, .a = zbm::access_t::RP}]] uint8_t f1;
@@ -58,6 +73,7 @@ struct [[=zbm::cluster_a{.id = 0xfeff}]] smart_cluster_t
 {
     [[=zbm::attribute_a{.id = 10, .a = zbm::access_t::Read}]] uint8_t f1;
     [[=zbm::attribute_a{.id = 30, .a = zbm::access_t::Write, .validator = check_f1}]] int16_t f3;
+    [[=zbm::attribute_a{.id = 50, .a = zbm::access_t::Write}]] MyType f5;
 };
 
 static_assert(
@@ -113,6 +129,7 @@ struct ep_test_t
     .smart = {
 	.f1 = {},
 	.f3 = {},
+	.f5 = {},
     }
 };
 

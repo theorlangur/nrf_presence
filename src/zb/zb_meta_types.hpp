@@ -100,7 +100,7 @@ namespace zbm
     };
 
     template<class T>
-    constexpr type_t TypeToTypeId()
+    constexpr type_t type_to_type_id()
     {
         if constexpr (std::is_same_v<T,zb_uint8_t>)                return type_t::U8;
         else if constexpr (std::is_same_v<T,zb_uint16_t>)          return type_t::U16;
@@ -116,7 +116,7 @@ namespace zbm
         else if constexpr (std::is_same_v<T,float>)                return type_t::Float;
         else if constexpr (std::is_same_v<T,double>)               return type_t::Double;
         else if constexpr (std::is_same_v<T,bool>)                 return type_t::Bool;
-        else if constexpr (requires { T::TypeId(); })              return T::TypeId();
+        else if constexpr (requires { T::type_id(); })              return T::type_id();
         else 
             static_assert(sizeof(T) == 0, "Unknown type");
         return type_t::Invalid;
