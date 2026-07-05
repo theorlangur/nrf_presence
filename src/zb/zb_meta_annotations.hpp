@@ -76,7 +76,7 @@ namespace zbm
         zb_uint8_t ep;
         zb_uint16_t dev_id;
         zb_uint8_t dev_ver;
-        uint8_t cmd_queue_depth = 0;//0 - auto
+        uint8_t cmd_queue_depth = 3;//0 - auto
     };
 
     inline constexpr zb_zcl_attr_t g_LastAttribute{

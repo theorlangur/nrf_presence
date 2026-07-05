@@ -1,6 +1,8 @@
 #ifndef ZB_META_EP_HPP_
 #define ZB_META_EP_HPP_
 
+#include "lib_ring_buffer.hpp"
+
 #include "zb_meta_types.hpp"
 #include "zb_meta_annotations.hpp"
 #include "zb_meta_cluster.hpp"
@@ -156,6 +158,10 @@ namespace zbm
 
         struct ep_front_t: ep_type_t
         {
+
+            /**********************************************************************/
+            /* Attribute Set                                                      */
+            /**********************************************************************/
             template<std::meta::info attribute_refl, bool checked, class A>
             zb_zcl_status_t set_raw(A &&arg)
             {
@@ -190,9 +196,39 @@ namespace zbm
             zb_zcl_status_t set(A &&arg) { return set_raw<attribute_refl, false, A>(std::forward<A>(arg)); }
             template<std::meta::info attribute_refl, class A>
             zb_zcl_status_t set_checked(A &&arg) { return set_raw<attribute_refl, true, A>(std::forward<A>(arg)); }
+
+            /**********************************************************************/
+            /* Sending commands                                                   */
+            /**********************************************************************/
+            static constexpr size_t kCmdQueueSize = epa.cmd_queue_depth;
+            using cmd_id_t = int;
+            using cmd_send_status_cb_t = void(*)(cmd_id_t, zb_zcl_command_send_status_t *);
+            struct cmd_request_t
+            {
+                cmd_id_t id;
+                uint8_t args_idx;
+                //send_request_func_t send_req;
+                //cancel_func_t cancel_req;
+                cmd_send_status_cb_t cb;
+                uint32_t timeout_ms;
+            };
+            inline static RingBuffer<cmd_request_t, kCmdQueueSize> g_CmdQueue;
+
+            struct send_cmd_config_t
+            {
+                cmd_send_status_cb_t cb;
+                uint32_t timeout_ms = 0;//kCmdTimeoutDefault;
+            };
+            template<std::meta::info cmd_out_refl, send_cmd_config_t cfg, class... Args>
+            std::optional<cmd_id_t> send_raw(Args&&...args)
+            {
+                return {};
+            }
         };
 
+        //actual place where ZBOSS structures for attributes, commands for each cluster are stored
         constinit static inline cluster_list_factory_t<ep_ref>::cluster_list_t clusters{};
+        //actual place where ZBOSS structures for endpoints with cluster descriptions are stored
         constinit static inline ep_front_t value{
             {.ep_data{epa, cluster_list, meta_ctr_param_t<^^clusters>{}}}
         };
