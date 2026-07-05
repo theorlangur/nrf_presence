@@ -338,15 +338,10 @@ namespace zbm
     void generic_cluster_init()
     {
         using cluster_desc_t = [:std::meta::remove_cvref(std::meta::type_of(cluster_r)):];
-        //using zcl_desc_t = zcl_description_t<StructTag>;
-        //constexpr auto d = zcl_description_t<StructTag>::get();
-        //if constexpr (requires { zcl_desc_t::zboss_init_func(d.info().role); })
-        //{
-        //    //there's a default ZBOSS init func -> try and call it
-        //    auto zboss_init_f = zcl_desc_t::zboss_init_func(d.info().role);
-        //    //Note: this will work poorly when same cluster is used for different end points
-        //    if (zboss_init_f) zboss_init_f();
-        //}
+        constexpr auto i = cluster_desc_t::g_ClusterA;
+        if constexpr (i.pre_init)
+            i.pre_init();
+
         zb_zcl_cluster_check_value_t check_val = nullptr;
         zb_zcl_cluster_write_attr_hook_t write_hook = nullptr;
         zb_zcl_cluster_handler_t cmd_handler = nullptr;
@@ -354,13 +349,13 @@ namespace zbm
         {
             cmd_handler = &on_cluster_cmd_handling<cluster_r, ep>;
         }
+
         //
         //if constexpr (d.count_members_with_validators() > 0)
         //    check_val = &on_cluster_check_value<StructTag, ep>;
 
         if (check_val || write_hook || cmd_handler)
         {
-            constexpr auto i = cluster_desc_t::g_ClusterA;
             zb_ret_t ret = zb_zcl_add_cluster_handlers(i.id, (uint8_t)i.role
                     , check_val /*cluster_check_value*/
                     , write_hook /*cluster_write_attr_hook*/

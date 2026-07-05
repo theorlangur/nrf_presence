@@ -62,6 +62,7 @@ namespace zbm
         zb_uint16_t rev = 0;
         role_t        role = role_t::Server;
         zb_uint16_t manuf_code = ZB_ZCL_MANUF_CODE_INVALID;
+        void (*pre_init)() = nullptr;
 
         constexpr bool operator==(cluster_a const&) const = default;
         constexpr bool operator<(cluster_a const& rhs) const { return role < rhs.role; }
