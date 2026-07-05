@@ -74,6 +74,7 @@ struct [[=zbm::cluster_a{.id = 0xfeff}]] smart_cluster_t
     [[=zbm::attribute_a{.id = 10, .a = zbm::access_t::Read}]] uint8_t f1;
     [[=zbm::attribute_a{.id = 30, .a = zbm::access_t::Write, .validator = check_f1}]] int16_t f3;
     [[=zbm::attribute_a{.id = 50, .a = zbm::access_t::Write}]] MyType f5;
+    float f6;
 };
 
 static_assert(
@@ -155,6 +156,7 @@ static_assert(decltype(zbm::ep_create_t<^^dev_ctx::ep1, std::meta::reflect_objec
 
 zb_ret_t check_f1(uint8_t *v)
 {
+    zb_dev.ep_01.set_raw<^^smart_cluster_t::f3, false>(1);
     return RET_OK;
 }
 

@@ -156,6 +156,14 @@ namespace zbm
         return res;
     }
 
+    consteval attribute_a get_attribute_annotation(std::meta::info user_attr_mem)
+    {
+        auto attribute_annotations = std::meta::annotations_of_with_type(user_attr_mem, ^^zbm::attribute_a);
+        if (!attribute_annotations.empty())
+            return derive_member_annotation(user_attr_mem, attribute_annotations[0]);
+        return {};
+    }
+
     consteval std::optional<cluster_a> get_cluster_annotation(std::meta::info r_cluster)
     {
         std::meta::info cluster_type = r_cluster;

@@ -154,9 +154,47 @@ namespace zbm
             return define_static_array(refs);
         }();
 
+        struct ep_front_t: ep_type_t
+        {
+            template<std::meta::info attribute_refl, bool checked, class A>
+            zb_zcl_status_t set_raw(A &&arg)
+            {
+                constexpr auto user_cluster_ref = std::meta::parent_of(attribute_refl);
+                constexpr auto attribute_a = get_attribute_annotation(attribute_refl);
+                using attribute_type_t = typename [:std::meta::type_of(attribute_refl):];
+
+                static_assert(attribute_a.type != type_t::Invalid, "Undefined or incorrectly defined attribute!");
+                static_assert(attribute_a.a & access_t::Write, "Attribute is not writable!");
+                static_assert(std::is_convertible_v<A, attribute_type_t>, "Cannot convert to attribute type");
+
+                static constexpr auto local_cluster_r = ^^typename cluster_list_factory_t<ep_ref>::cluster_list_t;
+                static constexpr auto local_cluster_mems = std::define_static_array(std::meta::nonstatic_data_members_of(local_cluster_r, std::meta::access_context::current()));
+                static constexpr std::optional<std::meta::info> zbm_cluster_refl_opt = []() consteval ->std::optional<std::meta::info>{
+                    template for(constexpr auto m : local_cluster_mems)
+                    {
+                        constexpr auto zbm_cluster_refl = std::meta::type_of(m);
+                        using zbm_cluster_t = typename [:zbm_cluster_refl:];
+                        if constexpr (std::meta::type_of(zbm_cluster_t::cluster_data_ref_refl) == user_cluster_ref)
+                            return zbm_cluster_refl;
+                    }
+                    return std::nullopt;
+                }();
+                static_assert(zbm_cluster_refl_opt, "Attribute not found!");
+
+                static constexpr auto zbm_cluster_refl = *zbm_cluster_refl_opt;
+                using zbm_cluster_t = typename [:zbm_cluster_refl:];
+                return zb_zcl_set_attr_val(epa.ep, zbm_cluster_t::g_ClusterA.id, (zb_uint8_t)zbm_cluster_t::g_ClusterA.role, attribute_a.id, (zb_uint8_t*)&arg, checked);
+            }
+
+            template<std::meta::info attribute_refl, class A>
+            zb_zcl_status_t set(A &&arg) { return set_raw<attribute_refl, false, A>(std::forward<A>(arg)); }
+            template<std::meta::info attribute_refl, class A>
+            zb_zcl_status_t set_checked(A &&arg) { return set_raw<attribute_refl, true, A>(std::forward<A>(arg)); }
+        };
+
         constinit static inline cluster_list_factory_t<ep_ref>::cluster_list_t clusters{};
-        constinit static inline ep_type_t value{
-            .ep_data{epa, cluster_list, meta_ctr_param_t<^^clusters>{}}
+        constinit static inline ep_front_t value{
+            {.ep_data{epa, cluster_list, meta_ctr_param_t<^^clusters>{}}}
         };
     };
 }
