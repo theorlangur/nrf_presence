@@ -43,11 +43,13 @@
 //	== sizeof(typename [:zbm::make_ep_base(1, 1, 1, 1):])
 //	);
 
+zb_ret_t check_f1(uint8_t *v);
+
 struct [[=zbm::cluster_a{.id = 0xfefe, .role = zbm::role_t::Client}]] dummy_cluster_t
 {
     [[=zbm::attribute_a{.id = 1, .a = zbm::access_t::RP}]] uint8_t f1;
     [[=zbm::attribute_a{.id = 2}]] float f2;
-    [[=zbm::attribute_a{.id = 3, .a = zbm::access_t::Write}]] int16_t f3;
+    [[=zbm::attribute_a{.id = 3, .a = zbm::access_t::Write, .validator = check_f1}]] int16_t f3;
 
     [[=zbm::cmd_in_a{{.id = 1}}]] zbm::cmd_handling_result_t(*my_cmd_handler)(int);
 };
@@ -55,7 +57,7 @@ struct [[=zbm::cluster_a{.id = 0xfefe, .role = zbm::role_t::Client}]] dummy_clus
 struct [[=zbm::cluster_a{.id = 0xfeff}]] smart_cluster_t
 {
     [[=zbm::attribute_a{.id = 10, .a = zbm::access_t::Read}]] uint8_t f1;
-    [[=zbm::attribute_a{.id = 30, .a = zbm::access_t::Write}]] int16_t f3;
+    [[=zbm::attribute_a{.id = 30, .a = zbm::access_t::Write, .validator = check_f1}]] int16_t f3;
 };
 
 static_assert(
@@ -122,6 +124,7 @@ struct dev_ctx
     ep_test_t ep2;
 };
 
+
 //auto &gen_ep = zbm::ep_create_t<^^ep_test>::value;
 //constinit static zbm::cluster_t<std::meta::reflect_object(ep_test.smart)> cluster_test;
 //constinit static zbm::cluster_list_factory_t<^^ep_test>::cluster_list_t c_list{};
@@ -132,6 +135,11 @@ static_assert(decltype(zb_dev)::ep_list.size() == 2);
 static_assert(decltype(zbm::ep_create_t<^^dev_ctx::ep1, std::meta::reflect_object(my_dev.ep1)>::clusters.cluster_fefe)::N_cmd_in == 1);
 //static_assert(&c_list.cluster_feff.cluster_struct == &ep_test.smart);
 //static_assert(sizeof(c_list.cluster_feff) == 0);
+
+zb_ret_t check_f1(uint8_t *v)
+{
+    return RET_OK;
+}
 
 extern "C"{
 #include <zephyr/debug/coredump.h>

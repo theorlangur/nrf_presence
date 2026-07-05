@@ -7,12 +7,12 @@ namespace zbm
 {
     struct attribute_a
     {
+        using value_checker_t = zb_ret_t(*)(zb_uint8_t *value);
+
         zb_uint16_t id;
         access_t a = access_t::Read;
         type_t type = type_t::Invalid;//infer from type
-                                      
-        //TODO: validator
-        //constexpr inline bool has_validator() const { return validator != nullptr; }
+        value_checker_t validator = {};                     
 
         constexpr inline bool has_access(access_t _a) const { return a & _a; } 
         constexpr inline bool is_cvc() const { 
@@ -199,8 +199,7 @@ namespace zbm
         std::vector<attribute_with_annotation> attributes;
         for(auto mem_attr : mems)
         {
-            auto attr_type = std::meta::type_of(mem_attr);
-            auto attribute_annotations = std::meta::annotations_of_with_type(attr_type, ^^zbm::attribute_a);
+            auto attribute_annotations = std::meta::annotations_of_with_type(mem_attr, ^^zbm::attribute_a);
             if (!attribute_annotations.empty())
                 attributes.emplace_back(mem_attr, std::meta::extract<attribute_a>(attribute_annotations[0]));
         }

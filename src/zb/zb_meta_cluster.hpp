@@ -334,6 +334,35 @@ namespace zbm
         return processed;
     }
 
+    template<std::meta::info cluster_ref, uint8_t ep>
+    inline zb_ret_t on_cluster_check_value(zb_uint16_t attr_id, zb_uint8_t endpoint, zb_uint8_t *value)
+    {
+        using cluster_t = [:std::meta::remove_cvref(std::meta::type_of(cluster_ref)):];
+        constexpr auto i = cluster_t::g_ClusterA;
+        if (ep != endpoint)
+        {
+            auto *pSlot = g_AdditionalClusterHandlers.find(endpoint, i.id);
+            if (!pSlot)
+                return RET_BUSY;
+            else
+                return pSlot->checker(attr_id, endpoint, value);
+        }
+
+        template for (constexpr auto ai : cluster_t::attributes_info)
+        {
+            if constexpr ((ai.annotation.a & access_t::Write) && ai.annotation.validator)
+            {
+                if (ai.annotation.id == attr_id)
+                {
+                    //weird that I had to spell it out by declaring a local variable...
+                    auto validator = ai.annotation.validator;
+                    return validator(value);
+                }
+            }
+        }
+        return RET_OK;
+    }
+
     template<std::meta::info cluster_r, uint8_t ep>
     void generic_cluster_init()
     {
@@ -350,9 +379,16 @@ namespace zbm
             cmd_handler = &on_cluster_cmd_handling<cluster_r, ep>;
         }
 
-        //
-        //if constexpr (d.count_members_with_validators() > 0)
-        //    check_val = &on_cluster_check_value<StructTag, ep>;
+        constexpr size_t attributes_want_check = []() consteval{
+            size_t count = 0;
+            for(auto ai : cluster_desc_t::attributes_info)
+                if ((ai.annotation.a & access_t::Write) && ai.annotation.validator)
+                    ++count;
+            return count;
+        }();//immediately-invoked-lambda
+
+        if constexpr (attributes_want_check > 0)
+            check_val = &on_cluster_check_value<cluster_r, ep>;
 
         if (check_val || write_hook || cmd_handler)
         {
