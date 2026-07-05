@@ -79,6 +79,8 @@ struct test_fnctr_t
 template<const char*>
 struct fail_t;
 
+
+static_assert(std::convertible_to<decltype(dummy_cluster_t::my_cmd_handler), bool>, "Failed convert to bool");
 //constexpr auto f_refl = ^^test_fnctr_t::f;
 //constexpr auto f_is_obj = std::meta::is_object_type(std::meta::type_of(f_refl));
 //constexpr auto mem_cnt = std::meta::members_of(std::meta::type_of(f_refl), std::meta::access_context::current()).size();
