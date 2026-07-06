@@ -190,6 +190,14 @@ namespace zbm
         return std::nullopt;
     }
 
+    consteval std::optional<cmd_out_a> get_sending_command_annotation(std::meta::info cmd_out_ref_refl)
+    {
+        auto cmd_annotations = std::meta::annotations_of_with_type(cmd_out_ref_refl, ^^zbm::cmd_out_a);
+        if (!cmd_annotations.empty())
+            return std::meta::extract<cmd_out_a>(cmd_annotations[0]);
+        return std::nullopt;
+    }
+
     struct cluster_with_annotation
     {
         std::meta::info cluster;
@@ -307,6 +315,15 @@ namespace zbm
         for(auto c : r_clusters)
             res += analyze_cluster(c);
         return res;
+    }
+
+    consteval std::meta::info find_member_by_name(std::meta::info struct_type, std::string_view name)
+    {
+        auto mems = std::meta::nonstatic_data_members_of(struct_type, std::meta::access_context::current());
+        for(auto m : mems)
+            if (std::meta::identifier_of(m) == name)
+                return m;
+        return {};
     }
 }
 

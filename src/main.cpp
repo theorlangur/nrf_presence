@@ -37,6 +37,7 @@
 #include <atomic>
 
 #include "zb/zb_meta_device.hpp"
+#include "zb/zb_meta_out_cmd.hpp"
 
 
 //static_assert(sizeof(zbm::ep_base_t<{.server_clusters = 1, .client_clusters = 1, .reporting_attributes = 1, .cvc_attributes = 1}>)
@@ -75,6 +76,8 @@ struct [[=zbm::cluster_a{.id = 0xfeff}]] smart_cluster_t
     [[=zbm::attribute_a{.id = 30, .a = zbm::access_t::Write, .validator = check_f1}]] int16_t f3;
     [[=zbm::attribute_a{.id = 50, .a = zbm::access_t::Write}]] MyType f5;
     float f6;
+    [[=zbm::cmd_out_a{{.id = 10}, /*.pool_size=*/3}]]
+    zbm::cmd_out_t<void(char, int16_t, float)> c1;
 };
 
 static_assert(
@@ -97,7 +100,6 @@ struct test_fnctr_t
 
 template<const char*>
 struct fail_t;
-
 
 static_assert(std::convertible_to<decltype(dummy_cluster_t::my_cmd_handler), bool>, "Failed convert to bool");
 //constexpr auto f_refl = ^^test_fnctr_t::f;
@@ -154,11 +156,18 @@ static_assert(decltype(zbm::ep_create_t<^^dev_ctx::ep1, std::meta::reflect_objec
 //static_assert(&c_list.cluster_feff.cluster_struct == &ep_test.smart);
 //static_assert(sizeof(c_list.cluster_feff) == 0);
 
+constinit static smart_cluster_t smart{};
+
 zb_ret_t check_f1(uint8_t *v)
 {
     zb_dev.ep_01.set_raw<^^smart_cluster_t::f3, false>(1);
+    using pool_t = zbm::cmd_out_pool_t<^^smart_cluster_t::c1>;
+    auto r = pool_t::prepare_args(nullptr, 'a', -60, 0.5f);
+    uint8_t buf[120];
+    uint8_t *pDest = pool_t::serialize_to(*r, buf);
     return RET_OK;
 }
+
 
 extern "C"{
 #include <zephyr/debug/coredump.h>

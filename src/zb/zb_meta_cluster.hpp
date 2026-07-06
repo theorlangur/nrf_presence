@@ -123,7 +123,7 @@ namespace zbm
         template<unsigned ID>
         struct cluster_name_provider 
         {
-            static constexpr unsigned prefix_len = 8; // length of "cluster"
+            static constexpr unsigned prefix_len = 8; // length of "cluster_"
             static constexpr unsigned total_len = prefix_len + 4;//hex
 
             char chars[total_len + 1]{};
