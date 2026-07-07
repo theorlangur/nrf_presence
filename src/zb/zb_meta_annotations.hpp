@@ -77,6 +77,7 @@ namespace zbm
         zb_uint16_t dev_id;
         zb_uint8_t dev_ver;
         uint8_t cmd_queue_depth = 3;//0 - auto
+        uint16_t profile_id = ZB_AF_HA_PROFILE_ID;
     };
 
     inline constexpr zb_zcl_attr_t g_LastAttribute{
@@ -188,6 +189,11 @@ namespace zbm
             return std::meta::extract<cluster_a>(a);
         }
         return std::nullopt;
+    }
+
+    consteval std::optional<cluster_a> get_parent_cluster_annotation(std::meta::info mem)
+    {
+        return get_cluster_annotation(std::meta::parent_of(mem));
     }
 
     consteval std::optional<cmd_out_a> get_sending_command_annotation(std::meta::info cmd_out_ref_refl)

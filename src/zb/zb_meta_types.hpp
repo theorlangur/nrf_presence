@@ -99,6 +99,33 @@ namespace zbm
         Any = Server | Client
     };
 
+    enum class addr_mode_t: uint8_t
+    {
+        NoAddr_NoEP = ZB_APS_ADDR_MODE_DST_ADDR_ENDP_NOT_PRESENT,
+        Group_NoEP = ZB_APS_ADDR_MODE_16_GROUP_ENDP_NOT_PRESENT,
+        Dst16EP = ZB_APS_ADDR_MODE_16_ENDP_PRESENT,
+        Dst64EP = ZB_APS_ADDR_MODE_64_ENDP_PRESENT,
+        EPAsBindTableId = ZB_APS_ADDR_MODE_BIND_TBL_ID
+    };
+
+    enum class frame_direction_t: uint8_t
+    {
+        ToServer = ZB_ZCL_FRAME_DIRECTION_TO_SRV,
+        ToClient = ZB_ZCL_FRAME_DIRECTION_TO_CLI
+    };
+
+
+    union frame_ctl_t
+    {
+        struct{
+            uint8_t cluster_specific     : 1;
+            uint8_t manufacture_specific : 1;
+            frame_direction_t direction     : 1;
+            uint8_t disable_default_response : 1;
+        } f;
+        uint8_t u8;
+    };
+
     template<class T>
     constexpr type_t type_to_type_id()
     {
@@ -121,6 +148,12 @@ namespace zbm
             static_assert(sizeof(T) == 0, "Unknown type");
         return type_t::Invalid;
     }
+
+    template<class T>
+    concept serializable_c = requires(T t, uint8_t *pDst, const uint8_t *pSrc, size_t len){
+        { t.serialize_to(pDst, len) } -> std::same_as<std::optional<uint8_t*>>;
+        { t.serialize_from(pSrc, len) } -> std::same_as<std::optional<const uint8_t*>>;
+    };
 }
 
 #endif

@@ -6,14 +6,6 @@
 
 namespace zbm
 {
-    enum class addr_mode_t: uint8_t
-    {
-        NoAddr_NoEP = ZB_APS_ADDR_MODE_DST_ADDR_ENDP_NOT_PRESENT,
-        Group_NoEP = ZB_APS_ADDR_MODE_16_GROUP_ENDP_NOT_PRESENT,
-        Dst16EP = ZB_APS_ADDR_MODE_16_ENDP_PRESENT,
-        Dst64EP = ZB_APS_ADDR_MODE_64_ENDP_PRESENT,
-        EPAsBindTableId = ZB_APS_ADDR_MODE_BIND_TBL_ID
-    };
 
     template<class Func> requires std::is_function_v<Func>
     struct cmd_out_t
@@ -72,6 +64,8 @@ namespace zbm
     {
         using cmd_type_t = typename [:std::meta::type_of(cmd_out_mem_refl):];
         static constexpr auto cmd_a = *get_sending_command_annotation(cmd_out_mem_refl);
+        static constexpr auto cluster_a = *get_parent_cluster_annotation(cmd_out_mem_refl);
+        static_assert(cluster_a.role == role_t::Client || cluster_a.role == role_t::Server);
 
         struct arg_storage_t;
         consteval{
@@ -116,6 +110,11 @@ namespace zbm
             }
         };
 
+
+        /**********************************************************************/
+        /* prepare_args for various destination call modes                    */
+        /**********************************************************************/
+
         template<class... TArgs>
         static args_ret_t prepare_args(zb_callback_t cb, TArgs&&... args) { 
             auto r = g_Pool.PtrToIdx(g_Pool.Acquire(
@@ -129,15 +128,63 @@ namespace zbm
             return r == PoolType::kInvalid ? std::nullopt : args_ret_t(r);
         }
 
+        template<class... TArgs>
+        static args_ret_t prepare_args(zb_callback_t cb, uint16_t short_addr, uint8_t ep, TArgs&&... args) { 
+            auto r = g_Pool.PtrToIdx(g_Pool.Acquire(
+                        cb, 
+                        short_addr, 
+                        ep, 
+                        addr_mode_t::Dst16EP, 
+                        false, 
+                        store_arguments_t<TArgs...>::store(std::forward<TArgs>(args)...)
+                    )); 
+            return r == PoolType::kInvalid ? std::nullopt : args_ret_t(r);
+        }
+
+        template<class... TArgs>
+        static args_ret_t prepare_args(zb_callback_t cb, zb_ieee_addr_t ieee_addr, uint8_t ep, TArgs&&... args) { 
+            auto r = g_Pool.PtrToIdx(g_Pool.Acquire(
+                        cb, 
+                        zb_addr_u{.addr_long{ieee_addr}}, 
+                        ep, 
+                        addr_mode_t::Dst64EP, 
+                        false, 
+                        store_arguments_t<TArgs...>::store(std::forward<TArgs>(args)...)
+                    )); 
+            return r == PoolType::kInvalid ? std::nullopt : args_ret_t(r);
+        }
+
+        template<class... TArgs>
+        static args_ret_t prepare_args(zb_callback_t cb, uint8_t bind_table_id, TArgs&&... args) { 
+            auto r = g_Pool.PtrToIdx(g_Pool.Acquire(
+                        cb, 
+                        uint16_t(0), 
+                        bind_table_id, 
+                        addr_mode_t::EPAsBindTableId, 
+                        false, 
+                        store_arguments_t<TArgs...>::store(std::forward<TArgs>(args)...)
+                    )); 
+            return r == PoolType::kInvalid ? std::nullopt : args_ret_t(r);
+        }
+
+        /**********************************************************************/
+        /* Serialization                                                      */
+        /**********************************************************************/
         static uint8_t* serialize_to(arg_storage_t const& src, uint8_t *dest)
         {
             template for(constexpr size_t i : std::ranges::views::iota(size_t(0), cmd_type_t::g_Params.size()))
             {
                 constexpr auto name = detail::arg_name_provider<i>();
                 auto const& m = src.[:find_member_by_name(^^arg_storage_t, name.chars):];
-                //TODO: add support for custom serialization
-                std::memcpy(dest, &m, sizeof(m));
-                dest += sizeof(m);
+                if constexpr (serializable_c<decltype(m)>)
+                {
+                    dest = *m.serialize_to(dest, size_t(-1)/*real limits are unknown atm*/);
+                }
+                else
+                {
+                    std::memcpy(dest, &m, sizeof(m));
+                    dest += sizeof(m);
+                }
             }
             return dest;
         }
@@ -145,6 +192,66 @@ namespace zbm
         static uint8_t* serialize_to(pool_idx_type_t idx, uint8_t *dest)
         {
             return serialize_to(g_Pool.IdxToPtr(idx)->args, dest);
+        }
+
+        /**********************************************************************/
+        /* Request for buffer to send cmd                                     */
+        /**********************************************************************/
+        template<ep_a epa>
+        static bool request(uint16_t argsPoolIdx)
+        {
+            static_assert(epa.profile_id && cmd_a.pool_size >= 1, "This command cannot be sent");
+            return zigbee_get_out_buf_delayed_ext( &on_out_buf_ready<epa>, argsPoolIdx, 0) == RET_OK;
+        }
+
+        static void cancel(uint16_t argsPoolIdx)
+        {
+            auto *pArgs = g_Pool.IdxToPtr(argsPoolIdx);
+            if (g_Pool.IsValid(pArgs))
+                pArgs->canceled = true;
+        }
+
+        template<ep_a epa>
+        static void on_out_buf_ready(zb_bufid_t bufid, uint16_t poolIdx)
+        {
+            auto *pArgs = g_Pool.IdxToPtr(poolIdx);
+            if (!g_Pool.IsValid(pArgs))
+            {
+                //weird
+                return;
+            }
+
+            RequestPtr raii(pArgs);
+            if (pArgs->canceled)
+            {
+                if (bufid != ZB_BUF_INVALID)
+                    zb_buf_free(bufid);
+                return;
+            }
+
+            if (bufid == ZB_BUF_INVALID)
+            {
+                //out of mem?
+                if (pArgs->cb) pArgs->cb(0);
+                return;
+            }
+
+            constexpr uint16_t manu_code = cmd_a.manuf_code != ZB_ZCL_MANUF_CODE_INVALID ? cmd_a.manuf_code : cluster_a.manuf_code;
+
+            frame_ctl_t f{.f{
+                .cluster_specific = true, 
+                .manufacture_specific = manu_code != ZB_ZCL_MANUF_CODE_INVALID
+                , .direction = cluster_a.role == role_t::Client ? frame_direction_t::ToServer : frame_direction_t::ToClient
+                , .disable_default_response = false
+            }};
+            ZB_ZCL_GET_SEQ_NUM();
+            uint8_t* ptr = (uint8_t*)zb_zcl_start_command_header(bufid, f.u8, manu_code, cmd_a.id, nullptr);
+            ptr = serialize_to(pArgs->args, ptr);
+            zb_ret_t ret = zb_zcl_finish_and_send_packet(bufid, ptr, &pArgs->dst_addr, (uint8_t)pArgs->addr_mode, pArgs->dst_ep, epa.ep, epa.profile_id, cluster_a.id, pArgs->cb);
+            if (RET_OK != ret && pArgs->cb)
+                pArgs->cb(0);
+            if (RET_OK != ret)
+                zb_buf_free(bufid);
         }
     };
 }

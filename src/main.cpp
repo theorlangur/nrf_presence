@@ -163,8 +163,7 @@ zb_ret_t check_f1(uint8_t *v)
     zb_dev.ep_01.set_raw<^^smart_cluster_t::f3, false>(1);
     using pool_t = zbm::cmd_out_pool_t<^^smart_cluster_t::c1>;
     auto r = pool_t::prepare_args(nullptr, 'a', -60, 0.5f);
-    uint8_t buf[120];
-    uint8_t *pDest = pool_t::serialize_to(*r, buf);
+    pool_t::request<zbm::ep_a{.ep=1}>(*r);
     return RET_OK;
 }
 

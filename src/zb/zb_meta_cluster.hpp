@@ -176,7 +176,7 @@ namespace zbm
         const uint8_t *pData;
         size_t dataLeft;
         bool error = false;
-        template<class A> requires (alignof(A) == 1)
+        template<class A> requires ((alignof(A) == 1) && !serializable_c<A>)
         const A& extract()
         {
             //TODO: add support for complex types as zigbee_str_t
@@ -192,7 +192,7 @@ namespace zbm
             return *p;
         }
 
-        template<class A> requires (alignof(A) > 1)
+        template<class A> requires ((alignof(A) > 1) && !serializable_c<A>)
         A extract()
         {
             static_assert(sizeof(A) <= 4, "type_t is too big");
@@ -208,6 +208,24 @@ namespace zbm
             pData += sizeof(A);
             A ret;
             memcpy(&ret, p, sizeof(A));
+            return ret;
+        }
+
+        template<serializable_c A>
+        A extract()
+        {
+            A ret;
+            if (auto res = ret.serialize_from(pData, dataLeft); !res)
+            {
+                error = true;
+                dataLeft = 0;
+                return {};
+            }else
+            {
+                size_t sz = *res - pData;
+                dataLeft -= sz;
+                pData = *res;
+            }
             return ret;
         }
     };
