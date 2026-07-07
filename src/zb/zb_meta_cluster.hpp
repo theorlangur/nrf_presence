@@ -59,7 +59,6 @@ namespace zbm
         static constexpr size_t N_cmd_out = cmd_out_info.size();
 
         consteval cluster_t():
-            cluster_struct([:cluster_ref:]),
             attributes{
                 {
                     .id = ZB_ZCL_ATTR_GLOBAL_CLUSTER_REVISION_ID, 
@@ -103,7 +102,6 @@ namespace zbm
                     generated_commands[i++] = a.annotation.id; 
             }
 
-        cluster_data_type_t &cluster_struct;//TODO: is it needed?
         alignas(4) zb_zcl_attr_t attributes[N + 2];
         zb_uint16_t rev;
 
@@ -179,7 +177,6 @@ namespace zbm
         template<class A> requires ((alignof(A) == 1) && !serializable_c<A>)
         const A& extract()
         {
-            //TODO: add support for complex types as zigbee_str_t
             const A *p = (const A*)pData;
             pData += sizeof(A);
             if (dataLeft < sizeof(A))

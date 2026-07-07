@@ -7,7 +7,6 @@ extern "C" {
 #include <type_traits>
 #include <meta>
 #include <ranges>
-#include <format>
 
 namespace zbm
 {

@@ -52,8 +52,6 @@ namespace zbm
                 constexpr auto nsdm_ep_mem = std::meta::reflect_object([:dev_data_ref:].[:ei.ep:]);
                 constexpr auto ep_create_inst_t = std::meta::substitute(^^ep_create_t, {std::meta::reflect_constant(ei.ep), std::meta::reflect_constant(nsdm_ep_mem)});
                 using ep_end_type_t = typename [:ep_create_inst_t:]::ep_front_t;
-                //TODO: use correct ep_front_t
-                //ep_ref = std::meta::dealias(std::meta::members_of(ep_ref, std::meta::access_context::current())[0]);//ep_create_t::ep_type_t
                 constexpr auto ep_ref = std::meta::add_lvalue_reference(^^ep_end_type_t);
                 constexpr auto name = detail::ep_name_provider<ei.annotation.ep>();
                 mems.push_back(std::meta::data_member_spec(ep_ref, std::meta::data_member_options{.name = name.chars}));
