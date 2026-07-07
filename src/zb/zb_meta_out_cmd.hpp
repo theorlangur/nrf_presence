@@ -27,14 +27,6 @@ namespace zbm
             std::sort(indices.begin(), indices.end(), [](auto p1, auto p2){ return std::meta::alignment_of(g_Params[p1]) > std::meta::alignment_of(g_Params[p2]); });
             return std::define_static_array(indices);
         }();
-        //order of parameters to call when delivered from the pool
-        //mapped as: position 'idx' of the parameter in the function signature => position of the member in the pool item structure
-        static constexpr auto g_ParamsIndxSortedForCall = []() consteval{
-            std::array<size_t, g_Params.size()> indices{};
-            for(size_t i = 0; i < g_Params.size(); ++i)
-                indices[i] = std::distance(g_ParamsIndxSortedForStorage.begin(), std::find(g_ParamsIndxSortedForStorage.begin(), g_ParamsIndxSortedForStorage.end(), i));
-            return std::define_static_array(indices);
-        }();
     };
 
     namespace detail {
@@ -161,6 +153,19 @@ namespace zbm
                         uint16_t(0), 
                         bind_table_id, 
                         addr_mode_t::EPAsBindTableId, 
+                        false, 
+                        store_arguments_t<TArgs...>::store(std::forward<TArgs>(args)...)
+                    )); 
+            return r == PoolType::kInvalid ? std::nullopt : args_ret_t(r);
+        }
+
+        template<class... TArgs>
+        static args_ret_t prepare_args(zb_callback_t cb, uint16_t group_id, TArgs&&... args) { 
+            auto r = g_Pool.PtrToIdx(g_Pool.Acquire(
+                        cb, 
+                        group_id, 
+                        uint8_t(0), 
+                        addr_mode_t::Group_NoEP, 
                         false, 
                         store_arguments_t<TArgs...>::store(std::forward<TArgs>(args)...)
                     )); 

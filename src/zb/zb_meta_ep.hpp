@@ -6,6 +6,7 @@
 #include "zb_meta_types.hpp"
 #include "zb_meta_annotations.hpp"
 #include "zb_meta_cluster.hpp"
+#include "zb_meta_out_cmd.hpp"
 
 
 namespace zbm
@@ -20,6 +21,43 @@ namespace zbm
     struct ZB_PACKED_PRE simple_desc_t<ServerCount, ClientCount>: zb_af_simple_desc_1_1_t
     {
     } ZB_PACKED_STRUCT;
+
+
+    struct short_addr_t
+    {
+        using addr_tag = void;
+        uint16_t short_addr;
+        uint8_t ep;
+    };
+    struct long_addr_t
+    {
+        using addr_tag = void;
+        long_addr_t(zb_ieee_addr_t a, uint8_t e):
+            ep(e)
+        {
+            memcpy(long_addr, a, sizeof(zb_ieee_addr_t));
+        }
+        zb_ieee_addr_t long_addr;
+        uint8_t ep;
+    };
+    struct group_addr_t
+    {
+        using addr_tag = void;
+        uint16_t group;
+    };
+    struct bind_id_addr_t
+    {
+        using addr_tag = void;
+        uint8_t bind_table_id;
+    };
+
+    inline short_addr_t to_short(uint16_t _short, uint8_t ep) { return {_short, ep}; }
+    inline long_addr_t to_long(zb_ieee_addr_t addr, uint8_t ep) { return {addr, ep}; }
+    inline group_addr_t to_group(uint16_t group) { return {group}; }
+    inline bind_id_addr_t to_bind_id(uint8_t id) { return {id}; }
+
+    template<class C>
+    concept is_zb_addr_type_c = requires{ typename C::addr_tag; };
 
     template<std::meta::info local_clusters_r>
     struct meta_ctr_param_t{};
@@ -160,6 +198,27 @@ namespace zbm
         {
 
             /**********************************************************************/
+            /* Various types and declarations and statics                         */
+            /**********************************************************************/
+            static constexpr size_t kCmdQueueSize = epa.cmd_queue_depth;
+            using cmd_id_t = int;
+            using cmd_send_status_cb_t = void(*)(cmd_id_t, zb_zcl_command_send_status_t *);
+            using send_request_func_t = bool (*)(uint16_t argsPoolIdx);
+            using cancel_func_t = void (*)(uint16_t argsPoolIdx);
+            struct cmd_request_t
+            {
+                cmd_id_t id;
+                uint8_t args_idx;
+                send_request_func_t send_req;
+                cancel_func_t cancel_req;
+                cmd_send_status_cb_t cb;
+                uint32_t timeout_ms;
+            };
+            inline static RingBuffer<cmd_request_t, kCmdQueueSize> g_cmd_queue;
+            inline static zb::zb_alarm_ext_16_t g_cmd_timeout_tracker;
+            inline static cmd_id_t g_cmd_num = 0;
+
+            /**********************************************************************/
             /* Attribute Set                                                      */
             /**********************************************************************/
             template<std::meta::info attribute_refl, bool checked, class A>
@@ -200,29 +259,138 @@ namespace zbm
             /**********************************************************************/
             /* Sending commands                                                   */
             /**********************************************************************/
-            static constexpr size_t kCmdQueueSize = epa.cmd_queue_depth;
-            using cmd_id_t = int;
-            using cmd_send_status_cb_t = void(*)(cmd_id_t, zb_zcl_command_send_status_t *);
-            struct cmd_request_t
-            {
-                cmd_id_t id;
-                uint8_t args_idx;
-                //send_request_func_t send_req;
-                //cancel_func_t cancel_req;
-                cmd_send_status_cb_t cb;
-                uint32_t timeout_ms;
-            };
-            inline static RingBuffer<cmd_request_t, kCmdQueueSize> g_CmdQueue;
 
             struct send_cmd_config_t
             {
-                cmd_send_status_cb_t cb;
-                uint32_t timeout_ms = 0;//kCmdTimeoutDefault;
+                cmd_send_status_cb_t cb = nullptr;
+                uint32_t timeout_ms = kCmdTimeoutDefault;
             };
-            template<std::meta::info cmd_out_refl, send_cmd_config_t cfg, class... Args>
-            std::optional<cmd_id_t> send_raw(Args&&...args)
+
+            template<std::meta::info cmd_out_refl, send_cmd_config_t cfg, class... Args> requires (!is_zb_addr_type_c<Args> && ...)
+            std::optional<cmd_id_t> send_cmd(Args&&...args)
             {
-                return {};
+                using pool_t = cmd_out_pool_t<cmd_out_refl>;
+                return send_cmd_impl<cmd_out_refl, cfg>(pool_t::prepare_args(&on_send_cmd_cb, std::forward<Args>(args)...));
+            }
+
+            template<std::meta::info cmd_out_refl, send_cmd_config_t cfg, class... Args>
+            std::optional<cmd_id_t> send_cmd(long_addr_t a, Args&&...args)
+            {
+                using pool_t = cmd_out_pool_t<cmd_out_refl>;
+                return send_cmd_impl<cmd_out_refl, cfg>(pool_t::prepare_args(&on_send_cmd_cb, a.long_addr, a.ep, std::forward<Args>(args)...));
+            }
+
+            template<std::meta::info cmd_out_refl, send_cmd_config_t cfg, class... Args>
+            std::optional<cmd_id_t> send_cmd(group_addr_t a, Args&&...args)
+            {
+                using pool_t = cmd_out_pool_t<cmd_out_refl>;
+                return send_cmd_impl<cmd_out_refl, cfg>(pool_t::prepare_args(&on_send_cmd_cb, a.group, std::forward<Args>(args)...));
+            }
+
+            template<std::meta::info cmd_out_refl, send_cmd_config_t cfg, class... Args>
+            std::optional<cmd_id_t> send_cmd(bind_id_addr_t a, Args&&...args)
+            {
+                using pool_t = cmd_out_pool_t<cmd_out_refl>;
+                return send_cmd_impl<cmd_out_refl, cfg>(pool_t::prepare_args(&on_send_cmd_cb, a.bind_table_id, std::forward<Args>(args)...));
+            }
+
+
+            private:
+
+            static void on_send_cmd_timeout(cmd_request_t *pCmdReq)
+            {
+                pCmdReq->cancel_req(pCmdReq->args_idx);
+                auto *pCurrent = g_cmd_queue.peek();
+                if (pCurrent == pCmdReq)
+                    on_send_cmd_cb(0);
+                else
+                {
+                    //how is this possible?
+                }
+            }
+
+            static bool send_next_cmd(bool with_cb = true)
+            {
+                if (auto *pNextCmd = g_cmd_queue.peek())
+                {
+                    //try and send next request
+                    if (!pNextCmd->send_req(pNextCmd->args_idx))
+                    {
+                        //couldn't send
+                        auto cb = pNextCmd->cb;
+                        auto cmd_id = pNextCmd->id;
+                        g_cmd_queue.drop();
+                        if (cb && with_cb)
+                            cb(cmd_id, nullptr);
+#if defined(DBG_CMD)
+                        else
+                            printk("failed to initiate send command request for %d (cb=%p)\r\n", cmd_id, cb);
+#endif
+                        return false;
+                    }else if (pNextCmd->timeout_ms)
+                        g_cmd_timeout_tracker.Setup([pNextCmd]{on_send_cmd_timeout(pNextCmd);}, pNextCmd->timeout_ms);
+                    return true;
+                }
+                return false;
+            }
+
+            static void on_send_cmd_cb(zb_uint8_t param)
+            {
+                g_cmd_timeout_tracker.Cancel();
+                auto *pCurrent = g_cmd_queue.peek();
+                if (!pCurrent)
+                {
+#if defined(DBG_CMD)
+                    printk("on_send_cmd_cb: param=%d; pCurrent=null; queue empty. unexpected\r\n", param);
+#endif
+                    return;
+                }
+                ZB_ASSERT(pCurrent);
+                auto cmd_id = pCurrent->id;
+                auto cb = pCurrent->cb;
+#if defined(DBG_CMD)
+                printk("on_send_cmd_cb: param=%d; id=%d; cb=%p; pCurrent=%p\r\n", param, cmd_id, (void*)cb, pCurrent);
+#endif
+                g_cmd_queue.drop();
+                if (cb)
+                {
+                    zb_zcl_command_send_status_t *cmd_send_status = param ? ZB_BUF_GET_PARAM(param, zb_zcl_command_send_status_t) : nullptr;
+                    cb(cmd_id, cmd_send_status);
+                }
+
+                if (param)
+                    zb_buf_free(param);
+                //if we cannot send commands we'll just drain the queue
+                //sad but there's nothing much else we can do
+                while(g_cmd_queue.peek() && !send_next_cmd());
+            }
+
+            template<std::meta::info cmd_out_refl, send_cmd_config_t cfg>
+            std::optional<cmd_id_t> send_cmd_impl(auto args_pool_idx)
+            {
+                using pool_t = cmd_out_pool_t<cmd_out_refl>;
+                typename pool_t::RequestPtr raii(pool_t::g_Pool.IdxToPtr(*args_pool_idx));
+                constexpr auto kTimeout = cfg.timeout_ms == kCmdTimeoutDefault ? pool_t::cmd_a.timeout_ms : cfg.timeout_ms;
+                auto r = g_cmd_queue.push(
+                        /*struct cmd_request*/
+                        /*id*/        g_cmd_num,
+                        /*args_idx*/  *args_pool_idx,
+                        /*send_req*/  &pool_t::template request<epa>,
+                       /*cancel_req*/ &pool_t::cancel,
+                        /*cb*/        cfg.cb,
+                        /*timeout_ms*/kTimeout
+                );
+                if (!r) return std::nullopt;
+                //if the size of the Queue is 1 it means this command is the only there
+                //we need to send it right away
+#if defined(DBG_CMD)
+                printk("send_cmd1: id=%d; cb=%p\r\n", g_cmd_num, (void*)cfg.cb);
+#endif
+                if (*r == 1) 
+                    if (!send_next_cmd(false))
+                        return std::nullopt;
+                raii.release();
+                return g_cmd_num++;
             }
         };
 

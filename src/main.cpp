@@ -37,7 +37,6 @@
 #include <atomic>
 
 #include "zb/zb_meta_device.hpp"
-#include "zb/zb_meta_out_cmd.hpp"
 
 
 //static_assert(sizeof(zbm::ep_base_t<{.server_clusters = 1, .client_clusters = 1, .reporting_attributes = 1, .cvc_attributes = 1}>)
@@ -161,9 +160,11 @@ constinit static smart_cluster_t smart{};
 zb_ret_t check_f1(uint8_t *v)
 {
     zb_dev.ep_01.set_raw<^^smart_cluster_t::f3, false>(1);
-    using pool_t = zbm::cmd_out_pool_t<^^smart_cluster_t::c1>;
-    auto r = pool_t::prepare_args(nullptr, 'a', -60, 0.5f);
-    pool_t::request<zbm::ep_a{.ep=1}>(*r);
+    zb_dev.ep_01.send_cmd<^^smart_cluster_t::c1, {}>('a', int16_t(-60), 0.5f);
+    //using pool_t = zbm::cmd_out_pool_t<^^smart_cluster_t::c1>;
+    //static_assert(sizeof(pool_t::arg_storage_t) == 8);
+    //auto r = pool_t::prepare_args(nullptr, );
+    //pool_t::request<zbm::ep_a{.ep=1}>(*r);
     return RET_OK;
 }
 

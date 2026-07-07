@@ -49,11 +49,12 @@ namespace zbm
     {
     };
 
+    static const constexpr uint32_t kCmdTimeoutDefault = uint32_t(-1);
     struct cmd_out_a: cmd_a
     {
         uint8_t pool_size = 1;
         uint16_t manuf_code = ZB_ZCL_MANUF_CODE_INVALID;
-        uint32_t timeout_ms = 0;//no timeout
+        uint32_t timeout_ms = 0;
     };
 
     struct cluster_a
