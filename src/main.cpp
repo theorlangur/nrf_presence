@@ -74,6 +74,7 @@ struct [[=zbm::cluster_a{.id = 0xfeff}]] smart_cluster_t
     [[=zbm::attribute_a{.id = 10, .a = zbm::access_t::Read}]] uint8_t f1;
     [[=zbm::attribute_a{.id = 30, .a = zbm::access_t::Write, .validator = check_f1}]] int16_t f3;
     [[=zbm::attribute_a{.id = 50, .a = zbm::access_t::Write}]] MyType f5;
+    [[=zbm::attribute_a{.id = 60, .a = zbm::access_t::Write}]] zbm::str_t<33> f4;
     float f6;
     [[=zbm::cmd_out_a{{.id = 10}, /*.pool_size=*/3}]]
     zbm::cmd_out_t<void(char, int16_t, float)> c1;
@@ -207,6 +208,10 @@ void dummy_cb_handler4(zb_zcl_device_callback_param_t *pDev, zb_zcl_set_attr_val
 {
 }
 
+void dummy_cb_handler5(zb_zcl_device_callback_param_t *pDev, zb_zcl_set_attr_value_param_t *pSetParam, std::string_view sv)
+{
+}
+
 zb_ret_t check_f1(uint8_t *v)
 {
     zb_dev.ep_01.set_raw<^^smart_cluster_t::f3, false>(1);
@@ -234,6 +239,7 @@ zb_ret_t check_f1(uint8_t *v)
 	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep2, .target = ^^smart_cluster_t::f1, .handler = ^^dummy_cb_handler3}
 	,zbm::cb_handler_t{.id = ZB_ZCL_REPORT_ATTR_CB_ID, .ep=^^dev_ctx::ep1, .target={}, .handler = ^^dummy_cb_handler}
 	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep1, .target = ^^smart_cluster_t::f3, .handler = ^^dummy_cb_handler4}
+	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep1, .target = ^^smart_cluster_t::f4, .handler = ^^dummy_cb_handler5}
 
     >(0);
 
