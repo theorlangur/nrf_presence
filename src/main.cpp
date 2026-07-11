@@ -212,6 +212,14 @@ void dummy_cb_handler5(zb_zcl_device_callback_param_t *pDev, zb_zcl_set_attr_val
 {
 }
 
+void dummy_cb_handler6(int16_t v)
+{
+}
+
+void dummy_cb_handler7(std::string_view sv)
+{
+}
+
 zb_ret_t check_f1(uint8_t *v)
 {
     zb_dev.ep_01.set_raw<^^smart_cluster_t::f3, false>(1);
@@ -240,6 +248,8 @@ zb_ret_t check_f1(uint8_t *v)
 	,zbm::cb_handler_t{.id = ZB_ZCL_REPORT_ATTR_CB_ID, .ep=^^dev_ctx::ep1, .target={}, .handler = ^^dummy_cb_handler}
 	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep1, .target = ^^smart_cluster_t::f3, .handler = ^^dummy_cb_handler4}
 	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep1, .target = ^^smart_cluster_t::f4, .handler = ^^dummy_cb_handler5}
+	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep1, .target = ^^smart_cluster_t::f3, .handler = ^^dummy_cb_handler6}
+	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep1, .target = ^^smart_cluster_t::f4, .handler = ^^dummy_cb_handler7}
 
     >(0);
 
