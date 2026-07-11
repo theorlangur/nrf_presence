@@ -36,7 +36,7 @@
 
 #include <atomic>
 
-#include "zb/zb_meta_device.hpp"
+#include <nrfzbmcpp/zbm.hpp>
 
 
 //static_assert(sizeof(zbm::ep_base_t<{.server_clusters = 1, .client_clusters = 1, .reporting_attributes = 1, .cvc_attributes = 1}>)
@@ -157,6 +157,56 @@ static_assert(decltype(zbm::ep_create_t<^^dev_ctx::ep1, std::meta::reflect_objec
 
 constinit static smart_cluster_t smart{};
 
+std::optional<zb_ret_t> handler1()
+{
+    return std::nullopt;//default
+}
+
+std::optional<zb_ret_t> handler2(zb_ret_t status)
+{
+    return std::nullopt;//default
+}
+
+std::optional<zb_ret_t> handler3(zb_ret_t status, zb_zdo_signal_can_sleep_params_t *pParams)
+{
+    return std::nullopt;//default
+}
+
+void handler4()
+{
+    return;//default
+}
+
+void handler5(zb_ret_t status)
+{
+    return;//default
+}
+
+void handler6(zb_ret_t status, zb_zdo_signal_can_sleep_params_t *pParams)
+{
+    return;//default
+}
+
+constinit zbm::tools::fixed_function_t<16, std::optional<zb_ret_t>()> g_FlexHandle1{};
+constinit zbm::tools::fixed_function_t<16, std::optional<zb_ret_t>(zb_ret_t)> g_FlexHandle2{};
+constinit zbm::tools::fixed_function_t<16, std::optional<zb_ret_t>(zb_ret_t, zb_zdo_signal_can_sleep_params_t *pParams)> g_FlexHandle3{};
+
+void dummy_cb_handler()
+{
+}
+
+void dummy_cb_handler2(zb_zcl_device_callback_param_t *pDev)
+{
+}
+
+void dummy_cb_handler3(zb_zcl_device_callback_param_t *pDev, zb_zcl_set_attr_value_param_t *pSetParam)
+{
+}
+
+void dummy_cb_handler4(zb_zcl_device_callback_param_t *pDev, zb_zcl_set_attr_value_param_t *pSetParam, int16_t v)
+{
+}
+
 zb_ret_t check_f1(uint8_t *v)
 {
     zb_dev.ep_01.set_raw<^^smart_cluster_t::f3, false>(1);
@@ -165,6 +215,28 @@ zb_ret_t check_f1(uint8_t *v)
     //static_assert(sizeof(pool_t::arg_storage_t) == 8);
     //auto r = pool_t::prepare_args(nullptr, );
     //pool_t::request<zbm::ep_a{.ep=1}>(*r);
+    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^handler1}>(0);
+    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^handler2}>(0);
+    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^handler3}>(0);
+    //zbm::tpl_signal_handler<{.signal = ZB_SIGNAL_DEVICE_REBOOT, .function_refl = ^^handler3}>(0);
+    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^handler4}>(0);
+    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^handler5}>(0);
+    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^handler6}>(0);
+
+    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^g_FlexHandle1}>(0);
+    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^g_FlexHandle2}>(0);
+    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^g_FlexHandle3}>(0);
+
+    zbm::tpl_device_cb<
+	zbm::dev_cb_handlers_desc_t{},
+	zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep={}, .target = ^^smart_cluster_t::f3, .handler = ^^dummy_cb_handler}
+	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep1, .target = ^^smart_cluster_t::f1, .handler = ^^dummy_cb_handler2}
+	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep2, .target = ^^smart_cluster_t::f1, .handler = ^^dummy_cb_handler3}
+	,zbm::cb_handler_t{.id = ZB_ZCL_REPORT_ATTR_CB_ID, .ep=^^dev_ctx::ep1, .target={}, .handler = ^^dummy_cb_handler}
+	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep1, .target = ^^smart_cluster_t::f3, .handler = ^^dummy_cb_handler4}
+
+    >(0);
+
     return RET_OK;
 }
 

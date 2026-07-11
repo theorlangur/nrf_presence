@@ -10,3 +10,6 @@
 [submodule "submodules/nrf_uart"]
 	path = submodules/nrf_uart
 	url = git@github.com:theorlangur/nrf_uart.git
+[submodule "submodules/nrf_zbm_cpp"]
+	path = submodules/nrf_zbm_cpp
+	url = git@github.com:theorlangur/nrf_zbm_cpp.git
