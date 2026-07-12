@@ -176,7 +176,18 @@ struct dev_ctx2
 //constinit static zbm::cluster_t<std::meta::reflect_object(ep_test.smart)> cluster_test;
 //constinit static zbm::cluster_list_factory_t<^^ep_test>::cluster_list_t c_list{};
 //
-constinit static dev_ctx my_dev{};
+constinit static dev_ctx my_dev{
+    .ep1 = {
+	.on_off = {
+	    .on_off = {},
+	    .on_cmd_on = []{
+		return zbm::cmd_handling_result_t{};
+	    }
+	}
+    },
+    .ep2 = {}
+    ,.ep3 = {}
+};
 constinit static zbm::device_full_t<^^my_dev> zb_dev{};
 
 //constinit static dev_ctx2 my_dev2{};
@@ -259,7 +270,7 @@ void dummy_cb_handler7(std::string_view sv)
 zb_ret_t check_f1(uint8_t *v)
 {
     zb_dev.ep_01.set_raw<^^smart_cluster_t::f3, false>(1);
-    //zb_dev.ep_01.set<^^zbm::zcl::basic_ext_t::stack_version>(1);
+    zb_dev.ep_01.set<^^zbm::zcl::basic_ext_t::stack_version>(1);
     zb_dev.ep_01.send_cmd<^^smart_cluster_t::c1, {}>('a', int16_t(-60), 0.5f);
     //using pool_t = zbm::cmd_out_pool_t<^^smart_cluster_t::c1>;
     //static_assert(sizeof(pool_t::arg_storage_t) == 8);
