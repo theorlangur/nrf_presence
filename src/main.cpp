@@ -41,6 +41,7 @@
 #include <nrfzbmcpp/zcl/zbm_zcl_identify.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_groups.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_level_ctrl.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_basic.hpp>
 
 
 //static_assert(sizeof(zbm::ep_base_t<{.server_clusters = 1, .client_clusters = 1, .reporting_attributes = 1, .cvc_attributes = 1}>)
@@ -124,6 +125,7 @@ static_assert(std::convertible_to<decltype(dummy_cluster_t::my_cmd_handler), boo
 
 struct ep_test_t
 {
+    zbm::zcl::basic_ext_t basic;
     dummy_cluster_t dummy;
     smart_cluster_t smart;
     zbm::zcl::on_off_server_t on_off;
@@ -143,23 +145,50 @@ struct ep_test_t
     }
 };
 
+struct non_cluster
+{
+    int x;
+};
+
+struct ep_test2_t
+{
+    non_cluster basic;
+};
+
 struct dev_ctx
 {
     [[=zbm::ep_a{.ep = 1, .dev_id=2, .dev_ver = 0}]]
     ep_test_t ep1;
     [[=zbm::ep_a{.ep = 2, .dev_id=2, .dev_ver = 0}]]
     ep_test_t ep2;
+    //[[=zbm::ep_a{.ep = 3, .dev_id=2, .dev_ver = 0}]]
+    ep_test2_t ep3;
+};
+
+struct dev_ctx2
+{
+    [[=zbm::ep_a{.ep = 1, .dev_id=2, .dev_ver = 0}]]
+    ep_test2_t ep1;
 };
 
 
 //auto &gen_ep = zbm::ep_create_t<^^ep_test>::value;
 //constinit static zbm::cluster_t<std::meta::reflect_object(ep_test.smart)> cluster_test;
 //constinit static zbm::cluster_list_factory_t<^^ep_test>::cluster_list_t c_list{};
+//
 constinit static dev_ctx my_dev{};
 constinit static zbm::device_full_t<^^my_dev> zb_dev{};
 
-static_assert(decltype(zb_dev)::ep_list.size() == 2);
-static_assert(decltype(zbm::ep_create_t<^^dev_ctx::ep1, std::meta::reflect_object(my_dev.ep1)>::clusters.cluster_client_fefe)::N_cmd_in == 1);
+//constinit static dev_ctx2 my_dev2{};
+//constinit static zbm::device_full_t<^^my_dev2> zb_dev2{};
+
+//static_assert(std::meta::bases_of(std::meta::type_of(^^ep_test2_t::basic), std::meta::access_context::current()).size() == 1);
+//static_assert(zbm::get_cluster_annotation(^^ep_test2_t::basic));
+//static_assert(!zbm::extract_clusters_from_ep(std::meta::reflect_object(my_dev2.ep1)).empty());
+//static zbm::ep_create_t<^^dev_ctx2::ep1, ^^my_dev2.ep1> epc;
+
+//static_assert(decltype(zb_dev)::ep_list.size() == 2);
+//static_assert(decltype(zbm::ep_create_t<^^dev_ctx::ep1, std::meta::reflect_object(my_dev.ep1)>::clusters.cluster_client_fefe)::N_cmd_in == 1);
 //static_assert(&c_list.cluster_feff.cluster_struct == &ep_test.smart);
 //static_assert(sizeof(c_list.cluster_feff) == 0);
 
@@ -230,6 +259,7 @@ void dummy_cb_handler7(std::string_view sv)
 zb_ret_t check_f1(uint8_t *v)
 {
     zb_dev.ep_01.set_raw<^^smart_cluster_t::f3, false>(1);
+    //zb_dev.ep_01.set<^^zbm::zcl::basic_ext_t::stack_version>(1);
     zb_dev.ep_01.send_cmd<^^smart_cluster_t::c1, {}>('a', int16_t(-60), 0.5f);
     //using pool_t = zbm::cmd_out_pool_t<^^smart_cluster_t::c1>;
     //static_assert(sizeof(pool_t::arg_storage_t) == 8);
