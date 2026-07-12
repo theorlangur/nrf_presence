@@ -42,6 +42,8 @@
 #include <nrfzbmcpp/zcl/zbm_zcl_groups.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_level_ctrl.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_basic.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_poll_ctrl.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_occupancy.hpp>
 
 
 //static_assert(sizeof(zbm::ep_base_t<{.server_clusters = 1, .client_clusters = 1, .reporting_attributes = 1, .cvc_attributes = 1}>)
@@ -130,6 +132,8 @@ struct ep_test_t
     smart_cluster_t smart;
     zbm::zcl::on_off_server_t on_off;
     zbm::zcl::on_off_client_t on_off2;//TODO: must not be possible
+    zbm::zcl::poll_ctrl_t poll;
+    zbm::zcl::occupancy_pir_and_ultrasonic_t presence;
 };
 
 [[=zbm::ep_a{.ep = 1, .dev_id=2, .dev_ver = 0}]]constinit static ep_test_t ep_test{
@@ -271,7 +275,13 @@ zb_ret_t check_f1(uint8_t *v)
 {
     zb_dev.ep_01.set_raw<^^smart_cluster_t::f3, false>(1);
     zb_dev.ep_01.set<^^zbm::zcl::basic_ext_t::stack_version>(1);
+    zb_dev.ep_01.set<^^zbm::zcl::basic_ext_t::power_source>(zbm::zcl::basic_min_t::PowerSource::Battery);
     zb_dev.ep_01.send_cmd<^^smart_cluster_t::c1, {}>('a', int16_t(-60), 0.5f);
+    zb_dev.ep_01.set<^^zbm::zcl::occupancy_t::occupancy>(1);
+    zb_dev.ep_01.set<^^zbm::zcl::occupancy_pir_and_ultrasonic_t::UltrasonicUnoccupiedToOccupiedDelay>(5);
+    zb_dev.ep_01.set<^^zbm::zcl::occupancy_pir_and_ultrasonic_t::PIRUnoccupiedToOccupiedThreshold>(6);
+    zb_dev.ep_01.set<^^zbm::zcl::poll_ctrl_t::check_in_interval>(10);
+
     //using pool_t = zbm::cmd_out_pool_t<^^smart_cluster_t::c1>;
     //static_assert(sizeof(pool_t::arg_storage_t) == 8);
     //auto r = pool_t::prepare_args(nullptr, );
