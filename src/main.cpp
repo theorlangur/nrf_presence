@@ -44,6 +44,11 @@
 #include <nrfzbmcpp/zcl/zbm_zcl_basic.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_poll_ctrl.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_occupancy.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_rel_humidity.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_co2.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_power_config.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_temperature.hpp>
+#include <nrfzbmcpp/misc_zc/zbm_misc_zc_air_q.hpp>
 
 
 //static_assert(sizeof(zbm::ep_base_t<{.server_clusters = 1, .client_clusters = 1, .reporting_attributes = 1, .cvc_attributes = 1}>)
@@ -134,6 +139,11 @@ struct ep_test_t
     zbm::zcl::on_off_client_t on_off2;//TODO: must not be possible
     zbm::zcl::poll_ctrl_t poll;
     zbm::zcl::occupancy_pir_and_ultrasonic_t presence;
+    zbm::zcl::rel_humid_ext_t rel_h;
+    zbm::zcl::co2_ext_t co2;
+    zbm::zcl::power_cfg_battery_settings_t battery;
+    zbm::zcl::temp_ext_t temper;
+    zbm::misc_zc::air_q_t airq;
 };
 
 [[=zbm::ep_a{.ep = 1, .dev_id=2, .dev_ver = 0}]]constinit static ep_test_t ep_test{
@@ -281,6 +291,11 @@ zb_ret_t check_f1(uint8_t *v)
     zb_dev.ep_01.set<^^zbm::zcl::occupancy_pir_and_ultrasonic_t::UltrasonicUnoccupiedToOccupiedDelay>(5);
     zb_dev.ep_01.set<^^zbm::zcl::occupancy_pir_and_ultrasonic_t::PIRUnoccupiedToOccupiedThreshold>(6);
     zb_dev.ep_01.set<^^zbm::zcl::poll_ctrl_t::check_in_interval>(10);
+    zb_dev.ep_01.set<^^zbm::zcl::rel_humid_ext_t::tolerance>(10);
+    zb_dev.ep_01.set<^^zbm::zcl::co2_ext_t::tolerance>(10);
+    zb_dev.ep_01.set<^^zbm::zcl::power_cfg_battery_settings_t::batt_voltage>(100);
+    zb_dev.ep_01.set<^^zbm::zcl::temp_ext_t::tolerance>(10);
+    zb_dev.ep_01.set<^^zbm::misc_zc::air_q_t::tvoc>(10.5);
 
     //using pool_t = zbm::cmd_out_pool_t<^^smart_cluster_t::c1>;
     //static_assert(sizeof(pool_t::arg_storage_t) == 8);
