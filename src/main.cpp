@@ -37,6 +37,10 @@
 #include <atomic>
 
 #include <nrfzbmcpp/zbm.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_on_off.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_identify.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_groups.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_level_ctrl.hpp>
 
 
 //static_assert(sizeof(zbm::ep_base_t<{.server_clusters = 1, .client_clusters = 1, .reporting_attributes = 1, .cvc_attributes = 1}>)
@@ -76,6 +80,7 @@ struct [[=zbm::cluster_a{.id = 0xfeff}]] smart_cluster_t
     [[=zbm::attribute_a{.id = 50, .a = zbm::access_t::Write}]] MyType f5;
     [[=zbm::attribute_a{.id = 60, .a = zbm::access_t::Write}]] zbm::str_t<33> f4;
     float f6;
+    [[=zbm::attribute_a{.id = 70, .a = zbm::access_t::Write}]] uint8_t f7;
     [[=zbm::cmd_out_a{{.id = 10}, /*.pool_size=*/3}]]
     zbm::cmd_out_t<void(char, int16_t, float)> c1;
 };
@@ -121,6 +126,8 @@ struct ep_test_t
 {
     dummy_cluster_t dummy;
     smart_cluster_t smart;
+    zbm::zcl::on_off_server_t on_off;
+    zbm::zcl::on_off_client_t on_off2;//TODO: must not be possible
 };
 
 [[=zbm::ep_a{.ep = 1, .dev_id=2, .dev_ver = 0}]]constinit static ep_test_t ep_test{
@@ -152,7 +159,7 @@ constinit static dev_ctx my_dev{};
 constinit static zbm::device_full_t<^^my_dev> zb_dev{};
 
 static_assert(decltype(zb_dev)::ep_list.size() == 2);
-static_assert(decltype(zbm::ep_create_t<^^dev_ctx::ep1, std::meta::reflect_object(my_dev.ep1)>::clusters.cluster_fefe)::N_cmd_in == 1);
+static_assert(decltype(zbm::ep_create_t<^^dev_ctx::ep1, std::meta::reflect_object(my_dev.ep1)>::clusters.cluster_client_fefe)::N_cmd_in == 1);
 //static_assert(&c_list.cluster_feff.cluster_struct == &ep_test.smart);
 //static_assert(sizeof(c_list.cluster_feff) == 0);
 
