@@ -47,6 +47,7 @@
 #include <nrfzbmcpp/zcl/zbm_zcl_rel_humidity.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_co2.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_power_config.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_power_config_tools.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_temperature.hpp>
 #include <nrfzbmcpp/misc_zc/zbm_misc_zc_air_q.hpp>
 
@@ -296,6 +297,8 @@ zb_ret_t check_f1(uint8_t *v)
     zb_dev.ep_01.set<^^zbm::zcl::power_cfg_battery_settings_t::batt_voltage>(100);
     zb_dev.ep_01.set<^^zbm::zcl::temp_ext_t::tolerance>(10);
     zb_dev.ep_01.set<^^zbm::misc_zc::air_q_t::tvoc>(10.5);
+
+    zbm::zcl::configure_poll_control<zbm::zcl::poll_ctrl_cfg_t{.ep = 1, .callback_on_check_in = {}, .sleepy_end_device = true}>(my_dev.ep1.poll);
 
     //using pool_t = zbm::cmd_out_pool_t<^^smart_cluster_t::c1>;
     //static_assert(sizeof(pool_t::arg_storage_t) == 8);
