@@ -487,7 +487,7 @@ void presence_triggered(const struct device *port,
 	{
 	    gpio_pin_set_dt(&led0, g_presence_state);
 	    //write latest state directly
-	    dev_ctx.occupancy.occupancy = g_presence_state;
+	    dev_ctx.ep1.occupancy.occupancy = g_presence_state;
 	}
     }
 }
@@ -642,7 +642,7 @@ void send_on_off(uint8_t val)
 	//start occupancy protection timer
 	auto min_clear_delay = std::max(
 		kInitialMinClearTimeout
-		,dev_ctx.occupancy.UltrasonicOccupiedToUnoccupiedDelay
+		,dev_ctx.ep1.occupancy.UltrasonicOccupiedToUnoccupiedDelay
 	);
 	if (min_clear_delay)
 	{
@@ -949,8 +949,8 @@ void zboss_signal_handler(zb_bufid_t bufid)
 	    zbm::sig_handlers_t{ZB_ZDO_SIGNAL_LEAVE, ^^zb_on_leave},
 	    zbm::sig_handlers_t{ZB_ZDO_SIGNAL_ERROR, ^^zb_on_error},
 	    zbm::sig_handlers_t{ZB_BDB_SIGNAL_DEVICE_REBOOT, ^^on_zigbee_start},
-	    zbm::sig_handlers_t{ZB_BDB_SIGNAL_STEERING, ^^on_zigbee_start},
-	   }>(bufid);
+	    zbm::sig_handlers_t{ZB_BDB_SIGNAL_STEERING, ^^on_zigbee_start}
+	   >(bufid);
     const uint32_t LOCAL_ERR_CODE = (uint32_t) (-ret);	
     if (LOCAL_ERR_CODE != RET_OK) {				
 	zb_osif_abort();				
@@ -1013,7 +1013,7 @@ zbm::cmd_handling_result_t on_cmd_start_analysis_for_presence()
     ld2412_2.start_analysis_for_presence({});
 
     status3_t s;
-    s.s = dev_ctx.status_attr.status3;
+    s.s = dev_ctx.ep1.status_attr.status3;
     s.bits.analysis_for_absence = false;
     s.bits.analysis_for_presence = true;
     zb_ep.set<kAttrStatus3>(s.s);
@@ -1026,7 +1026,7 @@ zbm::cmd_handling_result_t on_cmd_start_analysis_for_absence()
     ld2412_2.start_analysis_for_absence({});
 
     status3_t s;
-    s.s = dev_ctx.status_attr.status3;
+    s.s = dev_ctx.ep1.status_attr.status3;
     s.bits.analysis_for_absence = true;
     s.bits.analysis_for_presence = false;
     zb_ep.set<kAttrStatus3>(s.s);
@@ -1047,7 +1047,7 @@ zbm::cmd_handling_result_t on_cmd_stop_analysis()
     zb_ep.set<kAttrStillEnergyAux>(resultsAux);
 
     status3_t s;
-    s.s = dev_ctx.status_attr.status3;
+    s.s = dev_ctx.ep1.status_attr.status3;
     s.bits.analysis_for_absence = false;
     s.bits.analysis_for_presence = false;
     zb_ep.set<kAttrStatus3>(s.s);
@@ -1059,7 +1059,7 @@ zbm::cmd_handling_result_t on_cmd_clear_coredump()
     coredump_cmd(COREDUMP_CMD_INVALIDATE_STORED_DUMP, nullptr);
     uint16_t hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
     status3_t s;
-    s.s = dev_ctx.status_attr.status3;
+    s.s = dev_ctx.ep1.status_attr.status3;
     s.bits.has_coredump = hasCoredump;
     zb_ep.set<kAttrStatus3>(s.s);
     return {};
@@ -1221,13 +1221,13 @@ int main(void)
 	return 0;
     }
 
-    dev_ctx.occupancy.occupancy = false;
+    dev_ctx.ep1.occupancy.occupancy = false;
     //TODO: method calling support as a handler
     /* Register callback for handling ZCL commands. */
     auto dev_cb = zbm::tpl_device_cb<
 	zbm::dev_cb_handlers_desc_t{ .error_handler = on_dev_cb_error }
 	//main instance
-	zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep = ^^device_ctx_t::ep1, .target = kAttrBaseCfg, .handler = ^^on_set_base_config<ld2412_1>}
+	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep = ^^device_ctx_t::ep1, .target = kAttrBaseCfg, .handler = ^^on_set_base_config<ld2412_1>}
 	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep = ^^device_ctx_t::ep1, .target = kAttrLightSense, .handler = ^^on_set_light_sense<ld2412_1>}
 	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep = ^^device_ctx_t::ep1, .target = kAttrStillThr, .handler = ^^on_set_light_sense<ld2412_1>}
 	//, zb::handle_set_for<kAttrStillThr,              method_fwd<ld2412_1, &ld2412::Instance::set_still_thresholds_raw>>(zb_ep)
@@ -1258,7 +1258,7 @@ int main(void)
 	int pirVal = gpio_pin_get_dt(&pir);
 	g_presence_state = p1 | p2 | pirVal;
 	printk("Presence pin state: %d\r\n", g_presence_state);
-	dev_ctx.occupancy.occupancy = g_presence_state;
+	dev_ctx.ep1.occupancy.occupancy = g_presence_state;
     }
     zigbee_enable();
 
@@ -1327,8 +1327,8 @@ int configure_presence_pins()
     g_pir_presence = gpio_pin_get_dt(&pir);
     state.bits.pir = g_pir_presence;
 
-    dev_ctx.occupancy.occupancy = g_pir_presence;//initially only conservatively by PIR
-    dev_ctx.status_attr.status2 = get_presence_as_status(state.val);
+    dev_ctx.ep1.occupancy.occupancy = g_pir_presence;//initially only conservatively by PIR
+    dev_ctx.ep1.status_attr.status2 = get_presence_as_status(state.val);
 
     gpio_init_callback(&g_on_ld2412_triggered_main, presence_triggered, BIT(presence.pin));
     err = gpio_add_callback_dt(&presence, &g_on_ld2412_triggered_main);
