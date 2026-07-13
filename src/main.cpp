@@ -239,7 +239,8 @@ static constinit device_ctx_t dev_ctx
     }
 };
 
-constinit static zbm::device_full_t zb_ctx{dev_ctx};
+using zbm_dev_t = zbm::device_full_t<^^dev_ctx>;
+constinit static zbm_dev_t zb_ctx{};
 
 union status3_t
 {
@@ -254,8 +255,11 @@ union status3_t
 };
 
 //a shortcut for a convenient access
-constinit static auto &zb_ep = zb_ctx.ep<kMMW_EP>();
-constinit static auto &zb_ep_aux = zb_ctx.ep<kMMW_AUX_EP>();
+//constinit static auto &zb_ep = zb_ctx.ep<kMMW_EP>();
+//constinit static auto &zb_ep_aux = zb_ctx.ep<kMMW_AUX_EP>();
+//TODO: figure 'constinit' out!
+/*constinit*/ static auto &zb_ep = zb_ctx.[:zbm_dev_t::ep_field<kMMW_EP>():];
+/*constinit*/ static auto &zb_ep_aux = zb_ctx.[:zbm_dev_t::ep_field<kMMW_AUX_EP>():];
 
 template<ld2412::Instance &i>
 auto& get_zb_ep_for_ld2412()
