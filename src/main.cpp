@@ -19,322 +19,30 @@
 #include <zephyr/drivers/sensor/ens160.h>
 
 #include <zephyr/drivers/watchdog.h>
+#include <zephyr/task_wdt/task_wdt.h>
 /**********************************************************************/
 /* Zigbee                                                             */
 /**********************************************************************/
-#include <nrfzbcpp/zb_main.hpp>
+#include <nrfzbmcpp/zbm.hpp>
 #include "zb/zb_mem_cfg.hpp"
-#include <nrfzbcpp/zb_std_cluster_desc.hpp>
-#include <nrfzbcpp/zb_status_cluster_desc.hpp>
-#include <nrfzbcpp/zb_occupancy_sensing_cluster_desc.hpp>
-#include <nrfzbcpp/zb_humid_cluster_desc.hpp>
-#include <nrfzbcpp/zb_temp_cluster_desc.hpp>
-#include <nrfzbcpp/zb_co2_cluster_desc.hpp>
-#include <nrfzbcpp/zb_nstd_air_q_cluster_desc.hpp>
-#include "zb/zb_ld2412_cluster_desc.hpp"
+#include <nrfzbmcpp/zcl/zbm_zcl_basic.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_occupancy.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_rel_humidity.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_temperature.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_co2.hpp>
+#include <nrfzbmcpp/misc_zc/zbm_misc_zc_air_q.hpp>
+#include <nrfzbmcpp/misc_zc/zbm_misc_zc_status.hpp>
+#include "zb/zbm_ld2412.hpp"
+#include "zb/zbm_dev_ctrl.hpp"
 #include <osif/mac_platform.h>
 
 #include <atomic>
-
-#include <nrfzbmcpp/zbm.hpp>
-#include <nrfzbmcpp/zcl/zbm_zcl_on_off.hpp>
-#include <nrfzbmcpp/zcl/zbm_zcl_identify.hpp>
-#include <nrfzbmcpp/zcl/zbm_zcl_groups.hpp>
-#include <nrfzbmcpp/zcl/zbm_zcl_level_ctrl.hpp>
-#include <nrfzbmcpp/zcl/zbm_zcl_basic.hpp>
-#include <nrfzbmcpp/zcl/zbm_zcl_poll_ctrl.hpp>
-#include <nrfzbmcpp/zcl/zbm_zcl_occupancy.hpp>
-#include <nrfzbmcpp/zcl/zbm_zcl_rel_humidity.hpp>
-#include <nrfzbmcpp/zcl/zbm_zcl_co2.hpp>
-#include <nrfzbmcpp/zcl/zbm_zcl_power_config.hpp>
-#include <nrfzbmcpp/zcl/zbm_zcl_power_config_tools.hpp>
-#include <nrfzbmcpp/zcl/zbm_zcl_temperature.hpp>
-#include <nrfzbmcpp/misc_zc/zbm_misc_zc_air_q.hpp>
-
-
-//static_assert(sizeof(zbm::ep_base_t<{.server_clusters = 1, .client_clusters = 1, .reporting_attributes = 1, .cvc_attributes = 1}>)
-//	== sizeof(typename [:zbm::make_ep_base(1, 1, 1, 1):])
-//	);
-
-zb_ret_t check_f1(uint8_t *v);
-
-struct MyType
-{
-    static constexpr zbm::type_t type_id()
-    {
-	return zbm::type_t::Map24;
-    }
-
-    static zb_ret_t validate_value(uint8_t* val)
-    {
-	return RET_OK;
-    }
-};
-
-static_assert(zbm::get_attribute_validator_for_type<MyType>() != nullptr);
-
-struct [[=zbm::cluster_a{.id = 0xfefe, .role = zbm::role_t::Client}]] dummy_cluster_t
-{
-    [[=zbm::attribute_a{.id = 1, .a = zbm::access_t::RP}]] uint8_t f1;
-    [[=zbm::attribute_a{.id = 2}]] float f2;
-    [[=zbm::attribute_a{.id = 3, .a = zbm::access_t::Write, .validator = check_f1}]] int16_t f3;
-
-    [[=zbm::cmd_in_a{{.id = 1}}]] zbm::cmd_handling_result_t(*my_cmd_handler)(int);
-};
-
-struct [[=zbm::cluster_a{.id = 0xfeff}]] smart_cluster_t
-{
-    [[=zbm::attribute_a{.id = 10, .a = zbm::access_t::Read}]] uint8_t f1;
-    [[=zbm::attribute_a{.id = 30, .a = zbm::access_t::Write, .validator = check_f1}]] int16_t f3;
-    [[=zbm::attribute_a{.id = 50, .a = zbm::access_t::Write}]] MyType f5;
-    [[=zbm::attribute_a{.id = 60, .a = zbm::access_t::Write}]] zbm::str_t<33> f4;
-    float f6;
-    [[=zbm::attribute_a{.id = 70, .a = zbm::access_t::Write}]] uint8_t f7;
-    [[=zbm::cmd_out_a{{.id = 10}, /*.pool_size=*/3}]]
-    zbm::cmd_out_t<void(char, int16_t, float)> c1;
-};
-
-static_assert(
-	zbm::analyze_clusters({^^dummy_cluster_t, ^^smart_cluster_t}) == 
-	zbm::ep_base_cfg_t{.server_clusters = 1, .client_clusters = 1, .reporting_attributes = 1, .cvc_attributes = 1}
-	);
-
-struct fnctr_t
-{
-    zbm::cmd_handling_result_t operator()(int)
-    {
-	return {};
-    }
-};
-
-struct test_fnctr_t
-{
-    fnctr_t f;
-};
-
-template<const char*>
-struct fail_t;
-
-static_assert(std::convertible_to<decltype(dummy_cluster_t::my_cmd_handler), bool>, "Failed convert to bool");
-//constexpr auto f_refl = ^^test_fnctr_t::f;
-//constexpr auto f_is_obj = std::meta::is_object_type(std::meta::type_of(f_refl));
-//constexpr auto mem_cnt = std::meta::members_of(std::meta::type_of(f_refl), std::meta::access_context::current()).size();
-//constexpr auto call_op_refl = std::meta::members_of(std::meta::type_of(f_refl), std::meta::access_context::current())[0];
-//constexpr auto call_op_type_refl = std::meta::type_of(call_op_refl);
-//static_assert(f_is_obj, "Obj?");
-//static_assert(mem_cnt == 1, "1 mem");
-//static_assert(std::meta::is_member_function_pointer_type(std::meta::type_of(call_op_refl)), "is mem func ptr?");
-//static_assert(std::meta::is_function_type(call_op_type_refl), "is func type?");
-//static_assert(std::meta::return_type_of(call_op_type_refl) == ^^zbm::cmd_handling_result_t, "incorrect return type");
-//constexpr static auto test_display = std::define_static_string(std::meta::display_string_of(std::meta::remove_pointer(std::meta::type_of(^^dummy_cluster_t::my_cmd_handler))));
-//static_assert(sizeof(fail_t<test_display>) == 3, "Function"); 
-//static_assert(std::meta::is_function_type(std::meta::type_of(^^dummy_cluster_t::my_cmd_handler)), "Function");
-//static_assert(zbm::analyze_cluster(^^dummy_cluster_t).cvc_attributes == 1);
-
-struct ep_test_t
-{
-    zbm::zcl::basic_ext_t basic;
-    dummy_cluster_t dummy;
-    smart_cluster_t smart;
-    zbm::zcl::on_off_server_t on_off;
-    zbm::zcl::on_off_client_t on_off2;//TODO: must not be possible
-    zbm::zcl::poll_ctrl_t poll;
-    zbm::zcl::occupancy_pir_and_ultrasonic_t presence;
-    zbm::zcl::rel_humid_ext_t rel_h;
-    zbm::zcl::co2_ext_t co2;
-    zbm::zcl::power_cfg_battery_settings_t battery;
-    zbm::zcl::temp_ext_t temper;
-    zbm::misc_zc::air_q_t airq;
-};
-
-[[=zbm::ep_a{.ep = 1, .dev_id=2, .dev_ver = 0}]]constinit static ep_test_t ep_test{
-    .dummy = {
-	.f1 = {},
-	.f2 = {},
-	.f3 = {},
-    },
-    .smart = {
-	.f1 = {},
-	.f3 = {},
-	.f5 = {},
-    }
-};
-
-struct non_cluster
-{
-    int x;
-};
-
-struct ep_test2_t
-{
-    non_cluster basic;
-};
-
-struct dev_ctx
-{
-    [[=zbm::ep_a{.ep = 1, .dev_id=2, .dev_ver = 0}]]
-    ep_test_t ep1;
-    [[=zbm::ep_a{.ep = 2, .dev_id=2, .dev_ver = 0}]]
-    ep_test_t ep2;
-    //[[=zbm::ep_a{.ep = 3, .dev_id=2, .dev_ver = 0}]]
-    ep_test2_t ep3;
-};
-
-struct dev_ctx2
-{
-    [[=zbm::ep_a{.ep = 1, .dev_id=2, .dev_ver = 0}]]
-    ep_test2_t ep1;
-};
-
-
-//auto &gen_ep = zbm::ep_create_t<^^ep_test>::value;
-//constinit static zbm::cluster_t<std::meta::reflect_object(ep_test.smart)> cluster_test;
-//constinit static zbm::cluster_list_factory_t<^^ep_test>::cluster_list_t c_list{};
-//
-constinit static dev_ctx my_dev{
-    .ep1 = {
-	.on_off = {
-	    .on_off = {},
-	    .on_cmd_on = []{
-		return zbm::cmd_handling_result_t{};
-	    }
-	}
-    },
-    .ep2 = {}
-    ,.ep3 = {}
-};
-constinit static zbm::device_full_t<^^my_dev> zb_dev{};
-
-//constinit static dev_ctx2 my_dev2{};
-//constinit static zbm::device_full_t<^^my_dev2> zb_dev2{};
-
-//static_assert(std::meta::bases_of(std::meta::type_of(^^ep_test2_t::basic), std::meta::access_context::current()).size() == 1);
-//static_assert(zbm::get_cluster_annotation(^^ep_test2_t::basic));
-//static_assert(!zbm::extract_clusters_from_ep(std::meta::reflect_object(my_dev2.ep1)).empty());
-//static zbm::ep_create_t<^^dev_ctx2::ep1, ^^my_dev2.ep1> epc;
-
-//static_assert(decltype(zb_dev)::ep_list.size() == 2);
-//static_assert(decltype(zbm::ep_create_t<^^dev_ctx::ep1, std::meta::reflect_object(my_dev.ep1)>::clusters.cluster_client_fefe)::N_cmd_in == 1);
-//static_assert(&c_list.cluster_feff.cluster_struct == &ep_test.smart);
-//static_assert(sizeof(c_list.cluster_feff) == 0);
-
-constinit static smart_cluster_t smart{};
-
-std::optional<zb_ret_t> handler1()
-{
-    return std::nullopt;//default
-}
-
-std::optional<zb_ret_t> handler2(zb_ret_t status)
-{
-    return std::nullopt;//default
-}
-
-std::optional<zb_ret_t> handler3(zb_ret_t status, zb_zdo_signal_can_sleep_params_t *pParams)
-{
-    return std::nullopt;//default
-}
-
-void handler4()
-{
-    return;//default
-}
-
-void handler5(zb_ret_t status)
-{
-    return;//default
-}
-
-void handler6(zb_ret_t status, zb_zdo_signal_can_sleep_params_t *pParams)
-{
-    return;//default
-}
-
-constinit zbm::tools::fixed_function_t<16, std::optional<zb_ret_t>()> g_FlexHandle1{};
-constinit zbm::tools::fixed_function_t<16, std::optional<zb_ret_t>(zb_ret_t)> g_FlexHandle2{};
-constinit zbm::tools::fixed_function_t<16, std::optional<zb_ret_t>(zb_ret_t, zb_zdo_signal_can_sleep_params_t *pParams)> g_FlexHandle3{};
-
-void dummy_cb_handler()
-{
-}
-
-void dummy_cb_handler2(zb_zcl_device_callback_param_t *pDev)
-{
-}
-
-void dummy_cb_handler3(zb_zcl_device_callback_param_t *pDev, zb_zcl_set_attr_value_param_t *pSetParam)
-{
-}
-
-void dummy_cb_handler4(zb_zcl_device_callback_param_t *pDev, zb_zcl_set_attr_value_param_t *pSetParam, int16_t v)
-{
-}
-
-void dummy_cb_handler5(zb_zcl_device_callback_param_t *pDev, zb_zcl_set_attr_value_param_t *pSetParam, std::string_view sv)
-{
-}
-
-void dummy_cb_handler6(int16_t v)
-{
-}
-
-void dummy_cb_handler7(std::string_view sv)
-{
-}
-
-zb_ret_t check_f1(uint8_t *v)
-{
-    zb_dev.ep_01.set_raw<^^smart_cluster_t::f3, false>(1);
-    zb_dev.ep_01.set<^^zbm::zcl::basic_ext_t::stack_version>(1);
-    zb_dev.ep_01.set<^^zbm::zcl::basic_ext_t::power_source>(zbm::zcl::basic_min_t::PowerSource::Battery);
-    zb_dev.ep_01.send_cmd<^^smart_cluster_t::c1, {}>('a', int16_t(-60), 0.5f);
-    zb_dev.ep_01.set<^^zbm::zcl::occupancy_t::occupancy>(1);
-    zb_dev.ep_01.set<^^zbm::zcl::occupancy_pir_and_ultrasonic_t::UltrasonicUnoccupiedToOccupiedDelay>(5);
-    zb_dev.ep_01.set<^^zbm::zcl::occupancy_pir_and_ultrasonic_t::PIRUnoccupiedToOccupiedThreshold>(6);
-    zb_dev.ep_01.set<^^zbm::zcl::poll_ctrl_t::check_in_interval>(10);
-    zb_dev.ep_01.set<^^zbm::zcl::rel_humid_ext_t::tolerance>(10);
-    zb_dev.ep_01.set<^^zbm::zcl::co2_ext_t::tolerance>(10);
-    zb_dev.ep_01.set<^^zbm::zcl::power_cfg_battery_settings_t::batt_voltage>(100);
-    zb_dev.ep_01.set<^^zbm::zcl::temp_ext_t::tolerance>(10);
-    zb_dev.ep_01.set<^^zbm::misc_zc::air_q_t::tvoc>(10.5);
-
-    zbm::zcl::configure_poll_control<zbm::zcl::poll_ctrl_cfg_t{.ep = 1, .callback_on_check_in = {}, .sleepy_end_device = true}>(my_dev.ep1.poll);
-
-    //using pool_t = zbm::cmd_out_pool_t<^^smart_cluster_t::c1>;
-    //static_assert(sizeof(pool_t::arg_storage_t) == 8);
-    //auto r = pool_t::prepare_args(nullptr, );
-    //pool_t::request<zbm::ep_a{.ep=1}>(*r);
-    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^handler1}>(0);
-    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^handler2}>(0);
-    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^handler3}>(0);
-    //zbm::tpl_signal_handler<{.signal = ZB_SIGNAL_DEVICE_REBOOT, .function_refl = ^^handler3}>(0);
-    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^handler4}>(0);
-    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^handler5}>(0);
-    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^handler6}>(0);
-
-    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^g_FlexHandle1}>(0);
-    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^g_FlexHandle2}>(0);
-    zbm::tpl_signal_handler<{.signal = ZB_COMMON_SIGNAL_CAN_SLEEP, .function_refl = ^^g_FlexHandle3}>(0);
-
-    zbm::tpl_device_cb<
-	zbm::dev_cb_handlers_desc_t{},
-	zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep={}, .target = ^^smart_cluster_t::f3, .handler = ^^dummy_cb_handler}
-	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep1, .target = ^^smart_cluster_t::f1, .handler = ^^dummy_cb_handler2}
-	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep2, .target = ^^smart_cluster_t::f1, .handler = ^^dummy_cb_handler3}
-	,zbm::cb_handler_t{.id = ZB_ZCL_REPORT_ATTR_CB_ID, .ep=^^dev_ctx::ep1, .target={}, .handler = ^^dummy_cb_handler}
-	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep1, .target = ^^smart_cluster_t::f3, .handler = ^^dummy_cb_handler4}
-	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep1, .target = ^^smart_cluster_t::f4, .handler = ^^dummy_cb_handler5}
-	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep1, .target = ^^smart_cluster_t::f3, .handler = ^^dummy_cb_handler6}
-	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep=^^dev_ctx::ep1, .target = ^^smart_cluster_t::f4, .handler = ^^dummy_cb_handler7}
-
-    >(0);
-
-    return RET_OK;
-}
-
+//#include <meta>
 
 extern "C"{
 #include <zephyr/debug/coredump.h>
+
+void nrf_flash_skip_sync(bool skip);
 }
 
 constexpr bool kDebug = false;
@@ -383,18 +91,32 @@ constexpr uint16_t kDEV_ID = 0xBAAD;
 
 constexpr uint16_t kInitialMinClearTimeout = 3;//seconds
 constexpr uint32_t kZigbeeFloodProtectionTimeout = 1000;//ms
+							//
+struct ep1_t
+{
+    zbm::zcl::basic_names_t basic_attr;
+    zbm::misc_zc::status_t status_attr;
+    zbm::misc_zc::dev_ctrl_t dev_attr;
+    zbm::zcl::occupancy_pir_and_ultrasonic_t occupancy;
+    zbm::zcl::on_off_client_t on_off_client;
+    zbm::misc_zc::ld2412_t ld2412_main;
+    zbm::zcl::rel_humid_basic_t humidity;
+    zbm::zcl::temp_basic_t temperature;
+    zbm::zcl::co2_basic_t co2;
+    zbm::misc_zc::air_q_t airq;
+};
+
+struct ep2_t
+{
+    zbm::misc_zc::ld2412_t ld2412_aux;
+};
 
 struct device_ctx_t{
-    zb::zb_zcl_basic_names_t basic_attr;
-    zb::zb_zcl_status_t status_attr;
-    zb::zb_zcl_occupancy_pir_and_ultrasonic_t occupancy;
-    zb::zb_zcl_on_off_attrs_client_t on_off_client;
-    zb::zb_zcl_ld2412_t ld2412_main;
-    zb::zb_zcl_ld2412_t ld2412_aux;
-    zb::zb_zcl_rel_humid_basic_t humidity;
-    zb::zb_zcl_temp_basic_t temperature;
-    zb::zb_zcl_co2_basic_t co2;
-    zb::zb_zcl_air_q_t airq;
+    [[=zbm::ep_a{.ep = kMMW_EP, .dev_id=kDEV_ID, .dev_ver=1}]]
+    ep1_t ep1;
+
+    [[=zbm::ep_a{.ep = kMMW_AUX_EP, .dev_id=kDEV_ID, .dev_ver=1}]]
+    ep2_t ep2;
 };
 
 //attribute shortcuts for template arguments
@@ -402,133 +124,130 @@ struct device_ctx_t{
 /**********************************************************************/
 /* Status attribute shortcuts                                         */
 /**********************************************************************/
-constexpr auto kAttrStatus1 = &zb::zb_zcl_status_t::status1;
-constexpr auto kAttrStatus2 = &zb::zb_zcl_status_t::status2;
-constexpr auto kAttrStatus3 = &zb::zb_zcl_status_t::status3;
+constexpr auto kAttrStatus1 = ^^zbm::misc_zc::status_t::status1;
+constexpr auto kAttrStatus2 = ^^zbm::misc_zc::status_t::status2;
+constexpr auto kAttrStatus3 = ^^zbm::misc_zc::status_t::status3;
 
 /**********************************************************************/
 /* LD2412 attributes                                                  */
 /**********************************************************************/
-constexpr auto kAttrBaseCfg     = &zb::zb_zcl_ld2412_t::base_config;
-constexpr auto kAttrStillThr    = &zb::zb_zcl_ld2412_t::still_energy_thresholds;
-constexpr auto kAttrMoveThr     = &zb::zb_zcl_ld2412_t::move_energy_thresholds;
-constexpr auto kAttrLightLevel  = &zb::zb_zcl_ld2412_t::light_level;
-constexpr auto kAttrFlags       = &zb::zb_zcl_ld2412_t::flags;
-constexpr auto kAttrBT          = &zb::zb_zcl_ld2412_t::bluetooth_state;
-constexpr auto kAttrStatStill   = &zb::zb_zcl_ld2412_t::energy_stat_still;
-constexpr auto kAttrStatMove    = &zb::zb_zcl_ld2412_t::energy_stat_move;
-constexpr auto kAttrLightSense  = &zb::zb_zcl_ld2412_t::light_sense;
-constexpr auto kAttrStatWinSize = &zb::zb_zcl_ld2412_t::statistics_sample_count_window;
+constexpr auto kAttrBaseCfg     = ^^zbm::misc_zc::ld2412_t::base_config;
+constexpr auto kAttrStillThr    = ^^zbm::misc_zc::ld2412_t::still_energy_thresholds;
+constexpr auto kAttrMoveThr     = ^^zbm::misc_zc::ld2412_t::move_energy_thresholds;
+constexpr auto kAttrLightLevel  = ^^zbm::misc_zc::ld2412_t::light_level;
+constexpr auto kAttrFlags       = ^^zbm::misc_zc::ld2412_t::flags;
+constexpr auto kAttrBT          = ^^zbm::misc_zc::ld2412_t::bluetooth_state;
+constexpr auto kAttrStatStill   = ^^zbm::misc_zc::ld2412_t::energy_stat_still;
+constexpr auto kAttrStatMove    = ^^zbm::misc_zc::ld2412_t::energy_stat_move;
+constexpr auto kAttrLightSense  = ^^zbm::misc_zc::ld2412_t::light_sense;
+constexpr auto kAttrStatWinSize = ^^zbm::misc_zc::ld2412_t::statistics_sample_count_window;
 
+/**********************************************************************/
+/* Device control attributes                                          */
+/**********************************************************************/
+constexpr auto kAttrStillEnergyMain = ^^zbm::misc_zc::dev_ctrl_t::main_still_energy_analysis;
+constexpr auto kAttrStillEnergyAux = ^^zbm::misc_zc::dev_ctrl_t::aux_still_energy_analysis;
 
 /**********************************************************************/
 /* Humidity                                                           */
 /**********************************************************************/
-constexpr auto kAttrHumid = &zb::zb_zcl_rel_humid_basic_t::measured_value;
+constexpr auto kAttrHumid = ^^zbm::zcl::rel_humid_basic_t::measured_value;
 
 
 /**********************************************************************/
 /* Temperature                                                        */
 /**********************************************************************/
-constexpr auto kAttrTemp = &zb::zb_zcl_temp_basic_t::measured_value;
+constexpr auto kAttrTemp = ^^zbm::zcl::temp_basic_t::measured_value;
 
 /**********************************************************************/
 /* CO2                                                                */
 /**********************************************************************/
-constexpr auto kAttrCO2 = &zb::zb_zcl_co2_basic_t::measured_value;
+constexpr auto kAttrCO2 = ^^zbm::zcl::co2_basic_t::measured_value;
 
 /**********************************************************************/
 /* Air quality                                                        */
 /**********************************************************************/
-constexpr auto kAttrTVOC = &zb::zb_zcl_air_q_t::tvoc;
-constexpr auto kAttrAQI = &zb::zb_zcl_air_q_t::aqi;
+constexpr auto kAttrTVOC = ^^zbm::misc_zc::air_q_t::tvoc;
+constexpr auto kAttrAQI = ^^zbm::misc_zc::air_q_t::aqi;
 
 /**********************************************************************/
 /* Occupancy attribute shortcuts                                      */
 /**********************************************************************/
-constexpr auto kAttrOccupancy = &zb::zb_zcl_occupancy_ultrasonic_t::occupancy;
+constexpr auto kAttrOccupancy = ^^zbm::zcl::occupancy_ultrasonic_t::occupancy;
 
-constexpr auto kCmdOn = &zb::zb_zcl_on_off_attrs_client_t::on;
-constexpr auto kCmdOff = &zb::zb_zcl_on_off_attrs_client_t::off;
+constexpr auto kCmdOn = ^^zbm::zcl::on_off_client_t::on;
+constexpr auto kCmdOff = ^^zbm::zcl::on_off_client_t::off;
 
 template<ld2412::Instance &i>
-zb::cmd_handling_result_t on_cmd_restart();
+zbm::cmd_handling_result_t on_cmd_restart();
 template<ld2412::Instance &i>
-zb::cmd_handling_result_t on_cmd_factory_reset();
+zbm::cmd_handling_result_t on_cmd_factory_reset();
 template<ld2412::Instance &i>
-zb::cmd_handling_result_t on_cmd_run_back_analysis();
+zbm::cmd_handling_result_t on_cmd_run_back_analysis();
 template<ld2412::Instance &i>
-zb::cmd_handling_result_t on_cmd_do_stat_snapshot();
+zbm::cmd_handling_result_t on_cmd_do_stat_snapshot();
+
+zbm::cmd_handling_result_t on_cmd_stop_wd_feeding();
+zbm::cmd_handling_result_t on_cmd_clear_coredump();
+
+zbm::cmd_handling_result_t on_cmd_start_analysis_for_presence();
+zbm::cmd_handling_result_t on_cmd_start_analysis_for_absence();
+zbm::cmd_handling_result_t on_cmd_stop_analysis();
+
 
 /* Zigbee device application context storage. */
 static constinit device_ctx_t dev_ctx{
-    .basic_attr = {
-	{
-	    .zcl_version = ZB_ZCL_VERSION,
-	    .power_source = zb::zb_zcl_basic_min_t::PowerSource::DC,
+    .ep1={
+	.basic_attr = {
+	    {
+		.zcl_version = ZB_ZCL_VERSION,
+		.power_source = zb::zb_zcl_basic_min_t::PowerSource::DC,
+	    },
+	    /*.manufacturer =*/ INIT_BASIC_MANUF_NAME,
+	    /*.model =*/ INIT_BASIC_MODEL_ID,
 	},
-	/*.manufacturer =*/ INIT_BASIC_MANUF_NAME,
-	/*.model =*/ INIT_BASIC_MODEL_ID,
+	.status_attr{
+	    .cmd1 = on_cmd_stop_wd_feeding
+	    ,.cmd2 = on_cmd_clear_coredump
+	},
+	.dev_attr{
+	    .cmd_start_analysis_for_presence = on_cmd_start_analysis_for_presence
+		,.cmd_start_analysis_for_absense = on_cmd_start_analysis_for_absence
+		,.cmd_stop_analysis              = on_cmd_stop_analysis
+	},
+	.ld2412_main{
+	    .still_energy_thresholds = zbm::misc_zc::ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
+	    ,.move_energy_thresholds = zbm::misc_zc::ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
+	    ,.cmd_restart = on_cmd_restart<ld2412_1>
+		,.cmd_factory_reset = on_cmd_factory_reset<ld2412_1>
+		,.cmd_run_background_analysis = on_cmd_run_back_analysis<ld2412_1>
+		,.cmd_take_statistic_snapshot = on_cmd_do_stat_snapshot<ld2412_1>
+	},
     },
-    .ld2412_main{
-	.still_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
-	,.move_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
-	,.cmd_restart = {.cb = on_cmd_restart<ld2412_1>}
-	,.cmd_factory_reset = {.cb = on_cmd_factory_reset<ld2412_1>}
-	,.cmd_run_background_analysis = {.cb = on_cmd_run_back_analysis<ld2412_1>}
-	,.cmd_take_statistic_snapshot = {.cb = on_cmd_do_stat_snapshot<ld2412_1>}
-    },
-    .ld2412_aux{
-	.still_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
-	,.move_energy_thresholds = zb::zb_zcl_ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
-	,.cmd_restart = {.cb = on_cmd_restart<ld2412_2>}
-	,.cmd_factory_reset = {.cb = on_cmd_factory_reset<ld2412_2>}
-	,.cmd_run_background_analysis = {.cb = on_cmd_run_back_analysis<ld2412_2>}
-	,.cmd_take_statistic_snapshot = {.cb = on_cmd_do_stat_snapshot<ld2412_2>}
-    },
+	.ep2={
+	    .ld2412_aux{
+		.still_energy_thresholds = zbm::misc_zc::ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
+		,.move_energy_thresholds = zbm::misc_zc::ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
+		,.cmd_restart = on_cmd_restart<ld2412_2>
+		    ,.cmd_factory_reset = on_cmd_factory_reset<ld2412_2>
+		    ,.cmd_run_background_analysis = on_cmd_run_back_analysis<ld2412_2>
+		    ,.cmd_take_statistic_snapshot = on_cmd_do_stat_snapshot<ld2412_2>
+	    },
+	}
 };
 
-constinit static zb::device_full_t zb_ctx{
-	zb::make_ep_args<{.ep=kMMW_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
-	    dev_ctx.basic_attr
-	    , dev_ctx.status_attr
-	    , dev_ctx.occupancy
-	    , dev_ctx.ld2412_main
-	    , dev_ctx.humidity
-	    , dev_ctx.temperature
-	    , dev_ctx.co2
-	    , dev_ctx.airq
-	    , dev_ctx.on_off_client
-	),
-	zb::make_ep_args<{.ep=kMMW_AUX_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
-	    dev_ctx.ld2412_aux
-	)
-};
+constinit static zbm::device_full_t zb_ctx{dev_ctx};
 
-//constinit static auto zb_ctx_test = zb::make_device(
-//	zb::make_ep_args<{.ep=kMMW_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
-//	    dev_ctx.basic_attr
-//	    , dev_ctx.status_attr
-//	    , dev_ctx.occupancy
-//	    , dev_ctx.ld2412_main
-//	    , dev_ctx.humidity
-//	    , dev_ctx.temperature
-//	    , dev_ctx.co2
-//	    , dev_ctx.airq
-//	    , dev_ctx.on_off_client
-//	),
-//	zb::make_ep_args<{.ep=kMMW_AUX_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
-//	    dev_ctx.ld2412_aux
-//	)
-//    );
-
-/**********************************************************************/
-/* Defining access to the global zigbee device context                */
-/**********************************************************************/
-//needed for proper command handling
-struct zb::global_device
+union status3_t
 {
-    static auto& get() { return zb_ctx; }
+    uint16_t s;
+    struct{
+	uint16_t has_coredump: 1;
+	uint16_t wdt_error: 1;
+	uint16_t analysis_for_presence: 1;
+	uint16_t analysis_for_absence: 1;
+	uint16_t unused: 12;
+    }bits;
 };
 
 //a shortcut for a convenient access
@@ -545,12 +264,12 @@ auto& get_zb_ep_for_ld2412()
 }
 
 template<ld2412::Instance &i>
-zb::zb_zcl_ld2412_t& get_data_for_ld2412()
+zbm::misc_zc::ld2412_t& get_data_for_ld2412()
 {
     if constexpr (&i == &ld2412_1)
-	return dev_ctx.ld2412_main;
+	return dev_ctx.ep1.ld2412_main;
     else if constexpr (&i == &ld2412_2)
-	return dev_ctx.ld2412_aux;
+	return dev_ctx.ep2.ld2412_aux;
 }
 
 template<ld2412::Instance &i>
@@ -655,6 +374,10 @@ void ultimate_zb_fail(zb_ret_t r)
 /**********************************************************************/
 /* Watchdog                                                           */
 /**********************************************************************/
+constexpr static uint32_t WD_SWTimeoutMS = CONFIG_TASK_WDT_MIN_TIMEOUT;
+constexpr static uint32_t WD_CoredumpReservedTime = CONFIG_TASK_WDT_HW_FALLBACK_DELAY;
+constexpr static uint32_t WD_HWTimeoutMS = WD_SWTimeoutMS + WD_CoredumpReservedTime;
+bool g_WD_FeedTheDog = true;
 const struct device *const wdt = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 zb::zb_timer_ext_16_t g_WDTFeeder;
 int wdt_channel_id = -1;
@@ -786,6 +509,7 @@ void on_back_analysis_done(ld2412::run_background_analysis_t::Result result)
     auto flags = d.flags;
     flags.background_analysis_active = false;
     flags.background_analysis_ok = result == ld2412::run_background_analysis_t::Result::Ok;
+    FMT_PRINTLN("on_back_analysis_done: ok={}", (int)flags.background_analysis_ok);
     ep.template attr<kAttrFlags>() = flags;
 }
 
@@ -802,6 +526,7 @@ zb::cmd_handling_result_t on_cmd_run_back_analysis()
     flags.background_analysis_ok = true;
     ep.template attr<kAttrFlags>() = flags;
 
+    zb_ep.attr<kAttrStatus1>() = 0;//reset error
     return {};
 }
 
@@ -1036,6 +761,7 @@ void zb_ld2412_error(uint8_t e)
 	case SetEnergyThresholds:
 	    zb_ld2412_update_thresholds<i>();
 	break;
+	case EnergyModeAfterBackAnalysis:
 	case RunBackAnalysis:
 	    zb_ld2412_update_flags<i>();
 	break;
@@ -1045,6 +771,7 @@ void zb_ld2412_error(uint8_t e)
 	default:
 	break;
     }
+    FMT_PRINTLN("zb_ld2412_error: e={}", (int)e);
     zb_ep.attr<kAttrStatus1>() = e;
 }
 
@@ -1066,22 +793,27 @@ void zb_ld2412_notify(uint8_t id)
     switch(ld2412::notification_id_t(id))
     {
 	case ld2412::notification_id_t::BackgroundAnalysisDone:
+	    FMT_PRINTLN("zb notify: back done: ok");
 	    f.background_analysis_active = false;
 	    f.background_analysis_ok = true;
 	    ep.template attr<kAttrFlags>() = f;
 	    break;
 	case ld2412::notification_id_t::BackgroundAnalysisError:
+	    FMT_PRINTLN("zb notify: back done: failed");
 	    f.background_analysis_active = false;
 	    f.background_analysis_ok = false;
 	    ep.template attr<kAttrFlags>() = f;
 	    break;
 	case ld2412::notification_id_t::SetBasicCfgDone:
+	    FMT_PRINTLN("zb notify: set basic cfg: ok");
 	    zb_ld2412_update_base_config<i>();
 	    break;
 	case ld2412::notification_id_t::SetLightSenseDone:
+	    FMT_PRINTLN("zb notify: set light sesne: ok");
 	    zb_ld2412_update_light_sense<i>();
 	    break;
 	case ld2412::notification_id_t::SetEnergyThresholdsDone:
+	    FMT_PRINTLN("zb notify: set energy threshold: ok");
 	    zb_ld2412_update_thresholds<i>();
 	    break;
     }
@@ -1176,12 +908,13 @@ void on_zigbee_start()
     if (g_EnvironmentSensorFetcher.Setup(update_environment_sensors, 15000) != RET_OK)
 	ultimate_timer_fail();
 
+    status3_t s;
+    s.s = dev_ctx.status_attr.status3;
     uint16_t hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
-    uint16_t wdt_error = 0;
 
-    if (configure_wdt() == -1)
-	wdt_error = 1 << 1;
-    zb_ep.attr<kAttrStatus3>() = hasCoredump | wdt_error;
+    s.bits.wdt_error = configure_wdt() == -1;
+    s.bits.has_coredump = hasCoredump;
+    zb_ep.attr<kAttrStatus3>() = s.s;
 }
 
 /**@brief Zigbee stack event handler.
@@ -1258,23 +991,74 @@ void print_ld2412_config(hlk::LD2412 &ld)
     }
 }
 
-static void wdt_callback(const struct device *wdt_dev, int channel_id)
+zb::cmd_handling_result_t on_cmd_start_analysis_for_presence()
 {
-	static bool handled_event = false;
+    ld2412_1.start_analysis_for_presence({});
+    ld2412_2.start_analysis_for_presence({});
 
-	if (handled_event) {
-		return;
-	}
+    status3_t s;
+    s.s = dev_ctx.status_attr.status3;
+    s.bits.analysis_for_absence = false;
+    s.bits.analysis_for_presence = true;
+    zb_ep.attr<kAttrStatus3>() = s.s;
+    return {};
+}
 
-	wdt_feed(wdt_dev, channel_id);
+zb::cmd_handling_result_t on_cmd_start_analysis_for_absence()
+{
+    ld2412_1.start_analysis_for_absence({});
+    ld2412_2.start_analysis_for_absence({});
 
-	handled_event = true;
-	//k_oops();
-	if (coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) != 1)
-	{
-	    //save
-	    coredump(0xDEAD, nullptr, nullptr);
-	}
+    status3_t s;
+    s.s = dev_ctx.status_attr.status3;
+    s.bits.analysis_for_absence = true;
+    s.bits.analysis_for_presence = false;
+    zb_ep.attr<kAttrStatus3>() = s.s;
+    return {};
+}
+
+zb::cmd_handling_result_t on_cmd_stop_analysis()
+{
+    ld2412_1.stop_analysis({});
+    ld2412_2.stop_analysis({});
+
+    hlk::LD2412::gate_array_t resultsMain;
+    ld2412_1.get_analysis_results(resultsMain);
+    zb_ep.attr<kAttrStillEnergyMain>() = resultsMain;
+
+    hlk::LD2412::gate_array_t resultsAux;
+    ld2412_2.get_analysis_results(resultsAux);
+    zb_ep.attr<kAttrStillEnergyAux>() = resultsAux;
+
+    status3_t s;
+    s.s = dev_ctx.status_attr.status3;
+    s.bits.analysis_for_absence = false;
+    s.bits.analysis_for_presence = false;
+    zb_ep.attr<kAttrStatus3>() = s.s;
+    return {};
+}
+
+zb::cmd_handling_result_t on_cmd_clear_coredump()
+{
+    coredump_cmd(COREDUMP_CMD_INVALIDATE_STORED_DUMP, nullptr);
+    uint16_t hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
+    status3_t s;
+    s.s = dev_ctx.status_attr.status3;
+    s.bits.has_coredump = hasCoredump;
+    zb_ep.attr<kAttrStatus3>() = s.s;
+    return {};
+}
+
+zb::cmd_handling_result_t on_cmd_stop_wd_feeding()
+{
+    g_WD_FeedTheDog = false;
+    return {};
+}
+
+static void wdt_callback(int channel_id, void *user_data)
+{
+    nrf_flash_skip_sync(true);
+    k_panic();
 }
 
 int configure_wdt()
@@ -1285,43 +1069,83 @@ int configure_wdt()
 	return -1;
     }
 
-    struct wdt_timeout_cfg wdt_config = {
-		/* Expire watchdog after max window */
-		.window = {
-		    .min = 0,
-		    .max = 2000,
-		},
+	//   struct wdt_timeout_cfg wdt_config = {
+	//	/* Expire watchdog after max window */
+	//	.window = {
+	//	    .min = 0,
+	//	    .max = WD_HWTimeoutMS,
+	//	},
+	//
+	//	/* Reset SoC when watchdog timer expires. */
+	//	.flags = WDT_FLAG_RESET_SOC,
+	//};
+	//
+	//   wdt_channel_id = wdt_install_timeout(wdt, &wdt_config);
+	//   if (wdt_channel_id < 0) {
+	//printk("Watchdog install error\n");
+	//return wdt_channel_id;
+	//   }
+	//
+	//   int err = wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG);
+	//   if (err < 0) {
+	//printk("Watchdog setup error\n");
+	//return err;
+	//   }
 
-		/* Reset SoC when watchdog timer expires. */
-		.flags = WDT_FLAG_RESET_SOC,
-	};
-
-    wdt_channel_id = wdt_install_timeout(wdt, &wdt_config);
-    if (wdt_channel_id == -ENOTSUP) {
-	/* IWDG driver for STM32 doesn't support callback */
-	printk("Callback support rejected, continuing anyway\n");
-	wdt_config.callback = NULL;
-	wdt_channel_id = wdt_install_timeout(wdt, &wdt_config);
+    int ret = task_wdt_init(wdt);
+    if (ret < 0)
+    {
+	printk("Could not initialize WDT task.\n");
+	return ret;
     }
-    if (wdt_channel_id < 0) {
-	printk("Watchdog install error\n");
+
+    wdt_channel_id = task_wdt_add(WD_SWTimeoutMS, wdt_callback, nullptr);
+    if (wdt_channel_id < 0)
+    {
+	printk("Could not create a channel from WDT task.\n");
 	return wdt_channel_id;
     }
 
-    int err = wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG);
-    if (err < 0) {
-	printk("Watchdog setup error\n");
-	return err;
+    printk("feeder configured: ch=%d\r\n", wdt_channel_id);
+    //starting the feeding sequence
+    g_WDTFeeder.Setup([]{ 
+	    printk("feeder: %d; ch=%d\r\n", g_WD_FeedTheDog, wdt_channel_id);
+	    if (g_WD_FeedTheDog) 
+	    {
+		task_wdt_feed(wdt_channel_id); 
+	    }
+	    return true;
+	}, 
+    1000);
+    return 0;
+}
+
+void disable_hw_wdt()
+{
+    if (!device_is_ready(wdt)) {
+	printk("%s: device not ready.\r\n", wdt->name);
+	return;
     }
 
-    //starting the feeding sequence
-    g_WDTFeeder.Setup([]{ wdt_feed(wdt, wdt_channel_id); return true;}, 500);
-    return 0;
+    int err = wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG);
+    if (err < 0)
+    {
+	printk("disable_hw_wdt: setup failed with %d; %s\r\n", err, strerror(-err));
+	return;
+    }
+    int ret = wdt_disable(wdt);
+    if (ret < 0)
+    {
+	printk("wdt_disabled failed with %d; %s\r\n", ret, strerror(-ret));
+	return;
+    }
+    printk("hw wdt disabled\r\n");
 }
 
 int main(void)
 {
     static_assert(atomic_state_t::is_always_lock_free);
+    disable_hw_wdt();
     int err = settings_subsys_init();
     err = settings_load();
 
@@ -1406,7 +1230,6 @@ int main(void)
 
     /* Register device context (endpoints). */
     ZB_AF_REGISTER_DEVICE_CTX(zb_ctx);
-    ZB_AF_REGISTER_DEVICE_CTX(zb_dev.device_context());
 
     if (int err = configure_presence_pins(); err != 0)
     {
