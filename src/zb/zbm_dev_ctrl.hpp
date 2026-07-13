@@ -30,13 +30,13 @@ namespace zbm
             /**********************************************************************/
             /* Commands                                                           */
             /**********************************************************************/
-            [[=cmd_in_a{.id = kCMD_START_ANALYSIS_FOR_PRESENCE}]]
+            [[=cmd_in_a{kCMD_START_ANALYSIS_FOR_PRESENCE}]]
             cmd_handling_result_t(*cmd_start_analysis_for_presence)();
 
-            [[=cmd_in_a{.id = kCMD_START_ANALYSIS_FOR_ABSENCE}]]
+            [[=cmd_in_a{kCMD_START_ANALYSIS_FOR_ABSENCE}]]
             cmd_handling_result_t(*cmd_start_analysis_for_absense)();
 
-            [[=cmd_in_a{.id = kCMD_STOP_ANALYSIS}]]
+            [[=cmd_in_a{kCMD_STOP_ANALYSIS}]]
             cmd_handling_result_t(*cmd_stop_analysis)();
         };
     }

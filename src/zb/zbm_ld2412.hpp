@@ -20,20 +20,20 @@ namespace zbm
             static constexpr uint8_t kCMD_RUN_BACK_ANALYSIS  = 3;
             static constexpr uint8_t kCMD_TAKE_STAT_SNAPSHOT = 4;
 
-            static bool validate_gates(uint8_t *value)
+            static zb_ret_t validate_gates(uint8_t *value)
             {
                 bin_typed_t<gate_array_t> *pT = (bin_typed_t<gate_array_t>*)value;
                 if (pT->len_bytes != 14)
-                    return false;
+                    return RET_ERROR;
 
                 for(int i = 0; i < 14; ++i)
                     if (pT->data[i] > 100)
-                        return false;
-                return true;
+                        return RET_ERROR;
+                return RET_OK;
             }
-            static bool validate_stat_sample_count(uint8_t *value)
+            static zb_ret_t validate_stat_sample_count(uint8_t *value)
             {
-                return *value <= 255;
+                return *value <= 255 ? RET_OK : RET_ERROR;
             }
 
             struct [[gnu::packed]] base_cfg_t
@@ -81,7 +81,7 @@ namespace zbm
                 uint8_t background_analysis_active  : 1 = 0;
                 uint8_t background_analysis_ok      : 1 = 0;
                 uint8_t unused                      : 6 = 0;
-            } 
+            };
 
             [[=attribute_a{.id = 0x0006, .a=access_t::RWP, .type=type_t::U8}]]
             flags_t flags = {};
@@ -119,16 +119,16 @@ namespace zbm
             /**********************************************************************/
             /* Commands                                                           */
             /**********************************************************************/
-            [[=cmd_in_a{.id = kCMD_RESTART}]]
+            [[=cmd_in_a{kCMD_RESTART}]]
             cmd_handling_result_t(*cmd_restart)();
 
-            [[=cmd_in_a{.id = kCMD_FACTORY_RESET}]]
+            [[=cmd_in_a{kCMD_FACTORY_RESET}]]
             cmd_handling_result_t(*cmd_factory_reset)();
 
-            [[=cmd_in_a{.id = kCMD_RUN_BACK_ANALYSIS}]]
+            [[=cmd_in_a{kCMD_RUN_BACK_ANALYSIS}]]
             cmd_handling_result_t(*cmd_run_background_analysis)();
 
-            [[=cmd_in_a{.id = kCMD_TAKE_STAT_SNAPSHOT}]]
+            [[=cmd_in_a{kCMD_TAKE_STAT_SNAPSHOT}]]
             cmd_handling_result_t(*cmd_take_statistic_snapshot)();
         };
     }

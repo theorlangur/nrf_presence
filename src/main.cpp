@@ -26,6 +26,7 @@
 #include <nrfzbmcpp/zbm.hpp>
 #include "zb/zb_mem_cfg.hpp"
 #include <nrfzbmcpp/zcl/zbm_zcl_basic.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_on_off.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_occupancy.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_rel_humidity.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_temperature.hpp>
@@ -37,7 +38,6 @@
 #include <osif/mac_platform.h>
 
 #include <atomic>
-//#include <meta>
 
 extern "C"{
 #include <zephyr/debug/coredump.h>
@@ -111,7 +111,8 @@ struct ep2_t
     zbm::misc_zc::ld2412_t ld2412_aux;
 };
 
-struct device_ctx_t{
+struct device_ctx_t
+{
     [[=zbm::ep_a{.ep = kMMW_EP, .dev_id=kDEV_ID, .dev_ver=1}]]
     ep1_t ep1;
 
@@ -196,44 +197,46 @@ zbm::cmd_handling_result_t on_cmd_stop_analysis();
 
 
 /* Zigbee device application context storage. */
-static constinit device_ctx_t dev_ctx{
+static constinit device_ctx_t dev_ctx
+{
     .ep1={
 	.basic_attr = {
 	    {
 		.zcl_version = ZB_ZCL_VERSION,
-		.power_source = zb::zb_zcl_basic_min_t::PowerSource::DC,
+		.power_source = zbm::zcl::basic_min_t::PowerSource::DC,
 	    },
 	    /*.manufacturer =*/ INIT_BASIC_MANUF_NAME,
 	    /*.model =*/ INIT_BASIC_MODEL_ID,
 	},
-	.status_attr{
+	.status_attr={
 	    .cmd1 = on_cmd_stop_wd_feeding
 	    ,.cmd2 = on_cmd_clear_coredump
 	},
-	.dev_attr{
-	    .cmd_start_analysis_for_presence = on_cmd_start_analysis_for_presence
+	.dev_attr={
+		.cmd_start_analysis_for_presence     = on_cmd_start_analysis_for_presence
 		,.cmd_start_analysis_for_absense = on_cmd_start_analysis_for_absence
 		,.cmd_stop_analysis              = on_cmd_stop_analysis
 	},
-	.ld2412_main{
+	.ld2412_main={
 	    .still_energy_thresholds = zbm::misc_zc::ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
 	    ,.move_energy_thresholds = zbm::misc_zc::ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
 	    ,.cmd_restart = on_cmd_restart<ld2412_1>
-		,.cmd_factory_reset = on_cmd_factory_reset<ld2412_1>
-		,.cmd_run_background_analysis = on_cmd_run_back_analysis<ld2412_1>
-		,.cmd_take_statistic_snapshot = on_cmd_do_stat_snapshot<ld2412_1>
+	    ,.cmd_factory_reset = on_cmd_factory_reset<ld2412_1>
+	    ,.cmd_run_background_analysis = on_cmd_run_back_analysis<ld2412_1>
+	    ,.cmd_take_statistic_snapshot = on_cmd_do_stat_snapshot<ld2412_1>
 	},
     },
-	.ep2={
-	    .ld2412_aux{
-		.still_energy_thresholds = zbm::misc_zc::ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
-		,.move_energy_thresholds = zbm::misc_zc::ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
-		,.cmd_restart = on_cmd_restart<ld2412_2>
-		    ,.cmd_factory_reset = on_cmd_factory_reset<ld2412_2>
-		    ,.cmd_run_background_analysis = on_cmd_run_back_analysis<ld2412_2>
-		    ,.cmd_take_statistic_snapshot = on_cmd_do_stat_snapshot<ld2412_2>
-	    },
-	}
+    .ep2={
+	.ld2412_aux={
+	    .still_energy_thresholds = zbm::misc_zc::ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
+	    ,.move_energy_thresholds = zbm::misc_zc::ld2412_t::gate_array_t{100, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}
+
+	    ,.cmd_restart = on_cmd_restart<ld2412_2>
+	    ,.cmd_factory_reset = on_cmd_factory_reset<ld2412_2>
+	    ,.cmd_run_background_analysis = on_cmd_run_back_analysis<ld2412_2>
+	    ,.cmd_take_statistic_snapshot = on_cmd_do_stat_snapshot<ld2412_2>
+	},
+    }
 };
 
 constinit static zbm::device_full_t zb_ctx{dev_ctx};
@@ -329,7 +332,7 @@ void method_fwd(arg1_type_t<M> a)
 }
 
 template<size_t N>
-auto as_print_dest(zb::zigbee_str_t<N> &str)
+auto as_print_dest(zbm::str_t<N> &str)
 {
     return tools::BufferFormatter(str.name + 1, str.capacity());
 }
@@ -379,7 +382,7 @@ constexpr static uint32_t WD_CoredumpReservedTime = CONFIG_TASK_WDT_HW_FALLBACK_
 constexpr static uint32_t WD_HWTimeoutMS = WD_SWTimeoutMS + WD_CoredumpReservedTime;
 bool g_WD_FeedTheDog = true;
 const struct device *const wdt = DEVICE_DT_GET(DT_ALIAS(watchdog0));
-zb::zb_timer_ext_16_t g_WDTFeeder;
+zbm::timer_ext_16_t g_WDTFeeder;
 int wdt_channel_id = -1;
 int configure_wdt();
 
@@ -486,7 +489,7 @@ void presence_triggered(const struct device *port,
 }
 
 template<ld2412::Instance &i>
-zb::cmd_handling_result_t on_cmd_restart()
+zbm::cmd_handling_result_t on_cmd_restart()
 {
     printk("ld2412::restart\r\n");
     i.restart();
@@ -494,7 +497,7 @@ zb::cmd_handling_result_t on_cmd_restart()
 }
 
 template<ld2412::Instance &i>
-zb::cmd_handling_result_t on_cmd_factory_reset()
+zbm::cmd_handling_result_t on_cmd_factory_reset()
 {
     printk("ld2412::factory_reset\r\n");
     i.factory_reset();
@@ -514,7 +517,7 @@ void on_back_analysis_done(ld2412::run_background_analysis_t::Result result)
 }
 
 template<ld2412::Instance &i>
-zb::cmd_handling_result_t on_cmd_run_back_analysis()
+zbm::cmd_handling_result_t on_cmd_run_back_analysis()
 {
     printk("ld2412::run_back_analysis\r\n");
     i.run_back_analysis({&on_back_analysis_done<i>});
@@ -553,7 +556,7 @@ void on_get_stat_snapshot(hlk::LD2412::energy_stat_array_t const& still, hlk::LD
 }
 
 template<ld2412::Instance &i>
-zb::cmd_handling_result_t on_cmd_do_stat_snapshot()
+zbm::cmd_handling_result_t on_cmd_do_stat_snapshot()
 {
     printk("(%s)ld2412::do_stat_snapshot\r\n", get_name_for_ld2412<i>());
     i.take_statistic_snapshot({&on_get_stat_snapshot<i>});
@@ -855,7 +858,7 @@ void update_dev_ctx_from_ld2412()
 }
 
 template<ld2412::Instance &i>
-void on_set_base_config(zb::zb_zcl_ld2412_t::base_cfg_t const& cfg)
+void on_set_base_config(zbm::misc_zc::ld2412_t::base_cfg_t const& cfg)
 {
     i.set_basic_config({
 	    .resolution = cfg.distance_resolution
@@ -866,7 +869,7 @@ void on_set_base_config(zb::zb_zcl_ld2412_t::base_cfg_t const& cfg)
 }
 
 template<ld2412::Instance &i>
-void on_set_light_sense(zb::zb_zcl_ld2412_t::light_sense_cfg_t const& cfg)
+void on_set_light_sense(zbm::misc_zc::ld2412_t::light_sense_cfg_t const& cfg)
 {
     i.set_light_sense({ .mode = cfg.mode, .threshold = cfg.threshold });
 }
@@ -1000,7 +1003,7 @@ void print_ld2412_config(hlk::LD2412 &ld)
     }
 }
 
-zb::cmd_handling_result_t on_cmd_start_analysis_for_presence()
+zbm::cmd_handling_result_t on_cmd_start_analysis_for_presence()
 {
     ld2412_1.start_analysis_for_presence({});
     ld2412_2.start_analysis_for_presence({});
@@ -1013,7 +1016,7 @@ zb::cmd_handling_result_t on_cmd_start_analysis_for_presence()
     return {};
 }
 
-zb::cmd_handling_result_t on_cmd_start_analysis_for_absence()
+zbm::cmd_handling_result_t on_cmd_start_analysis_for_absence()
 {
     ld2412_1.start_analysis_for_absence({});
     ld2412_2.start_analysis_for_absence({});
@@ -1026,7 +1029,7 @@ zb::cmd_handling_result_t on_cmd_start_analysis_for_absence()
     return {};
 }
 
-zb::cmd_handling_result_t on_cmd_stop_analysis()
+zbm::cmd_handling_result_t on_cmd_stop_analysis()
 {
     ld2412_1.stop_analysis({});
     ld2412_2.stop_analysis({});
@@ -1047,7 +1050,7 @@ zb::cmd_handling_result_t on_cmd_stop_analysis()
     return {};
 }
 
-zb::cmd_handling_result_t on_cmd_clear_coredump()
+zbm::cmd_handling_result_t on_cmd_clear_coredump()
 {
     coredump_cmd(COREDUMP_CMD_INVALIDATE_STORED_DUMP, nullptr);
     uint16_t hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
@@ -1058,7 +1061,7 @@ zb::cmd_handling_result_t on_cmd_clear_coredump()
     return {};
 }
 
-zb::cmd_handling_result_t on_cmd_stop_wd_feeding()
+zbm::cmd_handling_result_t on_cmd_stop_wd_feeding()
 {
     g_WD_FeedTheDog = false;
     return {};
