@@ -510,7 +510,7 @@ void on_back_analysis_done(ld2412::run_background_analysis_t::Result result)
     flags.background_analysis_active = false;
     flags.background_analysis_ok = result == ld2412::run_background_analysis_t::Result::Ok;
     FMT_PRINTLN("on_back_analysis_done: ok={}", (int)flags.background_analysis_ok);
-    ep.template attr<kAttrFlags>() = flags;
+    ep.template set<kAttrFlags>(flags);
 }
 
 template<ld2412::Instance &i>
@@ -524,9 +524,9 @@ zb::cmd_handling_result_t on_cmd_run_back_analysis()
     auto flags = d.flags;
     flags.background_analysis_active = true;
     flags.background_analysis_ok = true;
-    ep.template attr<kAttrFlags>() = flags;
+    ep.template set<kAttrFlags>(flags);
 
-    zb_ep.attr<kAttrStatus1>() = 0;//reset error
+    zb_ep.set<kAttrStatus1>(0);//reset error
     return {};
 }
 
@@ -548,8 +548,8 @@ void on_get_stat_snapshot(hlk::LD2412::energy_stat_array_t const& still, hlk::LD
 	printk("%d=[min: %d; max: %d; avg: %d] ", j, move[j].min, move[j].max, move[j].avg);
     }
     printk("\r\n");
-    ep.template attr<kAttrStatStill>() = still;
-    ep.template attr<kAttrStatMove>() = move;
+    ep.template set<kAttrStatStill>(still);
+    ep.template set<kAttrStatMove>(move);
 }
 
 template<ld2412::Instance &i>
@@ -562,7 +562,7 @@ zb::cmd_handling_result_t on_cmd_do_stat_snapshot()
 
 constexpr uint8_t kOccupancyFromDebug = 0x40;
 constexpr uint8_t kOccupancyClearFromTimer = 0x80;
-zb::zb_alarm_ext_t<> g_OccupancyResetProtection;
+zbm::alarm_ext_t<> g_OccupancyResetProtection;
 uint8_t g_LastRegisteredOccupancyState = 0;
 
 void on_occupancy_protection_finished()
@@ -576,7 +576,7 @@ void on_occupancy_protection_finished()
 
 void send_on_off_zb(uint8_t val)
 {
-    zb_ep.attr<kAttrOccupancy>() = val == 1;
+    zb_ep.set<kAttrOccupancy>(val == 1);
     if (val == 1)
     {
 	if (!zb_ep.send_cmd<kCmdOn>())
@@ -589,7 +589,7 @@ void send_on_off_zb(uint8_t val)
     }
 }
 
-zb::zb_alarm_ext_t<> g_ZbFloodGate;
+zbm::alarm_ext_t<> g_ZbFloodGate;
 constinit uint8_t g_DelayedVal = HWUnsetState;
 void send_on_off_zb_flood_protected(uint8_t val)
 {
@@ -663,7 +663,7 @@ void log_presence_change(uint8_t val)
     if (v.bits.aux_changed) printk("aux=%d; ", v.bits.aux);
     printk("\r\n");
 
-    zb_ep.attr<kAttrStatus2>() = get_presence_as_status(val);
+    zb_ep.set<kAttrStatus2>(get_presence_as_status(val));
 }
 
 void on_dev_cb_error(int err)
@@ -676,10 +676,10 @@ void zb_ld2412_update_light_sense()
 {
     auto &ep = get_zb_ep_for_ld2412<i>();
     auto *pLD2412 = i.sensor();
-    zb::zb_zcl_ld2412_t::light_sense_cfg_t l;
+    zbm::misc_zc::ld2412_t::light_sense_cfg_t l;
     l.mode = pLD2412->GetLightSensitivityMode();
     l.threshold = pLD2412->GetLightSensitivityThreshold();
-    ep.template attr<kAttrLightSense>() = l;
+    ep.template set<kAttrLightSense>(l);
 }
 
 template<ld2412::Instance &i>
@@ -691,8 +691,8 @@ void zb_ld2412_update_thresholds()
     auto const& move = pLD2412->GetAllMoveThresholds();
     FMT_PRINTLN("zb updated thr still to {}", still);
     FMT_PRINTLN("zb updated thr move to {}", move);
-    ep.template attr<kAttrStillThr>() = still;
-    ep.template attr<kAttrMoveThr>() = move;
+    ep.template set<kAttrStillThr>(still);
+    ep.template set<kAttrMoveThr>(move);
 }
 
 template<ld2412::Instance &i>
@@ -701,10 +701,10 @@ void zb_ld2412_update_flags()
     auto &ep = get_zb_ep_for_ld2412<i>();
     auto &d = get_data_for_ld2412<i>();
     auto *pLD2412 = i.sensor();
-    zb::zb_zcl_ld2412_t::flags_t f = d.flags;
+    zbm::misc_zc::ld2412_t::flags_t f = d.flags;
     f.background_analysis_active = i.is_running_back_analysis();
-    ep.template attr<kAttrFlags>() = f;
-    ep.template attr<kAttrBT>() = pLD2412->GetLastBluetoothState();
+    ep.template set<kAttrFlags>(f);
+    ep.template set<kAttrBT>(pLD2412->GetLastBluetoothState());
 }
 
 template<ld2412::Instance &i>
@@ -712,7 +712,7 @@ void zb_ld2412_update_stat_collection()
 {
     auto &ep = get_zb_ep_for_ld2412<i>();
     auto &d = get_data_for_ld2412<i>();
-    ep.template attr<kAttrStatWinSize>() = i.get_stat_collect_window_size();
+    ep.template set<kAttrStatWinSize>(i.get_stat_collect_window_size());
 }
 
 template<ld2412::Instance &i>
@@ -721,13 +721,13 @@ void zb_ld2412_update_base_config()
     auto &ep = get_zb_ep_for_ld2412<i>();
     auto &d = get_data_for_ld2412<i>();
     auto *pLD2412 = i.sensor();
-    zb::zb_zcl_ld2412_t::base_cfg_t base;
+    zbm::misc_zc::ld2412_t::base_cfg_t base;
     base.clear_delay = pLD2412->GetTimeout();
     base.distance_resolution = pLD2412->GetDistanceRes();
     base.range_min = pLD2412->GetMinDistance() / 100.f;
     base.range_max = pLD2412->GetMaxDistance() / 100.f;
     FMT_PRINTLN("Base cfg updated to: [r_from={}, r_min={}, res={}, del={}]", (float)base.range_min, (float)base.range_max, base.distance_resolution, (uint16_t)base.clear_delay);
-    ep.template attr<kAttrBaseCfg>() = base;
+    ep.template set<kAttrBaseCfg>(base);
 }
 
 template<ld2412::Instance &i>
@@ -772,7 +772,7 @@ void zb_ld2412_error(uint8_t e)
 	break;
     }
     FMT_PRINTLN("zb_ld2412_error: e={}", (int)e);
-    zb_ep.attr<kAttrStatus1>() = e;
+    zb_ep.set<kAttrStatus1>(e);
 }
 
 template<ld2412::Instance &i>
@@ -788,7 +788,7 @@ void zb_ld2412_notify(uint8_t id)
     auto &ep = get_zb_ep_for_ld2412<i>();
     auto &d = get_data_for_ld2412<i>();
     auto *pLD2412 = i.sensor();
-    zb::zb_zcl_ld2412_t::flags_t f = d.flags;
+    zbm::misc_zc::ld2412_t::flags_t f = d.flags;
 
     switch(ld2412::notification_id_t(id))
     {
@@ -796,13 +796,13 @@ void zb_ld2412_notify(uint8_t id)
 	    FMT_PRINTLN("zb notify: back done: ok");
 	    f.background_analysis_active = false;
 	    f.background_analysis_ok = true;
-	    ep.template attr<kAttrFlags>() = f;
+	    ep.template set<kAttrFlags>(f);
 	    break;
 	case ld2412::notification_id_t::BackgroundAnalysisError:
 	    FMT_PRINTLN("zb notify: back done: failed");
 	    f.background_analysis_active = false;
 	    f.background_analysis_ok = false;
-	    ep.template attr<kAttrFlags>() = f;
+	    ep.template set<kAttrFlags>(f);
 	    break;
 	case ld2412::notification_id_t::SetBasicCfgDone:
 	    FMT_PRINTLN("zb notify: set basic cfg: ok");
@@ -873,30 +873,30 @@ void on_set_light_sense(zb::zb_zcl_ld2412_t::light_sense_cfg_t const& cfg)
 
 int configure_presence_pins();
 
-zb::zb_timer_ext_t<> g_EnvironmentSensorFetcher;
+zbm::timer_ext_t<> g_EnvironmentSensorFetcher;
 
 bool update_environment_sensors()
 {
     if (device_is_ready(rht2sensor))
     {
-	zb_ep.dump_info<kCmdOn, kCmdOff>();
+	//zb_ep.dump_info<kCmdOn, kCmdOff>();
 	sensor_sample_fetch(rht2sensor);
 	sensor_value v;
 	sensor_channel_get(rht2sensor, sensor_channel::SENSOR_CHAN_AMBIENT_TEMP, &v);
         sensor_attr_set(eco2sensor, SENSOR_CHAN_ALL, (sensor_attribute)SENSOR_ATTR_ENS160_TEMP, &v);
-	zb_ep.attr<kAttrTemp>() = zb::zb_zcl_temp_basic_t::FromC(float(v.val1) + float(v.val2) / 1000'000.f);
+	zb_ep.set<kAttrTemp>(zbm::zcl::FromC(float(v.val1) + float(v.val2) / 1000'000.f));
 
 	sensor_channel_get(rht2sensor, sensor_channel::SENSOR_CHAN_HUMIDITY, &v);
         sensor_attr_set(eco2sensor, SENSOR_CHAN_ALL, (sensor_attribute)SENSOR_ATTR_ENS160_RH, &v);
-	zb_ep.attr<kAttrHumid>() = zb::zb_zcl_rel_humid_basic_t::FromRelH(float(v.val1) + float(v.val2) / 1000'000.f);
+	zb_ep.set<kAttrHumid>(zbm::zcl::FromRelH(float(v.val1) + float(v.val2) / 1000'000.f));
 
 	sensor_sample_fetch(eco2sensor);
 	sensor_channel_get(eco2sensor, sensor_channel::SENSOR_CHAN_CO2, &v);
-	zb_ep.attr<kAttrCO2>() = float(v.val1) / 1000'000.f;
+	zb_ep.set<kAttrCO2>(float(v.val1) / 1000'000.f);
 	sensor_channel_get(eco2sensor, sensor_channel::SENSOR_CHAN_VOC, &v);
-	zb_ep.attr<kAttrTVOC>() = float(v.val1);
+	zb_ep.set<kAttrTVOC>(float(v.val1));
 	sensor_channel_get(eco2sensor, (sensor_channel)SENSOR_CHAN_ENS160_AQI, &v);
-	zb_ep.attr<kAttrAQI>() = (zb::zb_zcl_air_q_t::AQI)v.val1;
+	zb_ep.set<kAttrAQI>((zbm::misc_zc::air_q_t::AQI)v.val1);
     }
     return true;
 }
@@ -909,12 +909,23 @@ void on_zigbee_start()
 	ultimate_timer_fail();
 
     status3_t s;
-    s.s = dev_ctx.status_attr.status3;
+    s.s = dev_ctx.ep1.status_attr.status3;
     uint16_t hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
 
     s.bits.wdt_error = configure_wdt() == -1;
     s.bits.has_coredump = hasCoredump;
-    zb_ep.attr<kAttrStatus3>() = s.s;
+    zb_ep.set<kAttrStatus3>(s.s);
+}
+
+void zb_on_leave()
+{
+    printk("left the network\r\n");
+}
+
+void zb_on_error()
+{
+    //led::show_pattern(led::kPATTERN_3_BLIPS_NORMED, 1000);
+    //printk("error happened\r\n");
 }
 
 /**@brief Zigbee stack event handler.
@@ -927,13 +938,11 @@ void zboss_signal_handler(zb_bufid_t bufid)
         zb_zdo_app_signal_hdr_t *pHdr;
         auto signalId = zb_get_app_signal(bufid, &pHdr);
 
-	auto ret = zb::tpl_signal_handler<zb::sig_handlers_t{
-	    .on_leave = +[]{ 
-		printk("left the network\r\n");
-	    },
-	    //.on_error = []{ led::show_pattern(led::kPATTERN_3_BLIPS_NORMED, 1000); },
-	    .on_dev_reboot = on_zigbee_start,
-	    .on_steering = on_zigbee_start,
+	auto ret = zbm::tpl_signal_handler<
+	    zbm::sig_handlers_t{ZB_ZDO_SIGNAL_LEAVE, ^^zb_on_leave},
+	    zbm::sig_handlers_t{ZB_ZDO_SIGNAL_ERROR, ^^zb_on_error},
+	    zbm::sig_handlers_t{ZB_BDB_SIGNAL_DEVICE_REBOOT, ^^on_zigbee_start},
+	    zbm::sig_handlers_t{ZB_BDB_SIGNAL_STEERING, ^^on_zigbee_start},
 	   }>(bufid);
     const uint32_t LOCAL_ERR_CODE = (uint32_t) (-ret);	
     if (LOCAL_ERR_CODE != RET_OK) {				
@@ -941,7 +950,7 @@ void zboss_signal_handler(zb_bufid_t bufid)
     }							
 }
 
-zb::zb_timer_ext_t<> g_FactoryResetDoneChecker;
+zbm::timer_ext_t<> g_FactoryResetDoneChecker;
 /**@brief Callback for button events.
  *
  * @param[in]   button_state  Bitmask containing the state of the buttons.
@@ -1000,7 +1009,7 @@ zb::cmd_handling_result_t on_cmd_start_analysis_for_presence()
     s.s = dev_ctx.status_attr.status3;
     s.bits.analysis_for_absence = false;
     s.bits.analysis_for_presence = true;
-    zb_ep.attr<kAttrStatus3>() = s.s;
+    zb_ep.set<kAttrStatus3>(s.s);
     return {};
 }
 
@@ -1013,7 +1022,7 @@ zb::cmd_handling_result_t on_cmd_start_analysis_for_absence()
     s.s = dev_ctx.status_attr.status3;
     s.bits.analysis_for_absence = true;
     s.bits.analysis_for_presence = false;
-    zb_ep.attr<kAttrStatus3>() = s.s;
+    zb_ep.set<kAttrStatus3>(s.s);
     return {};
 }
 
@@ -1024,17 +1033,17 @@ zb::cmd_handling_result_t on_cmd_stop_analysis()
 
     hlk::LD2412::gate_array_t resultsMain;
     ld2412_1.get_analysis_results(resultsMain);
-    zb_ep.attr<kAttrStillEnergyMain>() = resultsMain;
+    zb_ep.set<kAttrStillEnergyMain>(resultsMain);
 
     hlk::LD2412::gate_array_t resultsAux;
     ld2412_2.get_analysis_results(resultsAux);
-    zb_ep.attr<kAttrStillEnergyAux>() = resultsAux;
+    zb_ep.set<kAttrStillEnergyAux>(resultsAux);
 
     status3_t s;
     s.s = dev_ctx.status_attr.status3;
     s.bits.analysis_for_absence = false;
     s.bits.analysis_for_presence = false;
-    zb_ep.attr<kAttrStatus3>() = s.s;
+    zb_ep.set<kAttrStatus3>(s.s);
     return {};
 }
 
@@ -1045,7 +1054,7 @@ zb::cmd_handling_result_t on_cmd_clear_coredump()
     status3_t s;
     s.s = dev_ctx.status_attr.status3;
     s.bits.has_coredump = hasCoredump;
-    zb_ep.attr<kAttrStatus3>() = s.s;
+    zb_ep.set<kAttrStatus3>(s.s);
     return {};
 }
 
@@ -1152,7 +1161,7 @@ int main(void)
     led::setup();
     led::start();
 
-    zb::g_GlobalErrorHandler = ultimate_zb_fail;
+    zbm::g_GlobalErrorHandler = ultimate_zb_fail;
 
     //configure button handler
     err = dk_buttons_init(button_changed);
@@ -1206,11 +1215,11 @@ int main(void)
     }
 
     dev_ctx.occupancy.occupancy = false;
-
     /* Register callback for handling ZCL commands. */
-    auto dev_cb = zb::tpl_device_cb<
-	zb::dev_cb_handlers_desc_t{ .error_handler = on_dev_cb_error }
+    auto dev_cb = zbm::tpl_device_cb<
+	zbm::dev_cb_handlers_desc_t{ .error_handler = on_dev_cb_error }
 	//main instance
+	zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep = ^^device_ctx_t::ep1, .target = kAttrBaseCfg, .handler = ^^on_set_base_config<ld2412_1>}
 	, zb::handle_set_for<kAttrBaseCfg,               &on_set_base_config<ld2412_1>>(zb_ep)
 	, zb::handle_set_for<kAttrLightSense,            &on_set_light_sense<ld2412_1>>(zb_ep)
 	, zb::handle_set_for<kAttrStillThr,              method_fwd<ld2412_1, &ld2412::Instance::set_still_thresholds_raw>>(zb_ep)
