@@ -323,27 +323,6 @@ static const struct gpio_dt_spec pir = GPIO_DT_SPEC_GET(PIR_NODE2, gpios);
 static const struct device *const eco2sensor = DEVICE_DT_GET(DT_NODELABEL(eco2sensor));
 static const struct device *const rht2sensor = DEVICE_DT_GET(DT_NODELABEL(rht2sensor));
 
-/**********************************************************************/
-/* Template helper. TODO: move to some generic lib                    */
-/**********************************************************************/
-template<class T>
-struct method_1st_arg_t;
-
-template<class T, class Arg>
-struct method_1st_arg_t<void(T::*)(Arg)>
-{
-    using type = Arg;
-};
-
-template<auto pM>
-using arg1_type_t = method_1st_arg_t<decltype(pM)>::type;
-
-template<auto &inst, auto M>
-void method_fwd(arg1_type_t<M> a)
-{
-    (inst.*M)(a);
-}
-
 template<size_t N>
 auto as_print_dest(zbm::str_t<N> &str)
 {
