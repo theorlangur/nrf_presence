@@ -1231,24 +1231,23 @@ int main(void)
     }
 
     dev_ctx.ep1.occupancy.occupancy = false;
-    //TODO: method calling support as a handler
     /* Register callback for handling ZCL commands. */
     auto dev_cb = zbm::tpl_device_cb<
 	zbm::dev_cb_handlers_desc_t{ .error_handler = on_dev_cb_error }
 	//main instance
-	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep = ^^device_ctx_t::ep1, .target = kAttrBaseCfg, .handler = ^^on_set_base_config<ld2412_1>}
-	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep = ^^device_ctx_t::ep1, .target = kAttrLightSense, .handler = ^^on_set_light_sense<ld2412_1>}
-	//, zb::handle_set_for<kAttrStillThr,              method_fwd<ld2412_1, &ld2412::Instance::set_still_thresholds_raw>>(zb_ep)
-	//, zb::handle_set_for<kAttrMoveThr,               method_fwd<ld2412_1, &ld2412::Instance::set_move_thresholds_raw>>(zb_ep)
-	//, zb::handle_set_for<kAttrStatWinSize,           method_fwd<ld2412_1, &ld2412::Instance::collect_statistics>>(zb_ep)
-	//, zb::handle_set_for<kAttrBT,                    method_fwd<ld2412_1, &ld2412::Instance::switch_bluetooth>>(zb_ep)
+	,zbm::on_set_attribute_value<&on_set_base_config<ld2412_1>>(^^device_ctx_t::ep1, kAttrBaseCfg)
+	,zbm::on_set_attribute_value<&on_set_light_sense<ld2412_1>>(^^device_ctx_t::ep1, kAttrLightSense)
+	,zbm::on_set_attribute_value<ld2412_1, &ld2412::Instance::set_still_thresholds_raw>(^^device_ctx_t::ep1, kAttrStillThr)
+	,zbm::on_set_attribute_value<ld2412_1, &ld2412::Instance::set_move_thresholds_raw >(^^device_ctx_t::ep1, kAttrMoveThr)
+	,zbm::on_set_attribute_value<ld2412_1, &ld2412::Instance::collect_statistics      >(^^device_ctx_t::ep1, kAttrStatWinSize)
+	,zbm::on_set_attribute_value<ld2412_1, &ld2412::Instance::switch_bluetooth        >(^^device_ctx_t::ep1, kAttrBT)
 	//aux instance
-	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep = ^^device_ctx_t::ep2, .target = kAttrBaseCfg, .handler = ^^on_set_base_config<ld2412_2>}
-	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep = ^^device_ctx_t::ep2, .target = kAttrLightSense, .handler = ^^on_set_light_sense<ld2412_2>}
-	//, zb::handle_set_for<kAttrStillThr,              method_fwd<ld2412_2, &ld2412::Instance::set_still_thresholds_raw>>(zb_ep_aux)
-	//, zb::handle_set_for<kAttrMoveThr,               method_fwd<ld2412_2, &ld2412::Instance::set_move_thresholds_raw>>(zb_ep_aux)
-	//, zb::handle_set_for<kAttrStatWinSize,           method_fwd<ld2412_2, &ld2412::Instance::collect_statistics>>(zb_ep_aux)
-	//, zb::handle_set_for<kAttrBT,                    method_fwd<ld2412_2, &ld2412::Instance::switch_bluetooth>>(zb_ep_aux)
+	,zbm::on_set_attribute_value<&on_set_base_config<ld2412_2>>(^^device_ctx_t::ep2, kAttrBaseCfg)
+	,zbm::on_set_attribute_value<&on_set_light_sense<ld2412_2>>(^^device_ctx_t::ep2, kAttrLightSense)
+	,zbm::on_set_attribute_value<ld2412_2, &ld2412::Instance::set_still_thresholds_raw>(^^device_ctx_t::ep2, kAttrStillThr)
+	,zbm::on_set_attribute_value<ld2412_2, &ld2412::Instance::set_move_thresholds_raw >(^^device_ctx_t::ep2, kAttrMoveThr)
+	,zbm::on_set_attribute_value<ld2412_2, &ld2412::Instance::collect_statistics      >(^^device_ctx_t::ep2, kAttrStatWinSize)
+	,zbm::on_set_attribute_value<ld2412_2, &ld2412::Instance::switch_bluetooth        >(^^device_ctx_t::ep2, kAttrBT)
     >;
 
     ZB_ZCL_REGISTER_DEVICE_CB(dev_cb);
