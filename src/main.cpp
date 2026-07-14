@@ -147,7 +147,7 @@ constexpr auto kAttrStatWinSize = ^^zbm::misc_zc::ld2412_t::statistics_sample_co
 /* Device control attributes                                          */
 /**********************************************************************/
 constexpr auto kAttrStillEnergyMain = ^^zbm::misc_zc::dev_ctrl_t::main_still_energy_analysis;
-constexpr auto kAttrStillEnergyAux = ^^zbm::misc_zc::dev_ctrl_t::aux_still_energy_analysis;
+constexpr auto kAttrStillEnergyAux  = ^^zbm::misc_zc::dev_ctrl_t::aux_still_energy_analysis;
 
 /**********************************************************************/
 /* Humidity                                                           */
@@ -169,14 +169,14 @@ constexpr auto kAttrCO2 = ^^zbm::zcl::co2_basic_t::measured_value;
 /* Air quality                                                        */
 /**********************************************************************/
 constexpr auto kAttrTVOC = ^^zbm::misc_zc::air_q_t::tvoc;
-constexpr auto kAttrAQI = ^^zbm::misc_zc::air_q_t::aqi;
+constexpr auto kAttrAQI  = ^^zbm::misc_zc::air_q_t::aqi;
 
 /**********************************************************************/
 /* Occupancy attribute shortcuts                                      */
 /**********************************************************************/
 constexpr auto kAttrOccupancy = ^^zbm::zcl::occupancy_ultrasonic_t::occupancy;
 
-constexpr auto kCmdOn = ^^zbm::zcl::on_off_client_t::on;
+constexpr auto kCmdOn  = ^^zbm::zcl::on_off_client_t::on;
 constexpr auto kCmdOff = ^^zbm::zcl::on_off_client_t::off;
 
 template<ld2412::Instance &i>
@@ -268,6 +268,15 @@ auto& get_zb_ep_for_ld2412()
 	return zb_ep;
     else if constexpr (&i == &ld2412_2)
 	return zb_ep_aux;
+}
+
+template<ld2412::Instance &i>
+auto& get_main_ep()
+{
+    if constexpr (&i == &ld2412_1)
+	return zb_ep;
+    else if constexpr (&i == &ld2412_2)
+	return zb_ep;
 }
 
 template<ld2412::Instance &i>
@@ -533,7 +542,7 @@ zbm::cmd_handling_result_t on_cmd_run_back_analysis()
     flags.background_analysis_ok = true;
     ep.template set<kAttrFlags>(flags);
 
-    zb_ep.set<kAttrStatus1>(0);//reset error
+    get_main_ep<i>().template set<kAttrStatus1>(0);//reset error
     return {};
 }
 
@@ -779,7 +788,7 @@ void zb_ld2412_error(uint8_t e)
 	break;
     }
     FMT_PRINTLN("zb_ld2412_error: e={}", (int)e);
-    zb_ep.set<kAttrStatus1>(e);
+    get_main_ep<i>().template set<kAttrStatus1>(e);//reset error
 }
 
 template<ld2412::Instance &i>
@@ -1229,7 +1238,6 @@ int main(void)
 	//main instance
 	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep = ^^device_ctx_t::ep1, .target = kAttrBaseCfg, .handler = ^^on_set_base_config<ld2412_1>}
 	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep = ^^device_ctx_t::ep1, .target = kAttrLightSense, .handler = ^^on_set_light_sense<ld2412_1>}
-	,zbm::cb_handler_t{.id = ZB_ZCL_SET_ATTR_VALUE_CB_ID, .ep = ^^device_ctx_t::ep1, .target = kAttrStillThr, .handler = ^^on_set_light_sense<ld2412_1>}
 	//, zb::handle_set_for<kAttrStillThr,              method_fwd<ld2412_1, &ld2412::Instance::set_still_thresholds_raw>>(zb_ep)
 	//, zb::handle_set_for<kAttrMoveThr,               method_fwd<ld2412_1, &ld2412::Instance::set_move_thresholds_raw>>(zb_ep)
 	//, zb::handle_set_for<kAttrStatWinSize,           method_fwd<ld2412_1, &ld2412::Instance::collect_statistics>>(zb_ep)
@@ -1246,7 +1254,7 @@ int main(void)
     ZB_ZCL_REGISTER_DEVICE_CB(dev_cb);
 
     /* Register device context (endpoints). */
-    ZB_AF_REGISTER_DEVICE_CTX(zb_ctx);
+    ZB_AF_REGISTER_DEVICE_CTX(zb_ctx.device_context());
 
     if (int err = configure_presence_pins(); err != 0)
     {
