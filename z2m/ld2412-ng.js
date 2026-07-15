@@ -467,6 +467,7 @@ const orlangurLD2412Extended = {
 
             e.binary('status3_coredump_exists', ea.STATE_GET, 1, 0).withLabel('Coredump Exists').withCategory('diagnostic'),
             e.binary('status3_watchdog_config_error', ea.STATE_GET, 1, 0).withLabel('Watchdog Config Error').withCategory('diagnostic'),
+            e.text('status3_last_reset_reason', ea.STATE_GET).withLabel('Last Reset').withCategory('diagnostic'),
             e.binary('status3_analysis_for_presence', ea.STATE_GET, 1, 0).withLabel('Analysis For Presence').withCategory('diagnostic'),
             e.binary('status3_analysis_for_absence', ea.STATE_GET, 1, 0).withLabel('Analysis For Absence').withCategory('diagnostic'),
             e.numeric('status3_raw', ea.STATE_GET).withLabel('Status3 Raw').withCategory('diagnostic'),
@@ -512,6 +513,14 @@ const orlangurLD2412Extended = {
                         result['status3_analysis_for_presence'] = (raw >> 2) & 1;
                         result['status3_analysis_for_absence'] = (raw >> 3) & 1;
                         result['status3_raw'] = raw;
+                        var reset_reason = '';
+                        if ((raw >> 4) & 1) reset_reason += "pin;";
+                        if ((raw >> 5) & 1) reset_reason += "wdt;";
+                        if ((raw >> 6) & 1) reset_reason += "sw;";
+                        if ((raw >> 7) & 1) reset_reason += "cpu;";
+                        if ((raw >> 8) & 1) reset_reason += "lp;";
+                        if ((raw >> 9) & 1) reset_reason += "dbg;";
+                        result['status3_last_reset_reason'] = reset_reason;
                     }
 
                     return result;
@@ -525,7 +534,7 @@ const orlangurLD2412Extended = {
                     'status1_error', 'status1_raw',
                     'status2_pir', 'status2_main', 'status2_aux',
                     'status2_pir_changed', 'status2_main_changed', 'status2_aux_changed', 'status2_raw',
-                    'status3_coredump_exists', 'status3_watchdog_config_error', 'status3_analysis_for_presence', 
+                    'status3_coredump_exists', 'status3_last_reset_reason', 'status3_watchdog_config_error', 'status3_analysis_for_presence', 
                     'status3_analysis_for_absence', 'status3_raw', 'stop_watchdog_feeding', 'clear_coredump'
                 ],
                 convertSet: async (entity, key, value, meta) => {
