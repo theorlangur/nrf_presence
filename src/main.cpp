@@ -18,6 +18,7 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/sensor/ens160.h>
 
+#include <zephyr/drivers/hwinfo.h>
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/task_wdt/task_wdt.h>
 /**********************************************************************/
@@ -253,7 +254,13 @@ union status3_t
 	uint16_t wdt_error: 1;
 	uint16_t analysis_for_presence: 1;
 	uint16_t analysis_for_absence: 1;
-	uint16_t unused: 12;
+	uint16_t reset_reason_pin: 1;
+	uint16_t reset_reason_wdt: 1;
+	uint16_t reset_reason_sw: 1;
+	uint16_t reset_reason_cpu_lockup: 1;
+	uint16_t reset_reason_low_power_wake: 1;
+	uint16_t reset_reason_dbg: 1;
+	uint16_t unused: 6;
     }bits;
 };
 
@@ -908,6 +915,8 @@ bool update_environment_sensors()
     return true;
 }
 
+constinit uint32_t reset_reasons = 0;
+
 void on_zigbee_start()
 {
     printk("on_zigbee_start\r\n");
@@ -921,6 +930,12 @@ void on_zigbee_start()
 
     s.bits.wdt_error = configure_wdt() == -1;
     s.bits.has_coredump = hasCoredump;
+    s.bits.reset_reason_pin = (reset_reasons & RESET_PIN) != 0;
+    s.bits.reset_reason_wdt = (reset_reasons & RESET_WATCHDOG) != 0;
+    s.bits.reset_reason_sw = (reset_reasons & RESET_SOFTWARE) != 0;
+    s.bits.reset_reason_cpu_lockup = (reset_reasons & RESET_CPU_LOCKUP) != 0;
+    s.bits.reset_reason_low_power_wake = (reset_reasons & RESET_LOW_POWER_WAKE) != 0;
+    s.bits.reset_reason_dbg = (reset_reasons & RESET_DEBUG) != 0;
     zb_ep.attr<kAttrStatus3>() = s.s;
 }
 
@@ -1155,6 +1170,8 @@ int main(void)
     disable_hw_wdt();
     int err = settings_subsys_init();
     err = settings_load();
+    hwinfo_get_reset_cause(&reset_reasons);
+    hwinfo_clear_reset_cause();
 
     led::setup();
     led::start();
