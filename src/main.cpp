@@ -1192,11 +1192,7 @@ int main(void)
     printk("main\r\n");
 
     pLD2412_1 = ld2412_1.setup(&on_ld2412_error<ld2412_1>, &on_ld2412_notify<ld2412_1>);
-    if (pLD2412_1)
-    {
-	//TODO: the other way around and update the config on ld2412 from stored settings?
-	update_dev_ctx_from_ld2412<ld2412_1>();
-    }else
+    if(!pLD2412_1)
     {
 	printk("LD2412 not found\r\n");
 	int val = 1;
@@ -1211,11 +1207,7 @@ int main(void)
     }
 
     pLD2412_2 = ld2412_2.setup(&on_ld2412_error<ld2412_2>, &on_ld2412_notify<ld2412_2>);
-    if (pLD2412_2)
-    {
-	//TODO: the other way around and update the config on ld2412 from stored settings?
-	update_dev_ctx_from_ld2412<ld2412_2>();
-    }else
+    if (!pLD2412_2)
     {
 	printk("LD2412(aux) not found\r\n");
 	int val = 1;
@@ -1256,6 +1248,10 @@ int main(void)
     ZB_AF_REGISTER_DEVICE_CTX(zb_ctx);
 
     err = settings_load();
+
+    //real config from the device takes precedense
+    update_dev_ctx_from_ld2412<ld2412_1>();
+    update_dev_ctx_from_ld2412<ld2412_2>();
 
     if (int err = configure_presence_pins(); err != 0)
     {
