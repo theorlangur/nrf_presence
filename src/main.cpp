@@ -1276,11 +1276,6 @@ int main(void)
     FMT_PRINTLN("-----LD2412 aux-----");
     print_ld2412_config(*pLD2412_2);
 
-    //auto e_cnt =  std::meta::enumerators_of(^^ld2412::err_t).size();
-    //printk("%d", e_cnt);
-    //std::string_view sv = std::meta::display_string_of(^^ld2412::err_t);
-    //printk("%s", sv.data());
-
     while (1) {
 	k_sleep(K_FOREVER);
     }
