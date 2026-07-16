@@ -1081,6 +1081,8 @@ static void wdt_callback(int channel_id, void *user_data)
 
 int configure_wdt()
 {
+    return 0;
+
 
     if (!device_is_ready(wdt)) {
 	printk("%s: device not ready.\n", wdt->name);
