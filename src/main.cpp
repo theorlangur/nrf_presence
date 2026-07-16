@@ -1170,7 +1170,6 @@ int main(void)
     static_assert(atomic_state_t::is_always_lock_free);
     disable_hw_wdt();
     int err = settings_subsys_init();
-    err = settings_load();
     hwinfo_get_reset_cause(&reset_reasons);
     hwinfo_clear_reset_cause();
 
@@ -1255,6 +1254,8 @@ int main(void)
 
     /* Register device context (endpoints). */
     ZB_AF_REGISTER_DEVICE_CTX(zb_ctx);
+
+    err = settings_load();
 
     if (int err = configure_presence_pins(); err != 0)
     {
