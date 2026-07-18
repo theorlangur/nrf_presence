@@ -962,6 +962,16 @@ void on_zigbee_start()
     s.bits.reset_reason_low_power_wake = (reset_reasons & RESET_LOW_POWER_WAKE) != 0;
     s.bits.reset_reason_dbg = (reset_reasons & RESET_DEBUG) != 0;
     zb_ep.attr<kAttrStatus3>() = s.s;
+
+    if (s.bits.reset_reason_wdt)
+    {
+	//send command based on initial presence state
+	reset_reasons &= ~RESET_WATCHDOG;
+	//permissive mode, any presence would send 'on'
+	//Note: interrupt racing is possible here
+	g_presence_state = g_pir_presence | g_ld2412_main_presence_out | g_ld2412_aux_presence_out;
+	send_on_off(g_presence_state);
+    }
 }
 
 /**@brief Zigbee stack event handler.
@@ -1407,6 +1417,9 @@ int configure_presence_pins()
 
     dev_ctx.occupancy.occupancy = g_pir_presence;//initially only conservatively by PIR
     dev_ctx.status_attr.status2 = get_presence_as_status(state.val);
+
+    g_ld2412_main_presence_out = gpio_pin_get_dt(&presence);
+    g_ld2412_aux_presence_out = gpio_pin_get_dt(&presence2);
 
     gpio_init_callback(&g_on_ld2412_triggered_main, presence_triggered, BIT(presence.pin));
     err = gpio_add_callback_dt(&presence, &g_on_ld2412_triggered_main);
