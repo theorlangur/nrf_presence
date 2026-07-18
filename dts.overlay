@@ -54,6 +54,17 @@
 			label = "PIR Sensor";
 		};
 	};
+
+	cpuapp_sram@2002e800 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x2002e800 DT_SIZE_K(2)>;
+		zephyr,memory-region = "BreadcrumbsMem";
+		status = "okay";
+		retainedmem {
+			compatible = "zephyr,retained-ram";
+			status = "okay";
+		};
+	};
 };
 
 &pinctrl {
@@ -166,4 +177,10 @@
 };
 &wdt31 {
 	status = "okay";
+};
+
+&cpuapp_sram {
+	/* Shrink SRAM size to avoid overlap with retained memory region */
+	reg = <0x20000000 DT_SIZE_K(186)>;
+	ranges = <0x0 0x20000000 0x2e800>;
 };
