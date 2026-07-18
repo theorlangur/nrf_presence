@@ -30,7 +30,7 @@ namespace zephyr
             close();
         }
 
-        operator bool() const { return error != 0; }
+        operator bool() const { return error == 0; }
 
         int open(uint8_t partition_id)
         {

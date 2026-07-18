@@ -1101,13 +1101,8 @@ zb::cmd_handling_result_t on_cmd_clear_coredump()
     return {};
 }
 
-zb::cmd_handling_result_t on_cmd_stop_wd_feeding()
-{
-    g_WD_FeedTheDog = false;
-    return {};
-}
-
-[[gnu::section("noinit"), gnu::used]] volatile zephyr::snapshot_factory_t<>::snapshot_t wdt_snapshot;
+static constexpr zephyr::snapshot_cfg_t kSnapshotCfg = {.m_MaxTasks = 12, .m_MaxFrames = 10};
+[[gnu::section("noinit"), gnu::used]] volatile zephyr::snapshot_factory_t<kSnapshotCfg>::snapshot_t wdt_snapshot;
 
 static void wdt_callback(const struct device *dev, int channel_id)
 {
@@ -1116,6 +1111,12 @@ static void wdt_callback(const struct device *dev, int channel_id)
 
     uintptr_t interrupted_fp = ((uint32_t *)live_r7)[0]; 
     wdt_snapshot.capture(interrupted_fp);
+}
+
+zb::cmd_handling_result_t on_cmd_stop_wd_feeding()
+{
+    g_WD_FeedTheDog = false;
+    return {};
 }
 
 int configure_wdt()
@@ -1214,6 +1215,20 @@ int dump_wdt_snapshot_to_flash()
 
     bc.write(0, wdt_snapshot);
 
+    {
+	printk("Dumped wdt snapshot to flash;\r\n");
+	int tasks = 0;
+	while(tasks < kSnapshotCfg.m_MaxTasks)
+	{
+	    auto &t = wdt_snapshot.tasks[tasks++];
+	    printk("Task %d %s; Stack:\r\n", tasks, t.name);
+	    if (!t)
+		break;
+	    for(int frame = 0; frame < kSnapshotCfg.m_MaxFrames && t.stack[frame]; ++frame)
+		printk("%p\r\n", (void*)t.stack[frame]);
+	}
+    }
+
     return 0;
 }
 
@@ -1226,6 +1241,9 @@ int main(void)
 	//write into coredump section
 	dump_wdt_snapshot_to_flash();
 	wdt_snapshot.clear();
+    }else if (wdt_snapshot.magic == zephyr::kSnapshotMagicNotReady)
+    {
+	printk("unfinished WDT snapshot detected\r\n");
     }
 
     int err = settings_subsys_init();
@@ -1332,6 +1350,7 @@ int main(void)
     FMT_PRINTLN("-----LD2412 aux-----");
     print_ld2412_config(*pLD2412_2);
 
+    printk("_k_thread=%p\r\n", _kernel.threads);
     while (1) {
 	k_sleep(K_FOREVER);
     }
