@@ -31,6 +31,8 @@ target_link_libraries(app PUBLIC NrfLibUART)
 
 include(cmake/CustomLibcxx.cmake)
 
+target_compile_options(app PRIVATE -fno-omit-frame-pointer)
+
 if(COMMAND setup_custom_libcxx)
     setup_custom_libcxx(app)
 elseif(ZEPHYR_TOOLCHAIN_VARIANT STREQUAL "cross-compile")
