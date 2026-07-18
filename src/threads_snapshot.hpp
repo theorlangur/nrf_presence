@@ -96,6 +96,13 @@ namespace zephyr
                 if (!current)
                     current = _current;
                 k_thread_foreach_unlocked(on_thread_user_cb_t, (void*)this);
+                if (total_tasks == 0)
+                {
+                    for(;current && total_tasks < cfg.m_MaxTasks; current = current->next_thread)
+                    {
+                        tasks[total_tasks++].capture(current, reg_fp);
+                    }
+                }
                 if (total_tasks < cfg.m_MaxTasks)
                 {
                     tasks[total_tasks].name[0] = 0;

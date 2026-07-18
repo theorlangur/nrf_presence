@@ -1128,6 +1128,17 @@ static void wdt_callback(const struct device *dev, int channel_id)
     wdt_snapshot.capture(interrupted_fp);
 }
 
+void k_sys_fatal_error_handler(unsigned int reason, const struct arch_esf *esf)
+{
+    uint32_t live_r7;
+    __asm__ volatile("mov %0, r7" : "=r"(live_r7));
+
+    uintptr_t interrupted_fp = ((uint32_t *)live_r7)[0]; 
+    wdt_snapshot.capture(interrupted_fp);
+
+    k_fatal_halt(reason);
+}
+
 zb::cmd_handling_result_t on_cmd_stop_wd_feeding()
 {
     //uint32_t live_r7;
