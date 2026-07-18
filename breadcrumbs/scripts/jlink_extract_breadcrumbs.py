@@ -24,6 +24,7 @@ import struct
 import sys
 import shutil
 import subprocess
+import json
 
 HDR_FORMAT = "<4sHBc"
 HDR_SIZE = struct.calcsize(HDR_FORMAT)  # 16
@@ -128,7 +129,9 @@ def parse_and_symbolize_tasks(payload, total_tasks, elf_target):
     # --functions=linkage shows the raw/mangled name if needed, --demangle cleans it up for C++
     try:
         symbolizer = subprocess.Popen(
-            ["llvm-symbolizer-21", f"--obj={elf_target}", "--functions=linkage", "--demangle"],
+            ["llvm-symbolizer-21", f"--obj={elf_target}"
+             , "--functions=linkage", "--demangle"
+             ,"--output-style=JSON"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True,  # Ensures we work with strings instead of bytes
@@ -168,11 +171,35 @@ def parse_and_symbolize_tasks(payload, total_tasks, elf_target):
                 symbolizer.stdin.flush()
                 
                 # Read the exactly two lines of response
-                func_name = symbolizer.stdout.readline().strip()
-                file_line = symbolizer.stdout.readline().strip()
-                dummy = symbolizer.stdout.readline().strip()
+                response_line = symbolizer.stdout.readline().strip()
+                data = json.loads(response_line)
+                if isinstance(data, dict):
+                    symbols = data.get("Symbol", [])
+                elif isinstance(data, list) and len(data) > 0:
+                    symbols = data[0].get("Symbol", [])
+                else:
+                    symbols = []
+                if symbols:
+                    # Loop through symbols. If len(symbols) > 1, the function was inlined!
+                    for idx, sym in enumerate(symbols):
+                        func_name = sym.get("FunctionName", "??")
+                        file_name = sym.get("FileName", "??")
+                        line_num = sym.get("Line", 0)
+
+                        # Clean up missing symbol symbols
+                        if func_name == "??": func_name = "<unknown_func>"
+                        if file_name == "??": file_name = "<unknown_file>"
+
+                        # Visual structure formatting for normal vs. inlined frames
+                        if idx == 0:
+                            print(f"      {hex_addr} -> {func_name} ({file_name}:{line_num})")
+                        else:
+                            print(f"                  [Inlined] -> {func_name} ({file_name}:{line_num})")
+                else:
+                    print(f"No 'Symbol' entry in {isinstance(data, dict)}")
             
-            print(f"      {hex_addr} -> {func_name} ({file_line})")
+            else:
+                print(f"      {hex_addr} -> {func_name} ({file_line})")
             
         print("-" * 60)
 
