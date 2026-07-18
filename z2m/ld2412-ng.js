@@ -465,7 +465,7 @@ const orlangurLD2412Extended = {
             e.binary('status2_aux_changed', ea.STATE_GET, 1, 0).withLabel('Aux Changed').withCategory('diagnostic'),
             e.numeric('status2_raw', ea.STATE_GET).withLabel('Status2 Raw').withCategory('diagnostic'),
 
-            e.binary('status3_coredump_exists', ea.STATE_GET, 1, 0).withLabel('Coredump Exists').withCategory('diagnostic'),
+            e.text('status3_coredump_exists', ea.STATE_GET).withLabel('Coredump Exists').withCategory('diagnostic'),
             e.binary('status3_watchdog_config_error', ea.STATE_GET, 1, 0).withLabel('Watchdog Config Error').withCategory('diagnostic'),
             e.text('status3_last_reset_reason', ea.STATE_GET).withLabel('Last Reset').withCategory('diagnostic'),
             e.binary('status3_analysis_for_presence', ea.STATE_GET, 1, 0).withLabel('Analysis For Presence').withCategory('diagnostic'),
@@ -508,7 +508,6 @@ const orlangurLD2412Extended = {
 
                     if (data['status3'] !== undefined) {
                         const raw = data['status3'];
-                        result['status3_coredump_exists'] = (raw >> 0) & 1;
                         result['status3_watchdog_config_error'] = (raw >> 1) & 1;
                         result['status3_analysis_for_presence'] = (raw >> 2) & 1;
                         result['status3_analysis_for_absence'] = (raw >> 3) & 1;
@@ -521,6 +520,11 @@ const orlangurLD2412Extended = {
                         if ((raw >> 8) & 1) reset_reason += "lp;";
                         if ((raw >> 9) & 1) reset_reason += "dbg;";
                         result['status3_last_reset_reason'] = reset_reason;
+
+                        var coredump_state = '';
+                        if ((raw >> 0) & 1) coredump_state += "core;";
+                        if ((raw >> 0) & 10) coredump_state += "bread;";
+                        result['status3_coredump_exists'] = coredump_state;
                     }
 
                     return result;
