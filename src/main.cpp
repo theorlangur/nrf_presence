@@ -20,7 +20,9 @@
 
 #include <zephyr/drivers/hwinfo.h>
 #include <zephyr/drivers/watchdog.h>
-#include <zephyr/task_wdt/task_wdt.h>
+#include <zephyr/storage/flash_map.h>
+#include "threads_snapshot.hpp"
+#include "partition_basic.hpp"
 /**********************************************************************/
 /* Zigbee                                                             */
 /**********************************************************************/
@@ -47,6 +49,27 @@ void nrf_flash_skip_sync(bool skip);
 }
 
 constexpr bool kDebug = false;
+
+#define BREADCRUMBS_PARTITION		breadcrumbs_partition
+#define BREADCRUMBS_PARTITION_ID	FIXED_PARTITION_ID(BREADCRUMBS_PARTITION)
+
+#if !FIXED_PARTITION_EXISTS(BREADCRUMBS_PARTITION)
+#error "Need a fixed partition named 'breadcrumbs-partition'!"
+#endif
+
+/* Note that currently external memories are not supported */
+#define FLASH_CONTROLLER	\
+	DT_PARENT(DT_PARENT(DT_NODELABEL(BREADCRUMBS_PARTITION)))
+
+#define FLASH_WRITE_SIZE	DT_PROP(FLASH_CONTROLLER, write_block_size)
+#define FLASH_BUF_SIZE \
+	MAX(FLASH_WRITE_SIZE, ROUND_UP(CONFIG_DEBUG_COREDUMP_FLASH_CHUNK_SIZE, FLASH_WRITE_SIZE))
+#if DT_NODE_HAS_PROP(FLASH_CONTROLLER, erase_block_size)
+#define DEVICE_ERASE_BLOCK_SIZE DT_PROP(FLASH_CONTROLLER, erase_block_size)
+#else
+/* Device has no erase block size */
+#define DEVICE_ERASE_BLOCK_SIZE 1
+#endif
 
 #define MMWAVE_UART_NODE DT_ALIAS(mmwave_uart)
 #define MMWAVE_UART_NODE2 DT_ALIAS(mmwave_uart2)
@@ -260,7 +283,8 @@ union status3_t
 	uint16_t reset_reason_cpu_lockup: 1;
 	uint16_t reset_reason_low_power_wake: 1;
 	uint16_t reset_reason_dbg: 1;
-	uint16_t unused: 6;
+	uint16_t has_breadcrumbs: 1;
+	uint16_t unused: 5;
     }bits;
 };
 
@@ -388,14 +412,14 @@ void ultimate_zb_fail(zb_ret_t r)
 /**********************************************************************/
 /* Watchdog                                                           */
 /**********************************************************************/
-constexpr static uint32_t WD_SWTimeoutMS = CONFIG_TASK_WDT_MIN_TIMEOUT;
-constexpr static uint32_t WD_CoredumpReservedTime = CONFIG_TASK_WDT_HW_FALLBACK_DELAY;
-constexpr static uint32_t WD_HWTimeoutMS = WD_SWTimeoutMS + WD_CoredumpReservedTime;
+constexpr static uint32_t WD_HWTimeoutMS = 5000;
 bool g_WD_FeedTheDog = true;
 const struct device *const wdt = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 zb::zb_timer_ext_16_t g_WDTFeeder;
 int wdt_channel_id = -1;
 int configure_wdt();
+bool has_breadcrumbs_stored();
+void clear_breadcrumbs_stored();
 
 /**********************************************************************/
 /* Presence                                                           */
@@ -930,6 +954,7 @@ void on_zigbee_start()
 
     s.bits.wdt_error = configure_wdt() == -1;
     s.bits.has_coredump = hasCoredump;
+    s.bits.has_breadcrumbs = has_breadcrumbs_stored();
     s.bits.reset_reason_pin = (reset_reasons & RESET_PIN) != 0;
     s.bits.reset_reason_wdt = (reset_reasons & RESET_WATCHDOG) != 0;
     s.bits.reset_reason_sw = (reset_reasons & RESET_SOFTWARE) != 0;
@@ -1064,10 +1089,14 @@ zb::cmd_handling_result_t on_cmd_clear_coredump()
 {
     coredump_cmd(COREDUMP_CMD_INVALIDATE_STORED_DUMP, nullptr);
     uint16_t hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
+    clear_breadcrumbs_stored();
     reset_reasons = 0;
     status3_t s;
     s.s = dev_ctx.status_attr.status3;
     s.s &= ~(0b111111 << 4);//set all reset_* to 0
+    s.bits.has_coredump = hasCoredump;
+    s.bits.wdt_error = 0;
+    s.bits.has_breadcrumbs = has_breadcrumbs_stored();
     zb_ep.attr<kAttrStatus3>() = s.s;
     return {};
 }
@@ -1078,57 +1107,46 @@ zb::cmd_handling_result_t on_cmd_stop_wd_feeding()
     return {};
 }
 
-static void wdt_callback(int channel_id, void *user_data)
+[[gnu::section("noinit"), gnu::used]] volatile zephyr::snapshot_factory_t<>::snapshot_t wdt_snapshot;
+
+static void wdt_callback(const struct device *dev, int channel_id)
 {
-    nrf_flash_skip_sync(true);
-    k_panic();
+    uint32_t live_r7;
+    __asm__ volatile("mov %0, r7" : "=r"(live_r7));
+
+    uintptr_t interrupted_fp = ((uint32_t *)live_r7)[0]; 
+    wdt_snapshot.capture(interrupted_fp);
 }
 
 int configure_wdt()
 {
-    return 0;
-
-
     if (!device_is_ready(wdt)) {
 	printk("%s: device not ready.\n", wdt->name);
 	return -1;
     }
 
-	//   struct wdt_timeout_cfg wdt_config = {
-	//	/* Expire watchdog after max window */
-	//	.window = {
-	//	    .min = 0,
-	//	    .max = WD_HWTimeoutMS,
-	//	},
-	//
-	//	/* Reset SoC when watchdog timer expires. */
-	//	.flags = WDT_FLAG_RESET_SOC,
-	//};
-	//
-	//   wdt_channel_id = wdt_install_timeout(wdt, &wdt_config);
-	//   if (wdt_channel_id < 0) {
-	//printk("Watchdog install error\n");
-	//return wdt_channel_id;
-	//   }
-	//
-	//   int err = wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG);
-	//   if (err < 0) {
-	//printk("Watchdog setup error\n");
-	//return err;
-	//   }
+    struct wdt_timeout_cfg wdt_config = {
+	/* Expire watchdog after max window */
+	.window = {
+	    .min = 0,
+	    .max = WD_HWTimeoutMS,
+	},
 
-    int ret = task_wdt_init(wdt);
-    if (ret < 0)
-    {
-	printk("Could not initialize WDT task.\n");
-	return ret;
+	.callback = wdt_callback,
+	/* Reset SoC when watchdog timer expires. */
+	.flags = WDT_FLAG_RESET_SOC,
+    };
+
+    wdt_channel_id = wdt_install_timeout(wdt, &wdt_config);
+    if (wdt_channel_id < 0) {
+	printk("Watchdog install error\n");
+	return wdt_channel_id;
     }
 
-    wdt_channel_id = task_wdt_add(WD_SWTimeoutMS, wdt_callback, nullptr);
-    if (wdt_channel_id < 0)
-    {
-	printk("Could not create a channel from WDT task.\n");
-	return wdt_channel_id;
+    int err = wdt_setup(wdt, WDT_OPT_PAUSE_HALTED_BY_DBG);
+    if (err < 0) {
+	printk("Watchdog setup error\n");
+	return err;
     }
 
     printk("feeder configured: ch=%d\r\n", wdt_channel_id);
@@ -1137,7 +1155,7 @@ int configure_wdt()
 	    printk("feeder: %d; ch=%d\r\n", g_WD_FeedTheDog, wdt_channel_id);
 	    if (g_WD_FeedTheDog) 
 	    {
-		task_wdt_feed(wdt_channel_id); 
+		wdt_feed(wdt, wdt_channel_id); 
 	    }
 	    return true;
 	}, 
@@ -1167,10 +1185,49 @@ void disable_hw_wdt()
     printk("hw wdt disabled\r\n");
 }
 
+void clear_breadcrumbs_stored()
+{
+    zephyr::partition_basic_t bc(BREADCRUMBS_PARTITION_ID);
+    if (!bc) return;
+    bc.write(0, uint32_t(0));
+}
+
+bool has_breadcrumbs_stored()
+{
+    zephyr::partition_basic_t bc(BREADCRUMBS_PARTITION_ID);
+    if (!bc)
+	return false;
+    uint32_t magic;
+    if (bc.read(0, magic) >= 0)
+	return magic == zephyr::kSnapshotMagic;
+    return false;
+}
+
+int dump_wdt_snapshot_to_flash()
+{
+    zephyr::partition_basic_t bc(BREADCRUMBS_PARTITION_ID);
+    if (!bc)
+    {
+	printk("Failed to open flash area: %d (%s)\r\n", bc.error, strerror(bc.error));
+	return bc.error;
+    }
+
+    bc.write(0, wdt_snapshot);
+
+    return 0;
+}
+
 int main(void)
 {
     static_assert(atomic_state_t::is_always_lock_free);
     disable_hw_wdt();
+    if (wdt_snapshot.is_valid())
+    {
+	//write into coredump section
+	dump_wdt_snapshot_to_flash();
+	wdt_snapshot.clear();
+    }
+
     int err = settings_subsys_init();
     hwinfo_get_reset_cause(&reset_reasons);
     hwinfo_clear_reset_cause();
