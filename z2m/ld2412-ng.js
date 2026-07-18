@@ -523,7 +523,7 @@ const orlangurLD2412Extended = {
 
                         var coredump_state = '';
                         if ((raw >> 0) & 1) coredump_state += "core;";
-                        if ((raw >> 0) & 10) coredump_state += "bread;";
+                        if ((raw >> 10) & 1) coredump_state += "bread;";
                         result['status3_coredump_exists'] = coredump_state;
                     }
 
