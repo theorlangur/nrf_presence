@@ -284,11 +284,7 @@ union status3_t
 	uint16_t reset_reason_low_power_wake: 1;
 	uint16_t reset_reason_dbg: 1;
 	uint16_t has_breadcrumbs: 1;
-	uint16_t unused: 1;
-	uint16_t dummy_magic: 1;
-	uint16_t unfinished_retendion_bread: 1;
-	uint16_t retendion_bread: 1;
-	uint16_t unused2: 1;
+	uint16_t unused: 5;
     }bits;
 };
 
@@ -944,10 +940,6 @@ bool update_environment_sensors()
 }
 
 constinit uint32_t reset_reasons = 0;
-bool retentioned_bread = false;
-bool unfinished_retentioned_bread = false;
-bool dummy_magic = false;
-
 void on_zigbee_start()
 {
     printk("on_zigbee_start\r\n");
@@ -962,9 +954,6 @@ void on_zigbee_start()
     s.bits.wdt_error = configure_wdt() == -1;
     s.bits.has_coredump = hasCoredump;
     s.bits.has_breadcrumbs = has_breadcrumbs_stored();
-    s.bits.retendion_bread = retentioned_bread;
-    s.bits.dummy_magic = dummy_magic;
-    s.bits.unfinished_retendion_bread = unfinished_retentioned_bread;
 
     s.bits.reset_reason_pin = (reset_reasons & RESET_PIN) != 0;
     s.bits.reset_reason_wdt = (reset_reasons & RESET_WATCHDOG) != 0;
@@ -1163,12 +1152,6 @@ void k_sys_fatal_error_handler(unsigned int reason, const struct arch_esf *esf)
 
 zb::cmd_handling_result_t on_cmd_stop_wd_feeding()
 {
-    //uint32_t live_r7;
-    //__asm__ volatile("mov %0, r7" : "=r"(live_r7));
-    //
-    //uintptr_t interrupted_fp = ((uint32_t *)live_r7)[0]; 
-    //wdt_snapshot.capture(interrupted_fp);
-
     g_WD_FeedTheDog = false;
     return {};
 }
@@ -1268,20 +1251,7 @@ int dump_wdt_snapshot_to_flash()
     }
 
     bc.write(0, wdt_snapshot);
-
-    {
-	printk("Dumped wdt snapshot to flash;\r\n");
-	//int tasks = 0;
-	//while(tasks < kSnapshotCfg.m_MaxTasks)
-	//{
-	//    auto &t = wdt_snapshot.tasks[tasks++];
-	//    printk("Task %d %s; Stack:\r\n", tasks, t.name);
-	//    if (!t)
-	//	break;
-	//    //   for(int frame = 0; frame < kSnapshotCfg.m_MaxFrames && t.stack[frame]; ++frame)
-	//    //printk("%p\r\n", (void*)t.stack[frame]);
-	//}
-    }
+    printk("Dumped wdt snapshot to flash;\r\n");
 
     return 0;
 }
@@ -1291,28 +1261,15 @@ int main(void)
     static_assert(atomic_state_t::is_always_lock_free);
     disable_hw_wdt();
 
-    retentioned_bread = false;
-    unfinished_retentioned_bread = false;
-    dummy_magic = false;
-
-    constexpr uint32_t kDummyMagic = 0x54485242;//"THRC"
     if (wdt_snapshot.is_valid())
     {
-	retentioned_bread = true;
 	//write into coredump section
 	dump_wdt_snapshot_to_flash();
 	wdt_snapshot.clear();
     }else if (wdt_snapshot.magic == zephyr::kSnapshotMagicNotReady)
     {
 	printk("unfinished WDT snapshot detected\r\n");
-	unfinished_retentioned_bread = true;
 	wdt_snapshot.clear();
-    }else if (wdt_snapshot.magic != kDummyMagic)
-    {
-	wdt_snapshot.magic = kDummyMagic;
-    }else
-    {
-	dummy_magic = true;
     }
 
     int err = settings_subsys_init();
