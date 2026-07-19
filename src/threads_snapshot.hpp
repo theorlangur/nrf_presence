@@ -31,26 +31,20 @@ namespace zephyr
                 return name[0] || stack[0];
             }
 
-            uint32_t capture(const k_thread *k, uintptr_t reg_fp) volatile
+            void capture(const k_thread *k, uintptr_t reg_fp = 0, int frames_offset = 0) volatile
             {
-                uint32_t res = 0;
                 const char *pSrc = k->name;
                 volatile char *pDst = name;
                 while(pSrc < std::end(k->name) && *pSrc && pDst < (name + cfg.m_ThreadNameMaxLen - 1))
-                {
                     *pDst++ = *pSrc++;
-                }
                 *pDst = 0;
-                res = pDst - name;
-                uintptr_t fp;
-                if (reg_fp && _current == k)
-                    fp = reg_fp;
-                else
+                uintptr_t fp = reg_fp;
+                if (!fp)
                     fp = k->callee_saved.*fp_ptr_reg;
 
                 uintptr_t stack_start = k->stack_info.start;
                 uintptr_t stack_end = k->stack_info.start + k->stack_info.size;
-                int frames = 0;
+                int frames = frames_offset;
                 while(fp >= stack_start && fp < stack_end && (fp & 0x03) == 0 && frames < cfg.m_MaxFrames)
                 {
                     uint32_t *fp_ptr = (uint32_t *)fp;
@@ -60,11 +54,8 @@ namespace zephyr
                     stack[frames++] = return_addr;
                     fp = next_fp;
                 }
-                res += frames * sizeof(uintptr_t);
-
                 if (frames < cfg.m_MaxFrames)
                     stack[frames] = 0;
-                return res;
             }
         };
 
@@ -77,32 +68,52 @@ namespace zephyr
             thread_t tasks[cfg.m_MaxTasks];
 
             inline static uintptr_t reg_fp;
+            inline static size_t pre_captured_frames_count;
+            inline static uintptr_t pre_captured_frames[cfg.m_MaxFrames];
 
             static void on_thread_user_cb_t(const struct k_thread *thread,
                     void *user_data)
             {
                 snapshot_t *s = (snapshot_t *)user_data;
                 if(s->total_tasks < cfg.m_MaxTasks)
-                    s->tasks[s->total_tasks++].capture(thread, reg_fp);
+                {
+                    if (thread == _current)
+                    {
+                        int frames = 0;
+                        for(;frames < pre_captured_frames_count; ++frames)
+                            s->tasks[s->total_tasks].stack[frames] = pre_captured_frames[frames];
+
+                        s->tasks[s->total_tasks++].capture(thread, reg_fp, pre_captured_frames_count);
+                    }else
+                    {
+                        s->tasks[s->total_tasks++].capture(thread);
+                    }
+                }
             }
 
-            void capture(uintptr_t _reg_fp) volatile
+            template<std::integral...T>
+            void capture(uintptr_t _reg_fp, T... extra_frame) volatile
             {
                 magic = kSnapshotMagicNotReady;
                 total_size = sizeof(*this);
                 total_tasks = 0;
                 reg_fp = _reg_fp;
+                pre_captured_frames_count = sizeof...(T);
+                [&]<size_t...I>(std::index_sequence<I...>)
+                {
+                    ((pre_captured_frames[I] = extra_frame...[I]),...);
+                }(std::make_index_sequence<sizeof...(T)>());
                 k_thread *current = _kernel.threads;
                 if (!current)
                     current = _current;
                 k_thread_foreach_unlocked(on_thread_user_cb_t, (void*)this);
                 if (total_tasks == 0)
                 {
+                    //fallback
                     for(;current && total_tasks < cfg.m_MaxTasks; current = current->next_thread)
-                    {
-                        tasks[total_tasks++].capture(current, reg_fp);
-                    }
+                        on_thread_user_cb_t(current, (void*)this);
                 }
+
                 if (total_tasks < cfg.m_MaxTasks)
                 {
                     tasks[total_tasks].name[0] = 0;

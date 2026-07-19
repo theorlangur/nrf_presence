@@ -1136,11 +1136,27 @@ static void wdt_callback(const struct device *dev, int channel_id)
 
 void k_sys_fatal_error_handler(unsigned int reason, const struct arch_esf *esf)
 {
-    uint32_t live_r7;
-    __asm__ volatile("mov %0, r7" : "=r"(live_r7));
+    uintptr_t pc, lr;
+    pc = esf->basic.pc;
+    lr = esf->basic.lr;
 
-    uintptr_t interrupted_fp = ((uint32_t *)live_r7)[0]; 
-    wdt_snapshot.capture(interrupted_fp);
+#if defined(CONFIG_EXTRA_EXCEPTION_INFO)
+    if (esf->extra_info.callee != NULL) {
+        uint32_t fp = esf->extra_info.callee->v4;         /* r7 at fault */
+	uint32_t cfsr = SCB->CFSR;
+	SCB->CFSR = cfsr;
+	if (!cfsr) cfsr = ~0;//artificially not 0
+	wdt_snapshot.capture(fp, (uintptr_t)reason, (uintptr_t)esf->extra_info.exc_return, (uintptr_t)cfsr, (uintptr_t)fp, pc, lr);
+    }
+    else
+#endif
+    {
+	uint32_t live_r7;
+	__asm__ volatile("mov %0, r7" : "=r"(live_r7));
+
+	uintptr_t interrupted_fp = ((uint32_t *)live_r7)[0]; 
+	wdt_snapshot.capture(interrupted_fp, uintptr_t(0), interrupted_fp, pc, lr);
+    }
 
     k_fatal_halt(reason);
 }
