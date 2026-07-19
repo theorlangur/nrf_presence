@@ -98,6 +98,7 @@ namespace zephyr
                 total_size = sizeof(*this);
                 total_tasks = 0;
                 reg_fp = _reg_fp;
+                static_assert(sizeof...(T) <= cfg.m_MaxFrames, "Too many extra frames to store");
                 pre_captured_frames_count = sizeof...(T);
                 [&]<size_t...I>(std::index_sequence<I...>)
                 {
