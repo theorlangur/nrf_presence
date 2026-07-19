@@ -75,20 +75,12 @@ def parse_task(raw):
 
 def read_mem(jlink, addr, nbytes):
     """Read nbytes from target memory as a bytes object."""
-    # read_mem8 returns a list of ints (bytes). Robust across pylink versions.
     data = jlink.memory_read8(addr, nbytes)
     return bytes(data)
 
 
 def write_mem(jlink, addr, data):
-    """Write bytes to target flash/RRAM, preferring the flash-aware path.
-
-    On the nRF54L the coredump partition lives in RRAM, which is byte
-    rewritable (no erase-before-write needed). We try flash_write8 first
-    (routes through the flash loader, the defensible choice for any flash),
-    and fall back to memory_write8 if that method isn't available in this
-    pylink version.
-    """
+    """Write bytes to target flash/RRAM, preferring the flash-aware path."""
     payload = list(data)
     try:
         jlink.flash_write8(addr, payload)
@@ -101,46 +93,84 @@ def write_mem(jlink, addr, data):
 
 
 def clear_magic(jlink, base):
-    """Overwrite the 4-byte 'THRD' magic with 0x00 and verify the write took.
-
-    Returns True on verified clear, False otherwise.
-
-    NOTE: this invalidates the header of the breadcrumbs
-    """
+    """Overwrite the 4-byte 'THRD' magic with 0x00 and verify the write took."""
     write_mem(jlink, base, b"\x00\x00\x00\x00")
-    # Read back to confirm -- a write that silently didn't stick is the
-    # worst outcome (stale dump survives or next dump is mishandled).
     check = read_mem(jlink, base, 4)
     if check == b"\x00\x00\x00\x00":
-        print(f"cleared breadcrumgs magic at 0x{base:x} (verified).")
+        print(f"cleared breadcrumbs magic at 0x{base:x} (verified).")
         return True
     err(f"clear FAILED: magic at 0x{base:x} reads {check!r} after write, "
-        f"expected b'\\x00\\x00\\x00\\x00'. The write did not stick -- the breadcrumbs is "
-        f"NOT cleared. ")
+        f"expected b'\\x00\\x00\\x00\\x00'.")
     return False
 
 def parse_and_symbolize_tasks(payload, total_tasks, elf_target):
     # 1. Quick sanity check to ensure llvm-symbolizer is installed
     if not shutil.which("llvm-symbolizer-21"):
-        print("Error: 'llvm-symbolizer' not found in your system PATH.")
+        print("Error: 'llvm-symbolizer-21' not found in your system PATH.")
         return
 
+    # Zephyr OS fatal error reason lookup table
+    ZEPHYR_REASONS = {
+        0: "K_ERR_CPU_EXCEPTION",
+        1: "K_ERR_SPURIOUS_IRQ",
+        2: "K_ERR_STACK_CHK_FAIL",
+        3: "K_ERR_KERNEL_OOPS",
+        4: "K_ERR_KERNEL_PANIC",
+        16: "K_ERR_ARM_MEM_GENERIC",
+        17: "K_ERR_ARM_MEM_STACKING",
+        18: "K_ERR_ARM_MEM_UNSTACKING",
+        19: "K_ERR_ARM_MEM_DATA_ACCESS",
+        20: "K_ERR_ARM_MEM_INSTRUCTION_ACCESS",
+        21: "K_ERR_ARM_MEM_FP_LAZY_STATE_PRESERVATION",
+        22: "K_ERR_ARM_BUS_GENERIC",
+        23: "K_ERR_ARM_BUS_STACKING",
+        24: "K_ERR_ARM_BUS_UNSTACKING",
+        25: "K_ERR_ARM_BUS_PRECISE_DATA_BUS",
+        26: "K_ERR_ARM_BUS_IMPRECISE_DATA_BUS",
+        27: "K_ERR_ARM_BUS_INSTRUCTION_BUS",
+        28: "K_ERR_ARM_BUS_FP_LAZY_STATE_PRESERVATION",
+        29: "K_ERR_ARM_USAGE_GENERIC",
+        30: "K_ERR_ARM_USAGE_DIV_0",
+        31: "K_ERR_ARM_USAGE_UNALIGNED_ACCESS",
+        32: "K_ERR_ARM_USAGE_STACK_OVERFLOW",
+        33: "K_ERR_ARM_USAGE_NO_COPROCESSOR",
+        34: "K_ERR_ARM_USAGE_ILLEGAL_EXC_RETURN",
+        35: "K_ERR_ARM_USAGE_ILLEGAL_EPSR",
+        36: "K_ERR_ARM_USAGE_UNDEFINED_INSTRUCTION",
+        37: "K_ERR_ARM_SECURE_GENERIC",
+        38: "K_ERR_ARM_SECURE_ENTRY_POINT",
+        39: "K_ERR_ARM_SECURE_INTEGRITY_SIGNATURE",
+        40: "K_ERR_ARM_SECURE_EXCEPTION_RETURN",
+        41: "K_ERR_ARM_SECURE_ATTRIBUTION_UNIT",
+        42: "K_ERR_ARM_SECURE_TRANSITION",
+        43: "K_ERR_ARM_SECURE_LAZY_STATE_PRESERVATION",
+        44: "K_ERR_ARM_SECURE_LAZY_STATE_ERROR",
+        45: "K_ERR_ARM_UNDEFINED_INSTRUCTION (Cortex-A/R)",
+        46: "K_ERR_ARM_ALIGNMENT_FAULT",
+        47: "K_ERR_ARM_BACKGROUND_FAULT",
+        48: "K_ERR_ARM_PERMISSION_FAULT",
+        49: "K_ERR_ARM_SYNC_EXTERNAL_ABORT",
+        50: "K_ERR_ARM_ASYNC_EXTERNAL_ABORT",
+        51: "K_ERR_ARM_SYNC_PARITY_ERROR",
+        52: "K_ERR_ARM_ASYNC_PARITY_ERROR",
+        53: "K_ERR_ARM_DEBUG_EVENT",
+        54: "K_ERR_ARM_TRANSLATION_FAULT",
+        55: "K_ERR_ARM_UNSUPPORTED_EXCLUSIVE_ACCESS_FAULT"
+    }
+
     # 2. Start a single persistent symbolizer process
-    # --functions=linkage shows the raw/mangled name if needed, --demangle cleans it up for C++
     try:
         symbolizer = subprocess.Popen(
-            ["llvm-symbolizer-21", f"--obj={elf_target}"
-             , "--functions=linkage", "--demangle"
-             ,"--output-style=JSON"],
+            ["llvm-symbolizer-21", f"--obj={elf_target}", 
+             "--functions=linkage", "--demangle", "--output-style=JSON"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            text=True,  # Ensures we work with strings instead of bytes
-            bufsize=1   # Line buffered
+            text=True,
+            bufsize=1
         )
     except Exception as e:
         print(f"Failed to start llvm-symbolizer: {e}")
         symbolizer = None
-        # return
 
     print(f"Parsing {total_tasks} tasks using ELF: {elf_target}\n")
     
@@ -161,16 +191,79 @@ def parse_and_symbolize_tasks(payload, total_tasks, elf_target):
             continue
             
         print("    Stack Frames:")
-        for frame in task["stack"]:
+        
+        stack = task["stack"]
+        is_fault = len(stack) > 0 and stack[0] < 100
+        
+        if is_fault:
+            reason = stack[0]
+            exc_return = stack[1] if len(stack) > 1 else 0
+            cfsr = stack[2] if len(stack) > 2 else 0
+            
+            reason_str = ZEPHYR_REASONS.get(reason, f"Unknown Reason ({reason})")
+            print(f"      [Zephyr Fault Frame Block Detected]")
+            print(f"        Reason:      {reason_str} ({reason})")
+            
+            # Decode EXC_RETURN context bits for Cortex-M33 (ARMv8-M Main Extension)
+            print(f"        EXC_RETURN:  0x{exc_return:08X}")
+            print(f"          - Return Security State: {'Non-secure' if (exc_return & 0x1) else 'Secure'}")
+            print(f"          - Return Stack Pointer:  {'PSP' if (exc_return & 0x4) else 'MSP'}")
+            print(f"          - Return Mode:           {'Thread' if (exc_return & 0x8) else 'Handler'}")
+            print(f"          - FP Context Allocated:  {'No' if (exc_return & 0x16) else 'Yes'}")
+            print(f"          - Callee Registers Rule: {'Default (Not on stack)' if (exc_return & 0x32) else 'Stacked Extended Context'}")
+            print(f"          - Exception Exec State:  {'Secure' if (exc_return & 0x64) else 'Non-secure'}")
+            
+            # Decode CFSR Register
+            if cfsr == 0xFFFFFFFF:
+                print(f"        CFSR:        0x00000000 (Originally 0 / No active fault bits)")
+            else:
+                print(f"        CFSR:        0x{cfsr:08X}")
+                mmfsr = cfsr & 0xFF
+                bfsr = (cfsr >> 8) & 0xFF
+                ufsr = (cfsr >> 16) & 0xFFFF
+                
+                if mmfsr:
+                    print("          [MemManage Fault Status]:")
+                    if mmfsr & 0x01: print("            - IACCVIOL: Instruction access violation")
+                    if mmfsr & 0x02: print("            - DACCVIOL: Data access violation")
+                    if mmfsr & 0x08: print("            - MUNSTKERR: Fault occurred on unstacking")
+                    if mmfsr & 0x10: print("            - MSTKERR: Fault occurred on stacking")
+                    if mmfsr & 0x20: print("            - MLSPERR: Fault during lazy FP preservation")
+                    if mmfsr & 0x80: print("            - MMARVALID: MMAR register holds valid address")
+                if bfsr:
+                    print("          [Bus Fault Status]:")
+                    if bfsr & 0x01: print("            - IBUSERR: Instruction bus error")
+                    if bfsr & 0x02: print("            - PRECISERR: Precise data bus error")
+                    if bfsr & 0x04: print("            - IMPRECISERR: Imprecise data bus error")
+                    if bfsr & 0x08: print("            - UNSTKERR: Fault occurred on unstacking")
+                    if bfsr & 0x10: print("            - STKERR: Fault occurred on stacking")
+                    if bfsr & 0x20: print("            - LSPERR: Fault during lazy FP preservation")
+                    if bfsr & 0x80: print("            - BFARVALID: BFAR register holds valid address")
+                if ufsr:
+                    print("          [Usage Fault Status]:")
+                    if ufsr & 0x0001: print("            - UNDEFINSTR: Undefined instruction executed")
+                    if ufsr & 0x0002: print("            - INVSTATE: Invalid execution state (EPSR.T or ISA change)")
+                    if ufsr & 0x0004: print("            - INVPC: Invalid PC load by EXC_RETURN")
+                    if ufsr & 0x0008: print("            - NOCP: No coprocessor access permitted")
+                    if ufsr & 0x0010: print("            - STKOF: Stack overflow detected")
+                    if ufsr & 0x0100: print("            - UNALIGNED: Unaligned memory access")
+                    if ufsr & 0x0200: print("            - DIVBYZERO: Divide by zero")
+            
+            # Drop the 3 fake handler frames to print real symbols
+            frames_to_process = stack[3:]
+            if frames_to_process:
+                print("        Genuine Stack Frames:")
+        else:
+            frames_to_process = stack
+
+        for frame in frames_to_process:
             hex_addr = f"0x{frame:08X}"
             func_name = "??"
             file_line = "xx"
             if symbolizer is not None:
-                # Pass the address to the symbolizer background process
                 symbolizer.stdin.write(f"{hex_addr}\n")
                 symbolizer.stdin.flush()
                 
-                # Read the exactly two lines of response
                 response_line = symbolizer.stdout.readline().strip()
                 data = json.loads(response_line)
                 if isinstance(data, dict):
@@ -180,31 +273,26 @@ def parse_and_symbolize_tasks(payload, total_tasks, elf_target):
                 else:
                     symbols = []
                 if symbols:
-                    # Loop through symbols. If len(symbols) > 1, the function was inlined!
                     for idx, sym in enumerate(symbols):
                         func_name = sym.get("FunctionName", "??")
                         file_name = sym.get("FileName", "??")
                         line_num = sym.get("Line", 0)
 
-                        # Clean up missing symbol symbols
                         if func_name == "??": func_name = "<unknown_func>"
                         if file_name == "??": file_name = "<unknown_file>"
 
-                        # Visual structure formatting for normal vs. inlined frames
                         if idx == 0:
                             print(f"      {hex_addr} -> {func_name} ({file_name}:{line_num})")
                         else:
                             print(f"                  [Inlined] -> {func_name} ({file_name}:{line_num})")
                 else:
                     print(f"No 'Symbol' entry in {isinstance(data, dict)}")
-            
             else:
                 print(f"      {hex_addr} -> {func_name} ({file_line})")
             
         print("-" * 60)
 
     if symbolizer is not None:
-        # 3. Clean up the process when done
         symbolizer.stdin.close()
         symbolizer.terminate()
         symbolizer.wait()
@@ -216,11 +304,9 @@ def main():
     )
     p.add_argument("address", help="partition base address, e.g. 0x14c000")
     p.add_argument("output", nargs="?", default=None,
-                   help="output file for the extracted payload "
-                        "(not required with --info or --clear-only)")
+                   help="output file for the extracted payload ")
     p.add_argument("--elf", default=None,
-                   help="elf file for symbolization payload "
-                        "(not required with --info or --clear-only)")
+                   help="elf file for symbolization payload ")
     p.add_argument("--device", default=DEFAULT_DEVICE,
                    help=f"J-Link device name (default: {DEFAULT_DEVICE})")
     p.add_argument("--speed", type=int, default=4000,
@@ -234,15 +320,11 @@ def main():
     p.add_argument("--force", action="store_true",
                    help="write output even if validation fails")
     p.add_argument("--clear", action="store_true",
-                   help="after a successful extraction, clear the stored dump "
-                        "by zeroing the 'CD' magic (with read-back verify)")
+                   help="after a successful extraction, clear the stored dump")
     p.add_argument("--clear-only", action="store_true",
-                   help="do not extract; just clear the stored dump's magic "
-                        "and exit")
+                   help="do not extract; just clear the stored dump's magic and exit")
     p.add_argument("--info", action="store_true",
-                   help="report whether a coredump is stored and print header "
-                        "details, without extracting or modifying anything. "
-                        "Exit code: 0 if a valid dump is present, 1 otherwise.")
+                   help="report whether a coredump is stored and print header details.")
     args = p.parse_args()
 
     if not (args.info or args.clear_only) and args.output is None:
@@ -257,8 +339,7 @@ def main():
     try:
         import pylink
     except ImportError:
-        err("pylink not installed. Run: pip install pylink-square "
-            "(in a venv if your Python is externally managed).")
+        err("pylink not installed. Run: pip install pylink-square")
         return 1
 
     jlink = pylink.JLink()
@@ -269,51 +350,29 @@ def main():
         if not jlink.connected():
             err("failed to connect to target.")
             return 1
-        print(f"connected: {args.device}, "
-              f"core id 0x{jlink.core_id():x}, speed {args.speed} kHz")
+        print(f"connected: {args.device}, core id 0x{jlink.core_id():x}, speed {args.speed} kHz")
 
-        # --clear-only: verify a dump is actually present, then clear and exit.
         if args.clear_only:
             magic = read_mem(jlink, base, 4)
             if magic != EXPECTED_ID and not args.force:
-                err(f"no dump to clear: magic at 0x{base:x} is {magic!r}, "
-                    f"not {EXPECTED_ID!r}. Use --force to write zeros anyway.")
+                err(f"no dump to clear: magic at 0x{base:x} is {magic!r}, not {EXPECTED_ID!r}.")
                 return 1
             return 0 if clear_magic(jlink, base) else 1
 
-        # --info: report dump presence and header details, then exit.
         if args.info:
             raw_hdr = read_mem(jlink, base, HDR_SIZE)
             hdr = parse_header(raw_hdr)
-
-            # An erased flash header (all 0xFF) or a cleared magic both mean
-            # "no dump". The magic check is the primary signal.
             if hdr["id"] == EXPECTED_ID:
-                # Plausibility check on size to distinguish a real dump from
-                # garbage that happens to start with 'CD'.
                 size_ok = 0 < hdr["size"] <= args.max_payload
                 if size_ok:
                     print(f"breadcrumbs FOUND at 0x{base:x}")
-                    print(f"  payload size : {hdr['size']} "
-                          f"(0x{hdr['size']:x}) bytes")
+                    print(f"  payload size : {hdr['size']} (0x{hdr['size']:x}) bytes")
                     print(f"  task count   : {hdr['task_count']}")
                     return 0
-                err(f"header magic is 'THRD' but size {hdr['size']} "
-                    f"(0x{hdr['size']:x}) is implausible; treating as no "
-                    f"valid dump.")
+                err(f"header magic is 'THRD' but size {hdr['size']} is implausible.")
                 return 1
-
-            if hdr["id"] == b"\x00\x00\x00\x00":
-                print(f"no breadcrumbs at 0x{base:x} (magic cleared to zero -- "
-                      f"previously extracted and cleared).")
-            elif hdr["id"] == b"\xff\xff\xff\xff":
-                print(f"no coredump at 0x{base:x} (erased flash).")
-            else:
-                print(f"no coredump at 0x{base:x} (magic is {hdr['id']!r}, "
-                      f"not {EXPECTED_ID!r}).")
             return 1
 
-        # 1) Read just the header.
         raw_hdr = read_mem(jlink, base, HDR_SIZE)
         hdr = parse_header(raw_hdr)
 
@@ -322,51 +381,40 @@ def main():
         print(f"  task_count   : {hdr['task_count']}")
         print(f"  payload size : {hdr['size']} (0x{hdr['size']:x}) bytes")
 
-        # 2) Validate before reading a potentially bogus length.
         valid = True
         if hdr["id"] != EXPECTED_ID:
-            err(f"bad magic {hdr['id']!r} (expected {EXPECTED_ID!r}); "
-                f"wrong address or no dump stored.")
+            err(f"bad magic {hdr['id']!r} (expected {EXPECTED_ID!r}).")
             valid = False
         if hdr["size"] in (0, 0xFFFFFFFF):
-            err("no coredump stored (size is 0 or erased flash).")
+            err("no coredump stored.")
             valid = False
         if hdr["size"] > args.max_payload:
-            err(f"payload size 0x{hdr['size']:x} exceeds --max-payload "
-                f"0x{args.max_payload:x}; refusing huge read. "
-                f"Check struct field widths / address.")
+            err(f"payload size 0x{hdr['size']:x} exceeds max threshold.")
             valid = False
         if not valid and not args.force:
-            err("validation failed; aborting. Use --force to override.")
+            err("validation failed; aborting.")
             return 1
 
         payload_size = hdr["size"] - HDR_SIZE
         if payload_size in (0, 0xFFFFFFFF) or payload_size > args.max_payload:
-            # Only reachable with --force; clamp to something readable.
             payload_size = min(args.max_payload, 0x10000)
-            err(f"forcing read of {payload_size} bytes.")
 
-        # 3) Read exactly header + payload.
         total = HDR_SIZE + payload_size
         region = read_mem(jlink, base, total)
 
         if args.raw:
             with open(args.raw, "wb") as f:
                 f.write(region)
-            print(f"wrote raw region ({total} bytes) to {args.raw}")
 
         payload = region[HDR_SIZE:HDR_SIZE + payload_size]
 
         with open(args.output, "wb") as f:
             f.write(payload)
         print(f"\nwrote {len(payload)} bytes to {args.output}")
-        parse_and_symbolize_tasks(payload, hdr["task_count"], args.elf);
-        # Only clear after the payload is safely written to disk, so a clear
-        # never destroys a dump we failed to save.
+        parse_and_symbolize_tasks(payload, hdr["task_count"], args.elf)
+        
         if args.clear:
             if not clear_magic(jlink, base):
-                err("extraction succeeded but clear failed; dump still on "
-                    "device.")
                 return 1
 
         return 0
