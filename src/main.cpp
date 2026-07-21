@@ -482,6 +482,10 @@ void presence_triggered(const struct device *port,
 	new_presence_state = true;
     else if (!new_pir && !new_main && !new_aux)
 	new_presence_state = false;
+    
+    //for dbg
+	//   if (pir_changed)
+	//new_presence_state = new_pir;
 
     if (g_ZigbeeReady) //post to zigbee and shoot commands
     {
