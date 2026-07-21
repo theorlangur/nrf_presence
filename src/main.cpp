@@ -398,7 +398,7 @@ void ultimate_zb_fail(zb_ret_t r)
 /**********************************************************************/
 /* Watchdog                                                           */
 /**********************************************************************/
-constexpr static uint32_t WD_HWTimeoutMS = 5000;
+constexpr static uint32_t WD_HWTimeoutMS = 7000;
 bool g_WD_FeedTheDog = true;
 const struct device *const wdt = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 zbm::timer_ext_16_t g_WDTFeeder;
@@ -920,7 +920,7 @@ void update_environment_sensors(uint8_t bufid)
 
 void update_environment_sensors_task(void *, void *, void *);
 
-constexpr size_t ENV_SENSE_THREAD_STACK_SIZE = 512;
+constexpr size_t ENV_SENSE_THREAD_STACK_SIZE = 1024;
 constexpr size_t ENV_SENSE_THREAD_PRIORITY=7;
 
 K_THREAD_DEFINE(env_sense_thread, ENV_SENSE_THREAD_STACK_SIZE,
@@ -1010,6 +1010,12 @@ void zb_on_error()
  */
 void zboss_signal_handler(zb_bufid_t bufid)
 {
+    static bool ctx_initialized = false;
+    if (!ctx_initialized)
+    {
+	ctx_initialized = true;
+	zb_ctx.init();
+    }
         zb_zdo_app_signal_hdr_t *pHdr;
         auto signalId = zb_get_app_signal(bufid, &pHdr);
 
@@ -1395,7 +1401,6 @@ int main(void)
 	dev_ctx.ep1.occupancy.occupancy = g_presence_state;
     }
     zigbee_enable();
-    zb_ctx.init();
 
     printk("Main: sleep forever\r\n");
     FMT_PRINTLN("-----LD2412 main-----");
