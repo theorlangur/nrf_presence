@@ -1400,6 +1400,7 @@ int main(void)
 	dev_ctx.occupancy.occupancy = g_presence_state;
     }
     zigbee_enable();
+    zb_ctx.init();
 
     printk("Main: sleep forever\r\n");
     FMT_PRINTLN("-----LD2412 main-----");
