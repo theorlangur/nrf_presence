@@ -1058,9 +1058,11 @@ zbm::cmd_handling_result_t on_cmd_clear_coredump()
 {
     coredump_cmd(COREDUMP_CMD_INVALIDATE_STORED_DUMP, nullptr);
     uint16_t hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
+    reset_reasons = 0;
     status3_t s;
     s.s = dev_ctx.ep1.status_attr.status3;
     s.bits.has_coredump = hasCoredump;
+    s.s &= ~(0b111111 << 4);//set all reset_* to 0
     zb_ep.set<kAttrStatus3>(s.s);
     return {};
 }
