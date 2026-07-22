@@ -102,7 +102,8 @@ namespace zephyr
                 pre_captured_frames_count = sizeof...(T);
                 [&]<size_t...I>(std::index_sequence<I...>)
                 {
-                    ((pre_captured_frames[I] = extra_frame...[I]),...);
+                    if constexpr (sizeof...(I) > 0)
+                        ((pre_captured_frames[I] = extra_frame...[I]),...);
                 }(std::make_index_sequence<sizeof...(T)>());
                 k_thread *current = _kernel.threads;
                 if (!current)

@@ -907,7 +907,7 @@ struct env_sensors_t
     float humid;
     float co2;
     float tvoc;
-    zb::zb_zcl_air_q_t::AQI aqi;
+    zbm::misc_zc::air_q_t::AQI aqi;
 };
 
 constinit static env_sensors_t g_EnvSensorValues{};
@@ -942,11 +942,11 @@ void update_environment_sensors_task(void *, void *, void *)
 	    sensor_value v;
 	    sensor_channel_get(rht2sensor, sensor_channel::SENSOR_CHAN_AMBIENT_TEMP, &v);
 	    sensor_attr_set(eco2sensor, SENSOR_CHAN_ALL, (sensor_attribute)SENSOR_ATTR_ENS160_TEMP, &v);
-	    g_EnvSensorValues.temp = zb::zb_zcl_temp_basic_t::FromC(float(v.val1) + float(v.val2) / 1000'000.f);
+	    g_EnvSensorValues.temp = zbm::zcl::FromC(float(v.val1) + float(v.val2) / 1000'000.f);
 
 	    sensor_channel_get(rht2sensor, sensor_channel::SENSOR_CHAN_HUMIDITY, &v);
 	    sensor_attr_set(eco2sensor, SENSOR_CHAN_ALL, (sensor_attribute)SENSOR_ATTR_ENS160_RH, &v);
-	    g_EnvSensorValues.humid = zb::zb_zcl_rel_humid_basic_t::FromRelH(float(v.val1) + float(v.val2) / 1000'000.f);
+	    g_EnvSensorValues.humid = zbm::zcl::FromRelH(float(v.val1) + float(v.val2) / 1000'000.f);
 
 	    sensor_sample_fetch(eco2sensor);
 	    sensor_channel_get(eco2sensor, sensor_channel::SENSOR_CHAN_CO2, &v);
@@ -956,7 +956,7 @@ void update_environment_sensors_task(void *, void *, void *)
 	    g_EnvSensorValues.tvoc = float(v.val1);
 
 	    sensor_channel_get(eco2sensor, (sensor_channel)SENSOR_CHAN_ENS160_AQI, &v);
-	    g_EnvSensorValues.aqi = (zb::zb_zcl_air_q_t::AQI)v.val1;
+	    g_EnvSensorValues.aqi = (zbm::misc_zc::air_q_t::AQI)v.val1;
 	    if (g_ZigbeeReady)
 		zb_schedule_app_callback(update_environment_sensors, 0);
 	}
@@ -1187,8 +1187,9 @@ void k_sys_fatal_error_handler(unsigned int reason, const struct arch_esf *esf)
     k_fatal_halt(reason);
 }
 
-zb::cmd_handling_result_t on_cmd_stop_wd_feeding()
+zbm::cmd_handling_result_t on_cmd_stop_wd_feeding()
 {
+
     g_WD_FeedTheDog = false;
     return {};
 }
