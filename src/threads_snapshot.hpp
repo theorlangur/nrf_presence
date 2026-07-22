@@ -9,6 +9,7 @@
 namespace zephyr
 {
     inline static constexpr uint32_t kSnapshotMagic = 0x54485244;//"THRD"
+    inline static constexpr uint32_t kSnapshotMagicNotReady = 0x54485243;//"THRC"
     inline static constexpr auto fp_ptr_reg = &_callee_saved::v4;
     struct snapshot_cfg_t
     {
@@ -25,9 +26,22 @@ namespace zephyr
             char name[cfg.m_ThreadNameMaxLen];
             uintptr_t stack[cfg.m_MaxFrames];
 
-            void capture(k_thread *k, uintptr_t reg_fp) volatile
+            operator bool() const volatile
             {
-                strncpy((char*)name, k->name, std::min(std::size(k->name), cfg.m_ThreadNameMaxLen));
+                return name[0] || stack[0];
+            }
+
+            uint32_t capture(const k_thread *k, uintptr_t reg_fp) volatile
+            {
+                uint32_t res = 0;
+                const char *pSrc = k->name;
+                volatile char *pDst = name;
+                while(pSrc < std::end(k->name) && *pSrc && pDst < (name + cfg.m_ThreadNameMaxLen - 1))
+                {
+                    *pDst++ = *pSrc++;
+                }
+                *pDst = 0;
+                res = pDst - name;
                 uintptr_t fp;
                 if (reg_fp && _current == k)
                     fp = reg_fp;
@@ -46,22 +60,46 @@ namespace zephyr
                     stack[frames++] = return_addr;
                     fp = next_fp;
                 }
+                res += frames * sizeof(uintptr_t);
 
                 if (frames < cfg.m_MaxFrames)
                     stack[frames] = 0;
+                return res;
             }
         };
 
         struct snapshot_t
         {
             uint32_t magic;
+            uint16_t total_size;
+            uint8_t  total_tasks;
+            uint8_t  unused;
             thread_t tasks[cfg.m_MaxTasks];
 
-            void capture(uintptr_t reg_fp) volatile
+            inline static uintptr_t reg_fp;
+
+            static void on_thread_user_cb_t(const struct k_thread *thread,
+                    void *user_data)
             {
-                int t_idx = 0;
-                for (k_thread *current = _kernel.threads; current && (t_idx < cfg.m_MaxTasks); current = current->next_thread) {
-                    tasks[t_idx++].capture(current, reg_fp);
+                snapshot_t *s = (snapshot_t *)user_data;
+                if(s->total_tasks < cfg.m_MaxTasks)
+                    s->tasks[s->total_tasks++].capture(thread, reg_fp);
+            }
+
+            void capture(uintptr_t _reg_fp) volatile
+            {
+                magic = kSnapshotMagicNotReady;
+                total_size = sizeof(*this);
+                total_tasks = 0;
+                reg_fp = _reg_fp;
+                k_thread *current = _kernel.threads;
+                if (!current)
+                    current = _current;
+                k_thread_foreach_unlocked(on_thread_user_cb_t, (void*)this);
+                if (total_tasks < cfg.m_MaxTasks)
+                {
+                    tasks[total_tasks].name[0] = 0;
+                    tasks[total_tasks].stack[0] = 0;
                 }
                 //at the end, as a final step
                 magic = kSnapshotMagic;
