@@ -113,6 +113,8 @@ constexpr uint8_t kMMW_EP = 1;
 constexpr uint8_t kMMW_AUX_EP = 2;
 constexpr uint16_t kDEV_ID = 0xBAAD;
 
+
+constexpr uint32_t kEnvSensorUpdateInterval = 15000;//ms
 constexpr uint16_t kInitialMinClearTimeout = 3;//seconds
 constexpr uint32_t kZigbeeFloodProtectionTimeout = 1000;//ms
 							//
@@ -139,7 +141,6 @@ struct device_ctx_t
 {
     [[=zbm::ep_a{.ep = kMMW_EP, .dev_id=kDEV_ID, .dev_ver=1}]]
     ep1_t ep1;
-
     [[=zbm::ep_a{.ep = kMMW_AUX_EP, .dev_id=kDEV_ID, .dev_ver=1}]]
     ep2_t ep2;
 };
@@ -896,32 +897,67 @@ void on_set_light_sense(zbm::misc_zc::ld2412_t::light_sense_cfg_t const& cfg)
 
 int configure_presence_pins();
 
-zbm::timer_ext_t<> g_EnvironmentSensorFetcher;
-
-bool update_environment_sensors()
+struct env_sensors_t
 {
-    if (device_is_ready(rht2sensor))
+    float temp;
+    float humid;
+    float co2;
+    float tvoc;
+    zb::zb_zcl_air_q_t::AQI aqi;
+};
+
+constinit static env_sensors_t g_EnvSensorValues{};
+
+void update_environment_sensors(uint8_t bufid)
+{
+    zb_ep.set<kAttrTemp>(g_EnvSensorValues.temp);
+    zb_ep.set<kAttrHumid>(g_EnvSensorValues.humid);
+
+    zb_ep.set<kAttrCO2>(g_EnvSensorValues.co2);
+    zb_ep.set<kAttrTVOC>(g_EnvSensorValues.tvoc);
+    zb_ep.set<kAttrAQI>(g_EnvSensorValues.aqi);
+}
+
+void update_environment_sensors_task(void *, void *, void *);
+
+constexpr size_t ENV_SENSE_THREAD_STACK_SIZE = 512;
+constexpr size_t ENV_SENSE_THREAD_PRIORITY=7;
+
+K_THREAD_DEFINE(env_sense_thread, ENV_SENSE_THREAD_STACK_SIZE,
+	update_environment_sensors_task, NULL, NULL, NULL,
+	ENV_SENSE_THREAD_PRIORITY, 0, -1);
+
+void update_environment_sensors_task(void *, void *, void *)
+{
+    while(true)
     {
-	//zb_ep.dump_info<kCmdOn, kCmdOff>();
-	sensor_sample_fetch(rht2sensor);
-	sensor_value v;
-	sensor_channel_get(rht2sensor, sensor_channel::SENSOR_CHAN_AMBIENT_TEMP, &v);
-        sensor_attr_set(eco2sensor, SENSOR_CHAN_ALL, (sensor_attribute)SENSOR_ATTR_ENS160_TEMP, &v);
-	zb_ep.set<kAttrTemp>(zbm::zcl::FromC(float(v.val1) + float(v.val2) / 1000'000.f));
+	if (device_is_ready(rht2sensor))
+	{
+	    //zb_ep.dump_info<kCmdOn, kCmdOff>();
+	    sensor_sample_fetch(rht2sensor);
+	    sensor_value v;
+	    sensor_channel_get(rht2sensor, sensor_channel::SENSOR_CHAN_AMBIENT_TEMP, &v);
+	    sensor_attr_set(eco2sensor, SENSOR_CHAN_ALL, (sensor_attribute)SENSOR_ATTR_ENS160_TEMP, &v);
+	    g_EnvSensorValues.temp = zb::zb_zcl_temp_basic_t::FromC(float(v.val1) + float(v.val2) / 1000'000.f);
 
-	sensor_channel_get(rht2sensor, sensor_channel::SENSOR_CHAN_HUMIDITY, &v);
-        sensor_attr_set(eco2sensor, SENSOR_CHAN_ALL, (sensor_attribute)SENSOR_ATTR_ENS160_RH, &v);
-	zb_ep.set<kAttrHumid>(zbm::zcl::FromRelH(float(v.val1) + float(v.val2) / 1000'000.f));
+	    sensor_channel_get(rht2sensor, sensor_channel::SENSOR_CHAN_HUMIDITY, &v);
+	    sensor_attr_set(eco2sensor, SENSOR_CHAN_ALL, (sensor_attribute)SENSOR_ATTR_ENS160_RH, &v);
+	    g_EnvSensorValues.humid = zb::zb_zcl_rel_humid_basic_t::FromRelH(float(v.val1) + float(v.val2) / 1000'000.f);
 
-	sensor_sample_fetch(eco2sensor);
-	sensor_channel_get(eco2sensor, sensor_channel::SENSOR_CHAN_CO2, &v);
-	zb_ep.set<kAttrCO2>(float(v.val1) / 1000'000.f);
-	sensor_channel_get(eco2sensor, sensor_channel::SENSOR_CHAN_VOC, &v);
-	zb_ep.set<kAttrTVOC>(float(v.val1));
-	sensor_channel_get(eco2sensor, (sensor_channel)SENSOR_CHAN_ENS160_AQI, &v);
-	zb_ep.set<kAttrAQI>((zbm::misc_zc::air_q_t::AQI)v.val1);
+	    sensor_sample_fetch(eco2sensor);
+	    sensor_channel_get(eco2sensor, sensor_channel::SENSOR_CHAN_CO2, &v);
+	    g_EnvSensorValues.co2 = float(v.val1) / 1000'000.f;
+
+	    sensor_channel_get(eco2sensor, sensor_channel::SENSOR_CHAN_VOC, &v);
+	    g_EnvSensorValues.tvoc = float(v.val1);
+
+	    sensor_channel_get(eco2sensor, (sensor_channel)SENSOR_CHAN_ENS160_AQI, &v);
+	    g_EnvSensorValues.aqi = (zb::zb_zcl_air_q_t::AQI)v.val1;
+	    if (g_ZigbeeReady)
+		zb_schedule_app_callback(update_environment_sensors, 0);
+	}
+	k_msleep(kEnvSensorUpdateInterval);
     }
-    return true;
 }
 
 constinit uint32_t reset_reasons = 0;
@@ -929,9 +965,6 @@ void on_zigbee_start()
 {
     printk("on_zigbee_start\r\n");
     g_ZigbeeReady = true;
-    if (g_EnvironmentSensorFetcher.Setup(update_environment_sensors, 15000) != RET_OK)
-	ultimate_timer_fail();
-
     status3_t s;
     s.s = dev_ctx.ep1.status_attr.status3;
     uint16_t hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
@@ -1369,7 +1402,7 @@ int main(void)
     FMT_PRINTLN("-----LD2412 aux-----");
     print_ld2412_config(*pLD2412_2);
 
-    printk("_k_thread=%p\r\n", _kernel.threads);
+    k_thread_start(env_sense_thread);
     while (1) {
 	k_sleep(K_FOREVER);
     }
