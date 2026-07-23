@@ -17,7 +17,6 @@ target_include_directories(app PRIVATE submodules/esp_generic_lib/include)
 
 target_sources(app PRIVATE src/main.cpp src/ld2412_task.cpp)
 
-add_subdirectory(submodules/nrf_zb_cpp)
 add_subdirectory(submodules/nrf_general)
 add_subdirectory(submodules/nrf_uart)
 add_subdirectory(submodules/nrf_zbm_cpp)
@@ -25,7 +24,6 @@ add_subdirectory(submodules/nrf_zbm_cpp)
 target_include_directories(NrfLibUART PRIVATE submodules/esp_generic_lib/include)
 
 target_link_libraries(app PUBLIC NrfLibGeneral)
-target_link_libraries(app PUBLIC NrfZBCpp)
 target_link_libraries(app PUBLIC NrfZBMCpp)
 target_link_libraries(app PUBLIC NrfLibUART)
 
