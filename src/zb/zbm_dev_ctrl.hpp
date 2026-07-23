@@ -1,7 +1,7 @@
 #ifndef ZBM_DEV_CTRL_CLUSTER_DESC_HPP_
 #define ZBM_DEV_CTRL_CLUSTER_DESC_HPP_
 
-#include <nrfzbcpp/zb_main.hpp>
+#include <nrfzbmcpp/zbm.hpp>
 #include <nrf_uart/periphery/lib_ld2412.hpp>
 
 namespace zbm
