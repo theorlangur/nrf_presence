@@ -44,7 +44,7 @@ namespace zephyr
 
                 uintptr_t stack_start = k->stack_info.start;
                 uintptr_t stack_end = k->stack_info.start + k->stack_info.size;
-                int frames = frames_offset;
+                size_t frames = frames_offset;
                 while(fp >= stack_start && fp < stack_end && (fp & 0x03) == 0 && frames < cfg.m_MaxFrames)
                 {
                     uint32_t *fp_ptr = (uint32_t *)fp;
@@ -79,7 +79,7 @@ namespace zephyr
                 {
                     if (thread == _current)
                     {
-                        int frames = 0;
+                        size_t frames = 0;
                         for(;frames < pre_captured_frames_count; ++frames)
                             s->tasks[s->total_tasks].stack[frames] = pre_captured_frames[frames];
 
