@@ -220,9 +220,8 @@ zbm::cmd_handling_result_t on_cmd_start_analysis_for_presence();
 zbm::cmd_handling_result_t on_cmd_start_analysis_for_absence();
 zbm::cmd_handling_result_t on_cmd_stop_analysis();
 
-
 /* Zigbee device application context storage. */
-static constinit device_ctx_t dev_ctx
+static constinit device_ctx_t dev_ctx = zbm::const_init_device<device_ctx_t
 {
     .ep1={
 	.basic_attr = {
@@ -262,7 +261,9 @@ static constinit device_ctx_t dev_ctx
 	    ,.cmd_take_statistic_snapshot = on_cmd_do_stat_snapshot<ld2412_2>
 	},
     }
-};
+}
+>{}
+;
 
 using zbm_dev_t = zbm::device_full_t<^^dev_ctx>;
 constinit static zbm_dev_t zb_ctx{};
@@ -289,6 +290,13 @@ union status3_t
 //a shortcut for a convenient access
 constinit static auto &zb_ep = zb_ctx.ep<kMMW_EP>();
 constinit static auto &zb_ep_aux = zb_ctx.ep<kMMW_AUX_EP>();
+
+//constinit static auto &zb_clusters = zb_ctx.clusters<kMMW_EP>();
+
+//static_assert(!zb_clusters.cluster_server_0000.has_any_cmd_in_initialized<^^device_ctx_t::ep1>());
+//static_assert(!zbm::cluster_needs_init<^^std::remove_cvref_t<decltype(zb_clusters)>::cluster_server_0000, ^^device_ctx_t::ep1>());
+//static_assert(zbm::get_const_device_initializer<>().ep1.basic_attr.power_source == zbm::zcl::basic_min_t::PowerSource::DC);
+
 
 template<ld2412::Instance &i>
 auto& get_zb_ep_for_ld2412()
