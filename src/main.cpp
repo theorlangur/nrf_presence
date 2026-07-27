@@ -471,10 +471,11 @@ void presence_triggered(const struct device *port,
     if (main_changed) new_main = gpio_pin_get_dt(&presence);
     if (aux_changed) new_aux = gpio_pin_get_dt(&presence2);
 
-    if (pir_changed && new_pir && !g_pir_presence)
-	new_presence_state = true;
-    else if (!new_pir && !new_main && !new_aux)
-	new_presence_state = false;
+    new_presence_state = new_pir | new_main | new_aux;
+	//   if (pir_changed && new_pir && !g_pir_presence)
+	//new_presence_state = true;
+	//   else if (!new_pir && !new_main && !new_aux)
+	//new_presence_state = false;
     
     //for dbg
 	//   if (pir_changed)
