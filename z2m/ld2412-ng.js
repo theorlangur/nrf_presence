@@ -29,6 +29,20 @@ const ea = exposes.access;
 
 const NS = 'zhc:orlangur';
 
+const LD2412_ERR = {
+    0: 'Ok',
+    1: 'Restart',
+    2: 'ReloadConfig',
+    3: 'FactoryReset',
+    4: 'Bluetooth',
+    5: 'SetBasicCfg',
+    6: 'SetLightSenseCfg',
+    7: 'SetEnergyThresholds',
+    8: 'RunBackAnalysis',
+    9: 'ConfigureCollectStatistics',
+    10: 'SnapshotStatistics',
+};
+
 // 1. Cluster Definition using named Zcl constants
 const hlkLD2412Cluster = {
     name: "hlkLD2412",
@@ -57,7 +71,38 @@ const hlkLD2412Cluster = {
     commandsResponse: {},
 };
 
-// 2. Converters
+// 2. Custom Status Cluster (shared)
+const customStatusCluster = {
+    name: "customStatus",
+    ID: 0xfc80,
+    attributes: {
+        status1: { name: "status1", ID: 0x0000, type: Zcl.DataType.INT16 },
+        status2: { name: "status2", ID: 0x0001, type: Zcl.DataType.INT16 },
+        status3: { name: "status3", ID: 0x0002, type: Zcl.DataType.INT16 },
+    },
+    commands: {
+        stop_watchdog_feeding: { name: "stop_watchdog_feeding", ID: 0x0001, parameters: [] },
+        clear_coredump: { name: "clear_coredump", ID: 0x0002, parameters: [] },
+    },
+    commandsResponse: {},
+};
+
+const deviceControlCluster = {
+    name: "devCtrl",
+    ID: 0xfc83,
+    attributes: {
+        main_still_energy_analysis: { name: "main_still_energy_analysis", ID: 0x0000, type: Zcl.DataType.OCTET_STR, read: true },
+        aux_still_energy_analysis: { name: "aux_still_energy_analysis", ID: 0x0001, type: Zcl.DataType.OCTET_STR, read: true },
+    },
+    commands: {
+        start_analysis_for_presence: { name: "start_analysis_for_presence", ID: 0x0001, parameters: [] },
+        start_analysis_for_absense: { name: "start_analysis_for_absense", ID: 0x0002, parameters: [] },
+        stop_analysis: { name: "stop_analysis", ID: 0x0003, parameters: [] },
+    },
+    commandsResponse: {},
+};
+
+// 3. Converters
 const fzLocal = {
     cluster: 'hlkLD2412',
     type: ['attributeReport', 'readResponse'],
@@ -408,9 +453,29 @@ const orlangurLD2412Extended = {
     },
     extendedStatus: () => {
         const exposes = [
-            e.numeric('status1', ea.STATE_GET).withLabel('Status1').withCategory('diagnostic'),
-            e.numeric('status2', ea.STATE_GET).withLabel('Status2').withCategory('diagnostic'),
-            e.numeric('status3', ea.STATE_GET).withLabel('Status3').withCategory('diagnostic'),
+            e.enum('status1_error', ea.STATE_GET, Object.values(LD2412_ERR))
+                .withLabel('Status1 Error').withCategory('diagnostic'),
+            e.numeric('status1_raw', ea.STATE_GET).withLabel('Status1 Raw').withCategory('diagnostic'),
+
+            e.binary('status2_pir', ea.STATE_GET, 1, 0).withLabel('PIR Presence').withCategory('diagnostic'),
+            e.binary('status2_main', ea.STATE_GET, 1, 0).withLabel('Main Presence').withCategory('diagnostic'),
+            e.binary('status2_aux', ea.STATE_GET, 1, 0).withLabel('Aux Presence').withCategory('diagnostic'),
+            e.binary('status2_pir_changed', ea.STATE_GET, 1, 0).withLabel('PIR Changed').withCategory('diagnostic'),
+            e.binary('status2_main_changed', ea.STATE_GET, 1, 0).withLabel('Main Changed').withCategory('diagnostic'),
+            e.binary('status2_aux_changed', ea.STATE_GET, 1, 0).withLabel('Aux Changed').withCategory('diagnostic'),
+            e.numeric('status2_raw', ea.STATE_GET).withLabel('Status2 Raw').withCategory('diagnostic'),
+
+            e.text('status3_coredump_exists', ea.STATE_GET).withLabel('Coredump Exists').withCategory('diagnostic'),
+            e.binary('status3_watchdog_config_error', ea.STATE_GET, 1, 0).withLabel('Watchdog Config Error').withCategory('diagnostic'),
+            e.text('status3_last_reset_reason', ea.STATE_GET).withLabel('Last Reset').withCategory('diagnostic'),
+            e.binary('status3_analysis_for_presence', ea.STATE_GET, 1, 0).withLabel('Analysis For Presence').withCategory('diagnostic'),
+            e.binary('status3_analysis_for_absence', ea.STATE_GET, 1, 0).withLabel('Analysis For Absence').withCategory('diagnostic'),
+            e.numeric('status3_raw', ea.STATE_GET).withLabel('Status3 Raw').withCategory('diagnostic'),
+
+            e.enum('stop_watchdog_feeding', ea.SET, ['trigger'])
+                .withDescription('Stop feeding watchdog'),
+            e.enum('clear_coredump', ea.SET, ['trigger'])
+                .withDescription('Clear Coredump'),
         ];
 
         const fromZigbee = [
@@ -420,24 +485,74 @@ const orlangurLD2412Extended = {
                 convert: (model, msg, publish, options, meta) => {
                     const result = {};
                     const data = msg.data;
-                    if (data['status1'] !== undefined) 
-                        result['status1'] = data['status1'];
-                    if (data['status2'] !== undefined) 
-                        result['status2'] = data['status2'];
-                    if (data['status3'] !== undefined) 
-                        result['status3'] = data['status3'];
-                    return result
-                }
-            }
+
+                    if (data['status1'] !== undefined) {
+                        const raw = data['status1'];
+                        result['status1_err'] = LD2412_ERR[raw] || `Unknown(${raw})`;
+                        result['status1_error'] = LD2412_ERR[raw] || `Unknown(${raw})`;
+                        result['status1_raw'] = raw;
+                    }
+
+                    if (data['status2'] !== undefined) {
+                        const raw = data['status2'];
+                        const lower = raw & 0x07;
+                        const upper = (raw >> 8) & 0x07;
+                        result['status2_pir'] = (lower >> 0) & 1;
+                        result['status2_main'] = (lower >> 1) & 1;
+                        result['status2_aux'] = (lower >> 2) & 1;
+                        result['status2_pir_changed'] = (upper >> 0) & 1;
+                        result['status2_main_changed'] = (upper >> 1) & 1;
+                        result['status2_aux_changed'] = (upper >> 2) & 1;
+                        result['status2_raw'] = raw;
+                    }
+
+                    if (data['status3'] !== undefined) {
+                        const raw = data['status3'];
+                        result['status3_watchdog_config_error'] = (raw >> 1) & 1;
+                        result['status3_analysis_for_presence'] = (raw >> 2) & 1;
+                        result['status3_analysis_for_absence'] = (raw >> 3) & 1;
+                        result['status3_raw'] = raw;
+                        var reset_reason = '';
+                        if ((raw >> 4) & 1) reset_reason += "pin;";
+                        if ((raw >> 5) & 1) reset_reason += "wdt;";
+                        if ((raw >> 6) & 1) reset_reason += "sw;";
+                        if ((raw >> 7) & 1) reset_reason += "cpu;";
+                        if ((raw >> 8) & 1) reset_reason += "lp;";
+                        if ((raw >> 9) & 1) reset_reason += "dbg;";
+                        result['status3_last_reset_reason'] = reset_reason;
+
+                        var coredump_state = '';
+                        if ((raw >> 0) & 1) coredump_state += "core;";
+                        if ((raw >> 10) & 1) coredump_state += "bread;";
+                        result['status3_coredump_exists'] = coredump_state;
+                    }
+
+                    return result;
+                },
+            },
         ];
 
         const toZigbee = [
             {
-                key: ['status1', 'status2', 'status3'],
-                convertGet: async (entity, key, meta) => {
-                    await entity.read('customStatus', [key]);
+                key: [
+                    'status1_error', 'status1_raw',
+                    'status2_pir', 'status2_main', 'status2_aux',
+                    'status2_pir_changed', 'status2_main_changed', 'status2_aux_changed', 'status2_raw',
+                    'status3_coredump_exists', 'status3_last_reset_reason', 'status3_watchdog_config_error', 'status3_analysis_for_presence', 
+                    'status3_analysis_for_absence', 'status3_raw', 'stop_watchdog_feeding', 'clear_coredump'
+                ],
+                convertSet: async (entity, key, value, meta) => {
+                    if (key === 'stop_watchdog_feeding' && value === 'trigger') {
+                        await entity.command('customStatus', 'stop_watchdog_feeding', {}, { customCluster: customStatusCluster });
+                    }
+                    else if (key === 'clear_coredump' && value === 'trigger') {
+                        await entity.command('customStatus', 'clear_coredump', {}, { customCluster: customStatusCluster });
+                    }
                 },
-            }
+                convertGet: async (entity, key, meta) => {
+                    await entity.read('customStatus', ['status1', 'status2', 'status3']);
+                },
+            },
         ];
 
         const configure = [];
@@ -445,15 +560,15 @@ const orlangurLD2412Extended = {
         configure.push(
             setupConfigureForReading("customStatus", ["status1", "status2", "status3"]),
             setupConfigureForReporting("customStatus", "status1", {
-                config: {min: "1_SECOND", max: "MAX", change: 1},
+                config: { min: "1_SECOND", max: "MAX", change: 1 },
                 access: ea.STATE_GET,
             }),
             setupConfigureForReporting("customStatus", "status2", {
-                config: {min: "1_SECOND", max: "MAX", change: 1},
+                config: { min: "1_SECOND", max: "MAX", change: 1 },
                 access: ea.STATE_GET,
             }),
             setupConfigureForReporting("customStatus", "status3", {
-                config: {min: "1_SECOND", max: "MAX", change: 1},
+                config: { min: "1_SECOND", max: "MAX", change: 1 },
                 access: ea.STATE_GET,
             }),
         );
@@ -466,6 +581,78 @@ const orlangurLD2412Extended = {
             isModernExtend: true,
         };
     },
+    deviceControl: () => {
+        const createStillGateEnergyExpose = (name, desc) => {
+            // Use ea.STATE_GET so the UI generates a read/refresh button
+            const comp = e.composite(name, name, ea.STATE_GET).withDescription(desc);
+            for (let i = 0; i < 14; i++) {
+                comp.withFeature(e.text(`gate_${i}`, ea.STATE_GET).withDescription(`Gate ${i} still energy`));
+            }
+            return comp;
+        };
+        const exposes = [
+            e.enum('start_analysis_for_presence', ea.SET, ['trigger']).withDescription('Start Analysis for Presence'),
+            e.enum('start_analysis_for_absense', ea.SET, ['trigger']).withDescription('Start Analysis for Absence'),
+            e.enum('stop_analysis', ea.SET, ['trigger']).withDescription('Stop Analysis'),
+            createStillGateEnergyExpose('main_still_energy_analysis', 'Main Still Energy Gates'),
+            createStillGateEnergyExpose('aux_still_energy_analysis', 'Aux Still Energy Gates'),
+        ];
+
+        const fromZigbee = [
+            {
+                cluster: 'devCtrl',
+                type: ['attributeReport', 'readResponse'],
+                convert: (model, msg, publish, options, meta) => {
+                    const result = {};
+                    const data = msg.data;
+
+                    if (data.main_still_energy_analysis !== undefined) {
+                        const parsed = {};
+                        for (let i = 0; i < 14; i++) parsed[`gate_${i}`] = data.main_still_energy_analysis.readUInt8(i);
+                        result[`main_still_energy_analysis`] = parsed;
+                    }
+
+                    if (data.aux_still_energy_analysis !== undefined) {
+                        const parsed = {};
+                        for (let i = 0; i < 14; i++) parsed[`gate_${i}`] = data.aux_still_energy_analysis.readUInt8(i);
+                        result[`aux_still_energy_analysis`] = parsed;
+                    }
+                    return result
+                }
+            }
+        ];
+
+        const toZigbee = [
+            {
+                key: [
+                    'start_analysis_for_presence', 'start_analysis_for_absense',
+                    'stop_analysis', 'main_still_energy_analysis', 'aux_still_energy_analysis'
+                ],
+                convertSet: async (entity, key, value, meta) => {
+                    if ( value === 'trigger'
+                          && 
+                            (
+                                key === 'start_analysis_for_presence'
+                                || key === 'start_analysis_for_absense'
+                                || key === 'stop_analysis'
+                            )
+                    ) {
+                        await entity.command('devCtrl', key, {}, { customCluster: deviceControlCluster });
+                    }
+                },
+                convertGet: async (entity, key, meta) => {
+                    await entity.read('devCtrl', [key]);
+                },
+            },
+        ];
+
+        return {
+            exposes,
+            fromZigbee,
+            toZigbee,
+            isModernExtend: true
+        }
+    }
 }
 
 const definition = {
@@ -476,17 +663,7 @@ const definition = {
     description: 'LD2412-NG',
     extend: [
         deviceEndpoints({endpoints: {main: 1, aux: 2}}),
-        deviceAddCustomCluster('customStatus', {
-            name: "customStatus",
-            ID: 0xfc80,
-            attributes: {
-                status1: { name: "status1", ID: 0x0000, type: Zcl.DataType.INT16},
-                status2: { name: "status2", ID: 0x0001, type: Zcl.DataType.INT16},
-                status3: { name: "status3", ID: 0x0002, type: Zcl.DataType.INT16},
-            },
-            commands: {},
-            commandsResponse: {}
-        }),
+        deviceAddCustomCluster('customStatus', customStatusCluster),
         deviceAddCustomCluster('ens160airQuality', {
             name: "ens160airQuality",
             ID: 0xfc08,
@@ -498,8 +675,9 @@ const definition = {
             commandsResponse: {}
         }),
         deviceAddCustomCluster('hlkLD2412', hlkLD2412Cluster),
+        deviceAddCustomCluster('devCtrl', deviceControlCluster),
         orlangurLD2412Extended.extendedStatus(),
-        occupancy({ultrasonicConfig:["otu_delay", "uto_delay"], endpointNames: ["main"]}),
+        occupancy({ultrasonicConfig:["otu_delay"], endpointNames: ["main"]}),
         co2(),
         temperature(),
         humidity(),
@@ -531,6 +709,7 @@ const definition = {
         }),
         hlkLd2412("main", 1)
         ,hlkLd2412("aux", 2)
+        ,orlangurLD2412Extended.deviceControl()
     ]
 };
 
