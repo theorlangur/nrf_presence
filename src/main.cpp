@@ -1022,20 +1022,15 @@ void zb_on_error()
  */
 void zboss_signal_handler(zb_bufid_t bufid)
 {
-    static bool ctx_initialized = false;
-    if (!ctx_initialized)
-    {
-	ctx_initialized = true;
-	zb_ctx.init();
-    }
         zb_zdo_app_signal_hdr_t *pHdr;
         auto signalId = zb_get_app_signal(bufid, &pHdr);
 
-	auto ret = zbm::tpl_signal_handler<
+	auto ret = zbm::tpl_signal_handler<zb_ctx,
 	    zbm::sig_handlers_t{ZB_ZDO_SIGNAL_LEAVE, ^^zb_on_leave},
 	    zbm::sig_handlers_t{ZB_ZDO_SIGNAL_ERROR, ^^zb_on_error},
 	    zbm::sig_handlers_t{ZB_BDB_SIGNAL_DEVICE_REBOOT, ^^on_zigbee_start},
-	    zbm::sig_handlers_t{ZB_BDB_SIGNAL_STEERING, ^^on_zigbee_start}
+	    zbm::sig_handlers_t{ZB_BDB_SIGNAL_STEERING, ^^on_zigbee_start},
+	    zbm::sig_handlers_t{ZB_COMMON_SIGNAL_CAN_SLEEP, ^^zb_sleep_now}
 	   >(bufid);
     const uint32_t LOCAL_ERR_CODE = (uint32_t) (-ret);	
     if (LOCAL_ERR_CODE != RET_OK) {				
