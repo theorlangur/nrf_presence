@@ -34,6 +34,7 @@
 #include <nrfzbmcpp/zcl/zbm_zcl_rel_humidity.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_temperature.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_co2.hpp>
+#include <nrfzbmcpp/zcl/zbm_zcl_poll_ctrl.hpp>
 #include <nrfzbmcpp/misc_zc/zbm_misc_zc_air_q.hpp>
 #include <nrfzbmcpp/misc_zc/zbm_misc_zc_status.hpp>
 #include "zb/zbm_ld2412.hpp"
@@ -130,6 +131,7 @@ struct ep1_t
     zbm::zcl::temp_basic_t temperature;
     zbm::zcl::co2_basic_t co2;
     zbm::misc_zc::air_q_t airq;
+    //zbm::zcl::poll_ctrl_new_t poll_ctrl;
 };
 
 struct ep2_t
