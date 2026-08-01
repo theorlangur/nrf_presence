@@ -25,6 +25,8 @@ target_include_directories(NrfLibUART PRIVATE submodules/esp_generic_lib/include
 
 target_link_libraries(app PUBLIC NrfLibGeneral)
 target_link_libraries(app PUBLIC NrfZBMCpp)
+target_include_directories(NrfZBMCpp PRIVATE $<TARGET_PROPERTY:app,INCLUDE_DIRECTORIES>)
+
 target_link_libraries(app PUBLIC NrfLibUART)
 
 include(cmake/CustomLibcxx.cmake)
