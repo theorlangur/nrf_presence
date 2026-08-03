@@ -304,7 +304,7 @@ constinit static auto &poll_handler = zb_ep.handler<zbm::zcl::poll_ctrl_new_t>()
 template<ld2412::Instance &i>
 auto& get_zb_ep_for_ld2412()
 {
-    poll_handler.do_thing();
+    poll_handler.start();
     if constexpr (&i == &ld2412_1)
 	return zb_ep;
     else if constexpr (&i == &ld2412_2)
