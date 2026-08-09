@@ -1,3 +1,3 @@
 #!/bin/bash
-source /home/theorlangur/ncs/toolchains/7cbc0036f4/gcc16_cross_compile_human_env.sh
+source ~/ncs/toolchains/7cbc0036f4/gcc16_env.sh
 $*

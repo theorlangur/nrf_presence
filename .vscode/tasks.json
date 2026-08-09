@@ -22,7 +22,7 @@
         {
             "label": "West Build Ezurio GCC",
             "type": "shell",
-            "command": "./build-ezurio-gcc-human.sh",
+            "command": "./build-ezurio-gcc.sh",
             "group": "build"
         },
         {
