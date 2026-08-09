@@ -39,7 +39,6 @@
 #include <nrfzbmcpp/misc_zc/zbm_misc_zc_status.hpp>
 #include "zb/zbm_ld2412.hpp"
 #include "zb/zbm_dev_ctrl.hpp"
-#include <osif/mac_platform.h>
 
 #include <atomic>
 
@@ -131,7 +130,7 @@ struct ep1_t
     zbm::zcl::temp_basic_t temperature;
     zbm::zcl::co2_basic_t co2;
     zbm::misc_zc::air_q_t airq;
-    zbm::zcl::poll_ctrl_new_t poll_ctrl;
+    zbm::zcl::poll_ctrl_auto_t poll_ctrl;
 };
 
 struct ep2_t
@@ -293,7 +292,7 @@ union status3_t
 constinit static auto &zb_ep = zb_ctx.ep<kMMW_EP>();
 constinit static auto &zb_ep_aux = zb_ctx.ep<kMMW_AUX_EP>();
 
-constinit static auto &poll_handler = zb_ep.handler<zbm::zcl::poll_ctrl_new_t>();
+constinit static auto &poll_handler = zb_ep.handler<zbm::zcl::poll_ctrl_auto_t>();
 //constinit static auto &zb_clusters = zb_ctx.clusters<kMMW_EP>();
 
 //static_assert(!zb_clusters.cluster_server_0000.has_any_cmd_in_initialized<^^device_ctx_t::ep1>());
