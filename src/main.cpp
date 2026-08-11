@@ -34,7 +34,6 @@
 #include <nrfzbmcpp/zcl/zbm_zcl_rel_humidity.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_temperature.hpp>
 #include <nrfzbmcpp/zcl/zbm_zcl_co2.hpp>
-#include <nrfzbmcpp/zcl/zbm_zcl_poll_ctrl.hpp>
 #include <nrfzbmcpp/misc_zc/zbm_misc_zc_air_q.hpp>
 #include <nrfzbmcpp/misc_zc/zbm_misc_zc_status.hpp>
 #include "zb/zbm_ld2412.hpp"
@@ -130,7 +129,6 @@ struct ep1_t
     zbm::zcl::temp_basic_t temperature;
     zbm::zcl::co2_basic_t co2;
     zbm::misc_zc::air_q_t airq;
-    zbm::zcl::poll_ctrl_auto_t poll_ctrl;
 };
 
 struct ep2_t
@@ -292,7 +290,6 @@ union status3_t
 constinit static auto &zb_ep = zb_ctx.ep<kMMW_EP>();
 constinit static auto &zb_ep_aux = zb_ctx.ep<kMMW_AUX_EP>();
 
-constinit static auto &poll_handler = zb_ep.handler<zbm::zcl::poll_ctrl_auto_t>();
 //constinit static auto &zb_clusters = zb_ctx.clusters<kMMW_EP>();
 
 //static_assert(!zb_clusters.cluster_server_0000.has_any_cmd_in_initialized<^^device_ctx_t::ep1>());
@@ -303,7 +300,6 @@ constinit static auto &poll_handler = zb_ep.handler<zbm::zcl::poll_ctrl_auto_t>(
 template<ld2412::Instance &i>
 auto& get_zb_ep_for_ld2412()
 {
-    poll_handler.start();
     if constexpr (&i == &ld2412_1)
 	return zb_ep;
     else if constexpr (&i == &ld2412_2)
