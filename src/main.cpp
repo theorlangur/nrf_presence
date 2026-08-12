@@ -18,6 +18,8 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/sensor/ens160.h>
 
+#include <nrf_802154.h>
+
 #include <zephyr/drivers/hwinfo.h>
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/storage/flash_map.h>
@@ -35,12 +37,11 @@
 #include <nrfzbcpp/zb_temp_cluster_desc.hpp>
 #include <nrfzbcpp/zb_co2_cluster_desc.hpp>
 #include <nrfzbcpp/zb_nstd_air_q_cluster_desc.hpp>
+#include <nrfzbcpp/zb_tools.hpp>
 #include "zb/zb_ld2412_cluster_desc.hpp"
 #include "zb/zb_dev_ctrl_cluster_desc.hpp"
-#include <osif/mac_platform.h>
 
 #include <atomic>
-//#include <meta>
 
 extern "C"{
 #include <zephyr/debug/coredump.h>
@@ -98,7 +99,6 @@ static bool g_ZigbeeReady = false;
 
 /* Model number assigned by manufacturer (32-bytes long string). */
 #define INIT_BASIC_MODEL_ID        "LD2412-NG"
-//#define INIT_SW_VER                "C4001-1.0"
 
 
 /* Button used to enter the Bulb into the Identify mode. */
@@ -108,7 +108,7 @@ static bool g_ZigbeeReady = false;
 #define FACTORY_RESET_BUTTON IDENTIFY_MODE_BUTTON
 
 /* Device endpoint, used to receive light controlling commands. */
-constexpr int8_t kTX_POWER = 7;
+constexpr int8_t kTX_POWER = 8;
 constexpr uint8_t kMMW_EP = 1;
 constexpr uint8_t kMMW_AUX_EP = 2;
 constexpr uint16_t kDEV_ID = 0xBAAD;
@@ -120,6 +120,7 @@ constexpr uint32_t kEnvSensorUpdateInterval = 15000;//ms
 struct device_ctx_t{
     zb::zb_zcl_basic_names_t basic_attr;
     zb::zb_zcl_status_t status_attr;
+    zb::zb_zcl_status2_t status2_attr;
     zb::zb_zcl_dev_ctrl_t dev_attr;
     zb::zb_zcl_occupancy_pir_and_ultrasonic_t occupancy;
     zb::zb_zcl_on_off_attrs_client_t on_off_client;
@@ -139,6 +140,9 @@ struct device_ctx_t{
 constexpr auto kAttrStatus1 = &zb::zb_zcl_status_t::status1;
 constexpr auto kAttrStatus2 = &zb::zb_zcl_status_t::status2;
 constexpr auto kAttrStatus3 = &zb::zb_zcl_status_t::status3;
+
+constexpr auto kA2Status1 = &zb::zb_zcl_status2_t::status1;
+constexpr auto kA2Status2 = &zb::zb_zcl_status2_t::status2;
 
 /**********************************************************************/
 /* LD2412 attributes                                                  */
@@ -258,6 +262,7 @@ constinit static zb::device_full_t zb_ctx{
 	),
 	zb::make_ep_args<{.ep=kMMW_AUX_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
 	    dev_ctx.ld2412_aux
+	    , dev_ctx.status2_attr
 	)
 };
 
@@ -285,7 +290,8 @@ union status3_t
 	uint16_t reset_reason_low_power_wake: 1;
 	uint16_t reset_reason_dbg: 1;
 	uint16_t has_breadcrumbs: 1;
-	uint16_t unused: 5;
+	uint16_t set_tx_error: 1;
+	uint16_t unused: 4;
     }bits;
 };
 
@@ -373,6 +379,102 @@ auto as_print_dest(zb::zigbee_str_t<N> &str)
     return tools::BufferFormatter(str.name + 1, str.capacity());
 }
 
+/**********************************************************************/
+/* Time measurements                                                  */
+/**********************************************************************/
+union radio_errors_t
+{
+    uint32_t s;
+    struct{
+	uint32_t tx_busy_channel: 1;
+	uint32_t tx_invalid_ack: 1;
+	uint32_t tx_no_mem: 1;
+	uint32_t tx_timeslot_ended: 1;
+	uint32_t tx_no_ack: 1;
+	uint32_t tx_aborted: 1;
+	uint32_t tx_timeslot_denied: 1;
+	uint32_t tx_key_id_invalid: 1;
+	uint32_t tx_frame_counter_error: 1;
+
+	uint32_t rx_invalid_frame: 1;
+	uint32_t rx_invalid_fcs: 1;
+	uint32_t rx_invalid_dest_addr: 1;
+	uint32_t rx_runtime: 1;
+	uint32_t rx_timeslot_ended: 1;
+	uint32_t rx_aborted: 1;
+	uint32_t rx_delayed_timeslot_denied: 1;
+	uint32_t rx_delayed_timeout: 1;
+	uint32_t rx_invalid_length: 1;
+	uint32_t rx_delayed_aborted: 1;
+	uint32_t rx_no_buffer: 1;
+
+	uint32_t registered_fails: 8;
+	uint32_t unused: 4;
+    }bits;
+};
+
+union measured_latencies_t
+{
+    uint32_t s;
+    struct{
+	uint32_t trigger_to_send: 8;//1 bit - 10ms
+	uint32_t send_to_start: 8;//1 bit - 10ms
+	uint32_t send_to_transmit: 8;//1 bit - 10ms
+	uint32_t start_attempts: 8;
+    }bits;
+};
+
+bool g_track_transmission = false;
+constinit uint32_t g_trigger_timestamp = 0;
+constinit uint32_t g_send_timestamp = 0;
+constinit measured_latencies_t g_measured_latencies{.s = 0};
+constinit radio_errors_t g_radio_errors{.s = 0};
+
+uint32_t g_radio_error_to_update;
+uint32_t g_latencies_to_update;
+
+void update_tracked_transmission(uint8_t param);
+
+void nrf_802154_tx_started(const uint8_t * p_frame)
+{
+    if (g_track_transmission)
+    {
+	g_measured_latencies.bits.send_to_start = (k_uptime_get_32() - g_send_timestamp) / 10;
+	++g_measured_latencies.bits.start_attempts;
+    }
+}
+
+void nrf_802154_transmitted_raw(uint8_t                                   * p_frame,
+                                       const nrf_802154_transmit_done_metadata_t * p_metadata)
+{
+    if (g_track_transmission)
+    {
+	g_measured_latencies.bits.send_to_transmit = (k_uptime_get_32() - g_send_timestamp) / 10;
+	g_track_transmission = false;
+	g_radio_error_to_update = g_radio_errors.s;
+	g_latencies_to_update = g_measured_latencies.s;
+	zb_schedule_app_callback(&update_tracked_transmission, 0);
+    }
+
+    uint8_t * p_ack = p_metadata->data.transmitted.p_ack;
+
+    if (p_ack != NULL)
+    {
+        nrf_802154_buffer_free_raw(p_ack);
+    }
+}
+
+void nrf_802154_transmit_failed(uint8_t                                   * p_frame,
+                                       nrf_802154_tx_error_t                       error,
+                                       const nrf_802154_transmit_done_metadata_t * p_metadata)
+{
+    if (error && g_track_transmission)
+	g_radio_errors.s |= 1 << (error - 1);
+
+    (void)p_frame;
+    (void)error;
+    (void)p_metadata;
+}
 
 /**********************************************************************/
 /* Fault end-handling                                                 */
@@ -513,6 +615,7 @@ void presence_triggered(const struct device *port,
     if (new_presence_state != g_presence_state)
     {
 	g_presence_state = new_presence_state;
+	g_trigger_timestamp = k_uptime_get_32();
 
 	if (g_ZigbeeReady) //post to zigbee and shoot commands
 	{
@@ -603,6 +706,13 @@ zb::cmd_handling_result_t on_cmd_do_stat_snapshot()
     return {};
 }
 
+
+void update_tracked_transmission(uint8_t param)
+{
+    zb_ep_aux.attr<kA2Status1>() = g_radio_error_to_update;
+    zb_ep_aux.attr<kA2Status2>() = g_latencies_to_update;
+}
+
 constexpr uint8_t kOccupancyFromDebug = 0x40;
 constexpr uint8_t kOccupancyClearFromTimer = 0x80;
 zb::zb_alarm_ext_t<> g_OccupancyResetProtection;
@@ -619,6 +729,11 @@ void on_occupancy_protection_finished()
 
 void send_on_off_zb(uint8_t val)
 {
+    g_send_timestamp = k_uptime_get_32();
+    g_measured_latencies.s = 0;
+    g_radio_errors.s = 0;
+    g_measured_latencies.bits.trigger_to_send = (g_send_timestamp - g_trigger_timestamp) / 10;
+    g_track_transmission = true;
     zb_ep.attr<kAttrOccupancy>() = val == 1;
     if (val == 1)
     {
@@ -1007,6 +1122,13 @@ void on_zigbee_start()
 	g_presence_state = g_pir_presence | g_ld2412_main_presence_out | g_ld2412_aux_presence_out;
 	send_on_off(g_presence_state);
     }
+
+    zb::tx_power::set_tx_power(kTX_POWER, 1 << zb_get_current_channel(), [](zb_ret_t res){
+	    status3_t s;
+	    s.s = dev_ctx.status_attr.status3;
+	    s.bits.set_tx_error = res != RET_OK;
+	    zb_ep.attr<kAttrStatus3>() = s.s;
+    });
 }
 
 /**@brief Zigbee stack event handler.
