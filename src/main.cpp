@@ -459,7 +459,7 @@ extern "C" void __wrap_nrf_802154_transmitted_raw(uint8_t                       
 	g_measured_latencies.bits.send_to_transmit = (k_uptime_get_32() - g_send_timestamp) / 10;
 	g_radio_error_to_update = g_radio_errors.s;
 	g_latencies_to_update = g_measured_latencies.s;
-	zb_schedule_app_callback(&update_tracked_transmission, 0);
+	zigbee_schedule_callback(&update_tracked_transmission, 0);
     }
 
     return __real_nrf_802154_transmitted_raw(p_frame, p_metadata);
@@ -606,7 +606,7 @@ void presence_triggered(const struct device *port,
 	    uint8_t cur = g_PresenceChangeState.load();
 	    while(!g_PresenceChangeState.compare_exchange_strong(cur, ((cur & PresenceChange::kChangedOnlyMask) | v.val)));
 	    if (!cur)//completely clear
-		zb_schedule_app_callback(&log_presence_change, v.val);
+		zigbee_schedule_callback(&log_presence_change, v.val);
 	}
     }
 
@@ -623,7 +623,7 @@ void presence_triggered(const struct device *port,
 	if (g_ZigbeeReady) //post to zigbee and shoot commands
 	{
 	    if (g_PresenceHWState.exchange(g_presence_state) == HWUnsetState)
-		zb_schedule_app_callback(&send_on_off, g_presence_state);
+		zigbee_schedule_callback(&send_on_off, g_presence_state);
 	}
 	else
 	{
@@ -726,7 +726,7 @@ void on_occupancy_protection_finished()
     if (g_LastRegisteredOccupancyState == 0)
     {
 	//last registered is 'clear'
-	zb_schedule_app_callback(&send_on_off, kOccupancyClearFromTimer);
+	zigbee_schedule_callback(&send_on_off, kOccupancyClearFromTimer);
     }
 }
 
@@ -940,7 +940,7 @@ template<ld2412::Instance &i>
 void on_ld2412_error(ld2412::err_t e)
 {
     if (g_ZigbeeReady)
-	zb_schedule_app_callback(&zb_ld2412_error<i>, (uint8_t)e);
+	zigbee_schedule_callback(&zb_ld2412_error<i>, (uint8_t)e);
 }
 
 template<ld2412::Instance &i>
@@ -984,7 +984,7 @@ template<ld2412::Instance &i>
 void on_ld2412_notify(ld2412::notification_id_t id)
 {
     if (g_ZigbeeReady)
-	zb_schedule_app_callback(&zb_ld2412_notify<i>, (uint8_t)id);
+	zigbee_schedule_callback(&zb_ld2412_notify<i>, (uint8_t)id);
 }
 
 template<ld2412::Instance &i>
@@ -1089,7 +1089,7 @@ void update_environment_sensors_task(void *, void *, void *)
 	    g_EnvSensorValues.aqi = (zb::zb_zcl_air_q_t::AQI)v.val1;
 
 	    if (g_ZigbeeReady)
-		zb_schedule_app_callback(update_environment_sensors, 0);
+		zigbee_schedule_callback(update_environment_sensors, 0);
 	}
 	k_msleep(kEnvSensorUpdateInterval);
     }
