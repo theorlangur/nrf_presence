@@ -18,7 +18,9 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/sensor/ens160.h>
 
+extern "C"{
 #include <nrf_802154.h>
+}
 
 #include <zephyr/drivers/hwinfo.h>
 #include <zephyr/drivers/watchdog.h>
@@ -435,45 +437,46 @@ uint32_t g_latencies_to_update;
 
 void update_tracked_transmission(uint8_t param);
 
-void nrf_802154_tx_started(const uint8_t * p_frame)
+extern "C" void __real_nrf_802154_tx_started(const uint8_t * p_frame);
+extern "C" void __wrap_nrf_802154_tx_started(const uint8_t * p_frame)
 {
     if (g_track_transmission)
     {
 	g_measured_latencies.bits.send_to_start = (k_uptime_get_32() - g_send_timestamp) / 10;
 	++g_measured_latencies.bits.start_attempts;
     }
+    return __real_nrf_802154_tx_started(p_frame);
 }
 
-void nrf_802154_transmitted_raw(uint8_t                                   * p_frame,
+extern "C" void __real_nrf_802154_transmitted_raw(uint8_t                                   * p_frame,
+                                       const nrf_802154_transmit_done_metadata_t * p_metadata);
+extern "C" void __wrap_nrf_802154_transmitted_raw(uint8_t                                   * p_frame,
                                        const nrf_802154_transmit_done_metadata_t * p_metadata)
 {
     if (g_track_transmission)
     {
-	g_measured_latencies.bits.send_to_transmit = (k_uptime_get_32() - g_send_timestamp) / 10;
 	g_track_transmission = false;
+	g_measured_latencies.bits.send_to_transmit = (k_uptime_get_32() - g_send_timestamp) / 10;
 	g_radio_error_to_update = g_radio_errors.s;
 	g_latencies_to_update = g_measured_latencies.s;
 	zb_schedule_app_callback(&update_tracked_transmission, 0);
     }
 
-    uint8_t * p_ack = p_metadata->data.transmitted.p_ack;
-
-    if (p_ack != NULL)
-    {
-        nrf_802154_buffer_free_raw(p_ack);
-    }
+    return __real_nrf_802154_transmitted_raw(p_frame, p_metadata);
 }
 
-void nrf_802154_transmit_failed(uint8_t                                   * p_frame,
+extern "C" void __real_nrf_802154_transmit_failed(uint8_t                                   * p_frame,
+                                       nrf_802154_tx_error_t                       error,
+                                       const nrf_802154_transmit_done_metadata_t * p_metadata);
+
+extern "C" void __wrap_nrf_802154_transmit_failed(uint8_t                                   * p_frame,
                                        nrf_802154_tx_error_t                       error,
                                        const nrf_802154_transmit_done_metadata_t * p_metadata)
 {
     if (error && g_track_transmission)
 	g_radio_errors.s |= 1 << (error - 1);
 
-    (void)p_frame;
-    (void)error;
-    (void)p_metadata;
+    return __real_nrf_802154_transmit_failed(p_frame, error, p_metadata);
 }
 
 /**********************************************************************/
