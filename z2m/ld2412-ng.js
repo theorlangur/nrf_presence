@@ -658,7 +658,7 @@ const orlangurLD2412Extended = {
                         result['status2_send_to_start'] = ((raw >> 8) & 0xff) * 10;
                         result['status2_send_to_trans'] = ((raw >> 16) & 0xff) * 10;
                         result['status2_start_attempts'] = ((raw >> 24) & 0xff);
-                        result['status2_raw'] = raw;
+                        result['s2_status2_raw'] = raw;
                     }
 
                     return result;
