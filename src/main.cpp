@@ -251,6 +251,7 @@ constinit static zb::device_full_t zb_ctx{
 	zb::make_ep_args<{.ep=kMMW_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
 	    dev_ctx.basic_attr
 	    , dev_ctx.status_attr
+	    , dev_ctx.status2_attr
 	    , dev_ctx.dev_attr
 	    , dev_ctx.occupancy
 	    , dev_ctx.ld2412_main
@@ -262,7 +263,6 @@ constinit static zb::device_full_t zb_ctx{
 	),
 	zb::make_ep_args<{.ep=kMMW_AUX_EP, .dev_id=kDEV_ID, .dev_ver=1}>(
 	    dev_ctx.ld2412_aux
-	    , dev_ctx.status2_attr
 	)
 };
 
@@ -709,8 +709,8 @@ zb::cmd_handling_result_t on_cmd_do_stat_snapshot()
 
 void update_tracked_transmission(uint8_t param)
 {
-    zb_ep_aux.attr<kA2Status1>() = g_radio_error_to_update;
-    zb_ep_aux.attr<kA2Status2>() = g_latencies_to_update;
+    zb_ep.attr<kA2Status1>() = g_radio_error_to_update;
+    zb_ep.attr<kA2Status2>() = g_latencies_to_update;
 }
 
 constexpr uint8_t kOccupancyFromDebug = 0x40;
