@@ -87,6 +87,20 @@ const customStatusCluster = {
     commandsResponse: {},
 };
 
+const customStatus2Cluster = {
+    name: "customStatus2",
+    ID: 0xfc81,
+    attributes: {
+        status1: { name: "status1", ID: 0x0000, type: Zcl.DataType.INT32 },
+        status2: { name: "status2", ID: 0x0001, type: Zcl.DataType.INT32 },
+        status3: { name: "status3", ID: 0x0002, type: Zcl.DataType.INT32 },
+        status4: { name: "status4", ID: 0x0003, type: Zcl.DataType.INT32 },
+    },
+    commands: {
+    },
+    commandsResponse: {},
+};
+
 const deviceControlCluster = {
     name: "devCtrl",
     ID: 0xfc83,
@@ -470,6 +484,7 @@ const orlangurLD2412Extended = {
             e.text('status3_last_reset_reason', ea.STATE_GET).withLabel('Last Reset').withCategory('diagnostic'),
             e.binary('status3_analysis_for_presence', ea.STATE_GET, 1, 0).withLabel('Analysis For Presence').withCategory('diagnostic'),
             e.binary('status3_analysis_for_absence', ea.STATE_GET, 1, 0).withLabel('Analysis For Absence').withCategory('diagnostic'),
+            e.binary('status3_tx_error', ea.STATE_GET, 1, 0).withLabel('TX Error').withCategory('diagnostic'),
             e.numeric('status3_raw', ea.STATE_GET).withLabel('Status3 Raw').withCategory('diagnostic'),
 
             e.enum('stop_watchdog_feeding', ea.SET, ['trigger'])
@@ -511,6 +526,7 @@ const orlangurLD2412Extended = {
                         result['status3_watchdog_config_error'] = (raw >> 1) & 1;
                         result['status3_analysis_for_presence'] = (raw >> 2) & 1;
                         result['status3_analysis_for_absence'] = (raw >> 3) & 1;
+                        result['status3_tx_error'] = (raw >> 11) & 1;
                         result['status3_raw'] = raw;
                         var reset_reason = '';
                         if ((raw >> 4) & 1) reset_reason += "pin;";
@@ -539,7 +555,7 @@ const orlangurLD2412Extended = {
                     'status2_pir', 'status2_main', 'status2_aux',
                     'status2_pir_changed', 'status2_main_changed', 'status2_aux_changed', 'status2_raw',
                     'status3_coredump_exists', 'status3_last_reset_reason', 'status3_watchdog_config_error', 'status3_analysis_for_presence', 
-                    'status3_analysis_for_absence', 'status3_raw', 'stop_watchdog_feeding', 'clear_coredump'
+                    'status3_analysis_for_absence', 'status3_tx_error', 'status3_raw', 'stop_watchdog_feeding', 'clear_coredump'
                 ],
                 convertSet: async (entity, key, value, meta) => {
                     if (key === 'stop_watchdog_feeding' && value === 'trigger') {
@@ -568,6 +584,112 @@ const orlangurLD2412Extended = {
                 access: ea.STATE_GET,
             }),
             setupConfigureForReporting("customStatus", "status3", {
+                config: { min: "1_SECOND", max: "MAX", change: 1 },
+                access: ea.STATE_GET,
+            }),
+        );
+
+        return {
+            exposes,
+            fromZigbee,
+            toZigbee,
+            configure,
+            isModernExtend: true,
+        };
+    },
+    extendedStatus2: () => {
+        const exposes = [
+            e.text('status1_radio_error', ea.STATE_GET)
+                .withLabel('Last Transmission Radio Error').withCategory('diagnostic'),
+            e.numeric('status1_registered_fails', ea.STATE_GET).withLabel('Registered Radio Fails').withCategory('diagnostic'),
+            e.numeric('s2_status1_raw', ea.STATE_GET).withLabel('S2 Status1 Raw').withCategory('diagnostic'),
+
+            e.numeric('status2_trigger_to_send', ea.STATE_GET).withLabel('Trig-Send').withCategory('diagnostic'),
+            e.numeric('status2_send_to_start', ea.STATE_GET).withLabel('Send-Start').withCategory('diagnostic'),
+            e.numeric('status2_send_to_trans', ea.STATE_GET).withLabel('Send-Trans').withCategory('diagnostic'),
+            e.numeric('status2_start_attempts', ea.STATE_GET).withLabel('Start Attempts').withCategory('diagnostic'),
+            e.numeric('s2_status2_raw', ea.STATE_GET).withLabel('Status2 Raw').withCategory('diagnostic'),
+        ];
+
+        const fromZigbee = [
+            {
+                cluster: 'customStatus2',
+                type: ['attributeReport', 'readResponse'],
+                convert: (model, msg, publish, options, meta) => {
+                    const result = {};
+                    const data = msg.data;
+
+                    if (data['status1'] !== undefined) {
+                        const raw = data['status1'];
+                        result['status1_registered_fails'] = (raw >> 20) & 0x0ff;
+
+                        var radio_error = 'tx[';
+                        if (raw & 0x000001) radio_error += 'busy;'
+                        if (raw & 0x000002) radio_error += 'inv_ack;'
+                        if (raw & 0x000004) radio_error += 'no_mem;'
+                        if (raw & 0x000008) radio_error += 'ts_ended;'
+                        if (raw & 0x000010) radio_error += 'no_ack;'
+                        if (raw & 0x000020) radio_error += 'abort;'
+                        if (raw & 0x000040) radio_error += 'ts_denied;'
+                        if (raw & 0x000080) radio_error += 'key_id;'
+                        if (raw & 0x000100) radio_error += 'fr_cnt;'
+                        radio_error += '] rx['
+                        if (raw & 0x000100) radio_error += 'i_fr;'
+                        if (raw & 0x000200) radio_error += 'i_fcs;'
+                        if (raw & 0x000400) radio_error += 'i_dst;'
+                        if (raw & 0x000800) radio_error += 'rt;'
+                        if (raw & 0x001000) radio_error += 'ts_end;'
+                        if (raw & 0x002000) radio_error += 'abort;'
+                        if (raw & 0x004000) radio_error += 'del_ts_denied;'
+                        if (raw & 0x008000) radio_error += 'del_timeout;'
+                        if (raw & 0x010000) radio_error += 'i_len;'
+                        if (raw & 0x020000) radio_error += 'del_abort;'
+                        if (raw & 0x040000) radio_error += 'no_buf;'
+                        radio_error += ']'
+                        result['status1_radio_error'] = radio_error;
+                        result['s2_status1_raw'] = raw;
+                    }
+
+                    if (data['status2'] !== undefined) {
+                        const raw = data['status2'];
+                        const lower = raw & 0x07;
+                        const upper = (raw >> 8) & 0x07;
+                        result['status2_trigger_to_send'] = (raw & 0xff) * 10;
+                        result['status2_send_to_start'] = ((raw >> 8) & 0xff) * 10;
+                        result['status2_send_to_trans'] = ((raw >> 16) & 0xff) * 10;
+                        result['status2_start_attempts'] = ((raw >> 24) & 0xff);
+                        result['status2_raw'] = raw;
+                    }
+
+                    return result;
+                },
+            },
+        ];
+
+        const toZigbee = [
+            {
+                key: [
+                    'status1_radio_error', 'status1_registered_fails',
+                    's2_status1_raw', 'status2_trigger_to_send', 'status2_send_to_start',
+                    'status2_send_to_trans', 'status2_start_attempts', 's2_status2_raw'
+                ],
+                convertSet: async (entity, key, value, meta) => {
+                },
+                convertGet: async (entity, key, meta) => {
+                    await entity.read('customStatus2', ['status1', 'status2']);
+                },
+            },
+        ];
+
+        const configure = [];
+
+        configure.push(
+            setupConfigureForReading("customStatus2", ["status1", "status2"]),
+            setupConfigureForReporting("customStatus2", "status1", {
+                config: { min: "1_SECOND", max: "MAX", change: 1 },
+                access: ea.STATE_GET,
+            }),
+            setupConfigureForReporting("customStatus", "status2", {
                 config: { min: "1_SECOND", max: "MAX", change: 1 },
                 access: ea.STATE_GET,
             }),
@@ -664,6 +786,7 @@ const definition = {
     extend: [
         deviceEndpoints({endpoints: {main: 1, aux: 2}}),
         deviceAddCustomCluster('customStatus', customStatusCluster),
+        deviceAddCustomCluster('customStatus2', customStatus2Cluster),
         deviceAddCustomCluster('ens160airQuality', {
             name: "ens160airQuality",
             ID: 0xfc08,
@@ -677,6 +800,7 @@ const definition = {
         deviceAddCustomCluster('hlkLD2412', hlkLD2412Cluster),
         deviceAddCustomCluster('devCtrl', deviceControlCluster),
         orlangurLD2412Extended.extendedStatus(),
+        orlangurLD2412Extended.extendedStatus2(),
         occupancy({ultrasonicConfig:["otu_delay"], endpointNames: ["main"]}),
         co2(),
         temperature(),
