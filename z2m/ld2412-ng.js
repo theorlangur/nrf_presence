@@ -695,7 +695,7 @@ const orlangurLD2412Extended = {
                     's2_status1_raw', 'status2_trigger_to_send', 'status2_send_to_start',
                     'status2_send_to_trans', 'status2_start_attempts', 's2_status2_raw',
                     'status3_pre_send', 's2_status3_raw', 'status4_scheduler_delay',
-                    'status4_tirg_to_zboss', 's2_status3_raw'
+                    'status4_tirg_to_zboss', 's2_status4_raw'
                 ],
                 convertSet: async (entity, key, value, meta) => {
                 },
