@@ -613,7 +613,7 @@ const orlangurLD2412Extended = {
             e.text('status3_pre_send', ea.STATE_GET).withLabel('Pre-Send Stat').withCategory('diagnostic'),
             e.numeric('s2_status3_raw', ea.STATE_GET).withLabel('Status3 Raw').withCategory('diagnostic'),
             e.text('status4_scheduler_delay', ea.STATE_GET).withLabel('Delays Stat').withCategory('diagnostic'),
-            e.text('status4_tirg_to_zboss', ea.STATE_GET).withLabel('Delays Stat').withCategory('diagnostic'),
+            e.text('status4_tirg_to_zboss', ea.STATE_GET).withLabel('Trig-ZBoss').withCategory('diagnostic'),
             e.numeric('s2_status4_raw', ea.STATE_GET).withLabel('Status4 Raw').withCategory('diagnostic'),
         ];
 
@@ -680,7 +680,7 @@ const orlangurLD2412Extended = {
                         const trigger_to_zboss = (raw >> 16) & 0xffff;
                         result['status4_scheduler_delay'] = schedule_delay;
                         result['status4_tirg_to_zboss'] = trigger_to_zboss;
-                        result['s2_status3_raw'] = raw;
+                        result['s2_status4_raw'] = raw;
                     }
 
                     return result;
