@@ -609,6 +609,12 @@ const orlangurLD2412Extended = {
             e.numeric('status2_send_to_trans', ea.STATE_GET).withLabel('Send-Trans').withCategory('diagnostic'),
             e.numeric('status2_start_attempts', ea.STATE_GET).withLabel('Start Attempts').withCategory('diagnostic'),
             e.numeric('s2_status2_raw', ea.STATE_GET).withLabel('Status2 Raw').withCategory('diagnostic'),
+
+            e.text('status3_pre_send', ea.STATE_GET).withLabel('Pre-Send Stat').withCategory('diagnostic'),
+            e.numeric('s2_status3_raw', ea.STATE_GET).withLabel('Status3 Raw').withCategory('diagnostic'),
+            e.text('status4_scheduler_delay', ea.STATE_GET).withLabel('Delays Stat').withCategory('diagnostic'),
+            e.text('status4_tirg_to_zboss', ea.STATE_GET).withLabel('Delays Stat').withCategory('diagnostic'),
+            e.numeric('s2_status4_raw', ea.STATE_GET).withLabel('Status4 Raw').withCategory('diagnostic'),
         ];
 
         const fromZigbee = [
@@ -661,6 +667,22 @@ const orlangurLD2412Extended = {
                         result['s2_status2_raw'] = raw;
                     }
 
+                    if (data['status3'] !== undefined) {
+                        const raw = data['status3'];
+                        const stats = `tx_c:${(raw & 0xff)};tx_e:${((raw >> 8) & 0xff)};rx_c:${((raw >> 16) & 0xff)};rx_e:${((raw >> 24) & 0xff)};`;
+                        result['status3_pre_send'] = stats;
+                        result['s2_status3_raw'] = raw;
+                    }
+
+                    if (data['status4'] !== undefined) {
+                        const raw = data['status4'];
+                        const schedule_delay = raw & 0xffff;
+                        const trigger_to_zboss = (raw >> 16) & 0xffff;
+                        result['status4_scheduler_delay'] = schedule_delay;
+                        result['status4_tirg_to_zboss'] = trigger_to_zboss;
+                        result['s2_status3_raw'] = raw;
+                    }
+
                     return result;
                 },
             },
@@ -671,12 +693,14 @@ const orlangurLD2412Extended = {
                 key: [
                     'status1_radio_error', 'status1_registered_fails',
                     's2_status1_raw', 'status2_trigger_to_send', 'status2_send_to_start',
-                    'status2_send_to_trans', 'status2_start_attempts', 's2_status2_raw'
+                    'status2_send_to_trans', 'status2_start_attempts', 's2_status2_raw',
+                    'status3_pre_send', 's2_status3_raw', 'status4_scheduler_delay',
+                    'status4_tirg_to_zboss', 's2_status3_raw'
                 ],
                 convertSet: async (entity, key, value, meta) => {
                 },
                 convertGet: async (entity, key, meta) => {
-                    await entity.read('customStatus2', ['status1', 'status2']);
+                    await entity.read('customStatus2', ['status1', 'status2', 'status3', 'status4']);
                 },
             },
         ];
@@ -689,7 +713,15 @@ const orlangurLD2412Extended = {
                 config: { min: "1_SECOND", max: "MAX", change: 1 },
                 access: ea.STATE_GET,
             }),
-            setupConfigureForReporting("customStatus", "status2", {
+            setupConfigureForReporting("customStatus2", "status2", {
+                config: { min: "1_SECOND", max: "MAX", change: 1 },
+                access: ea.STATE_GET,
+            }),
+            setupConfigureForReporting("customStatus2", "status3", {
+                config: { min: "1_SECOND", max: "MAX", change: 1 },
+                access: ea.STATE_GET,
+            }),
+            setupConfigureForReporting("customStatus2", "status4", {
                 config: { min: "1_SECOND", max: "MAX", change: 1 },
                 access: ea.STATE_GET,
             }),
