@@ -21,6 +21,7 @@
 extern "C"{
 #include <nrf_802154.h>
 }
+#include <tracing_user.h>
 
 #include <zephyr/drivers/hwinfo.h>
 #include <zephyr/drivers/watchdog.h>
@@ -145,6 +146,8 @@ constexpr auto kAttrStatus3 = &zb::zb_zcl_status_t::status3;
 
 constexpr auto kA2Status1 = &zb::zb_zcl_status2_t::status1;
 constexpr auto kA2Status2 = &zb::zb_zcl_status2_t::status2;
+constexpr auto kA2Status3 = &zb::zb_zcl_status2_t::status3;
+constexpr auto kA2Status4 = &zb::zb_zcl_status2_t::status4;
 
 /**********************************************************************/
 /* LD2412 attributes                                                  */
@@ -426,14 +429,35 @@ union measured_latencies_t
     }bits;
 };
 
+union pre_send_stat_t
+{
+    uint32_t s;
+    struct{
+	uint32_t transmit_starts: 8;
+	uint32_t transmit_errors: 8;
+	uint32_t rx_counts: 8;
+	uint32_t rx_errors: 8;
+    }bits;
+};
+
 bool g_track_transmission = false;
 constinit uint32_t g_trigger_timestamp = 0;
 constinit uint32_t g_send_timestamp = 0;
+constinit uint32_t g_zboss_ready_timestamp = 0;
+constinit uint16_t g_zboss_schedule_delay = 0;
+constinit uint16_t g_trigger_to_zboss = 0;
 constinit measured_latencies_t g_measured_latencies{.s = 0};
 constinit radio_errors_t g_radio_errors{.s = 0};
 
+bool g_track_pre_send = false;
+constinit pre_send_stat_t g_pre_send{.s = 0};
+
 uint32_t g_radio_error_to_update;
 uint32_t g_latencies_to_update;
+uint32_t g_pre_send_stats_to_update;
+uint32_t g_zboss_schedule_delay_to_update;
+
+k_tid_t g_zboss_thread_id{};
 
 void update_tracked_transmission(uint8_t param);
 
@@ -444,6 +468,10 @@ extern "C" void __wrap_nrf_802154_tx_started(const uint8_t * p_frame)
     {
 	g_measured_latencies.bits.send_to_start = (k_uptime_get_32() - g_send_timestamp) / 10;
 	++g_measured_latencies.bits.start_attempts;
+    }
+    else if (g_track_pre_send)
+    {
+	++g_pre_send.bits.transmit_starts;
     }
     return __real_nrf_802154_tx_started(p_frame);
 }
@@ -459,6 +487,9 @@ extern "C" void __wrap_nrf_802154_transmitted_raw(uint8_t                       
 	g_measured_latencies.bits.send_to_transmit = (k_uptime_get_32() - g_send_timestamp) / 10;
 	g_radio_error_to_update = g_radio_errors.s;
 	g_latencies_to_update = g_measured_latencies.s;
+	g_pre_send_stats_to_update = g_pre_send.s;
+	g_zboss_schedule_delay_to_update = g_zboss_schedule_delay;
+	g_zboss_schedule_delay_to_update |= uint32_t(g_trigger_to_zboss) << 16;
 	zigbee_schedule_callback(&update_tracked_transmission, 0);
     }
 
@@ -475,8 +506,45 @@ extern "C" void __wrap_nrf_802154_transmit_failed(uint8_t                       
 {
     if (error && g_track_transmission)
 	g_radio_errors.s |= 1 << (error - 1);
+    else if (error && g_track_pre_send)
+	++g_pre_send.bits.transmit_errors;
 
     return __real_nrf_802154_transmit_failed(p_frame, error, p_metadata);
+}
+
+extern "C" void __real_nrf_802154_receive_failed(nrf_802154_rx_error_t error, uint32_t id);
+extern "C" void __wrap_nrf_802154_receive_failed(nrf_802154_rx_error_t error, uint32_t id)
+{
+    if (error && g_track_pre_send)
+	++g_pre_send.bits.rx_errors;
+    return __real_nrf_802154_receive_failed(error, id);
+}
+
+
+extern "C" void __real_nrf_802154_received_raw(uint8_t * p_data, int8_t power, uint8_t lqi);
+extern "C" void __wrap_nrf_802154_received_raw(uint8_t * p_data, int8_t power, uint8_t lqi)
+{
+    if (g_track_pre_send)
+	++g_pre_send.bits.rx_counts;
+    return __real_nrf_802154_received_raw(p_data, power, lqi);
+}
+
+void sys_trace_thread_sched_ready_user(struct k_thread *thread)
+{
+    if (g_track_pre_send && (thread == g_zboss_thread_id))
+    {
+	g_zboss_ready_timestamp = k_uptime_get_32();
+    }
+}
+
+void sys_trace_thread_switched_in_user(struct k_thread *thread)
+{
+    if (g_track_pre_send && (thread == g_zboss_thread_id))
+    {
+	uint32_t delay = k_uptime_get_32() - g_zboss_ready_timestamp;
+	if (delay > g_zboss_schedule_delay)
+	    g_zboss_schedule_delay = delay;
+    }
 }
 
 /**********************************************************************/
@@ -618,6 +686,9 @@ void presence_triggered(const struct device *port,
     if (new_presence_state != g_presence_state)
     {
 	g_presence_state = new_presence_state;
+	g_pre_send.s = 0;
+	g_zboss_schedule_delay = 0;
+	g_track_pre_send = true;
 	g_trigger_timestamp = k_uptime_get_32();
 
 	if (g_ZigbeeReady) //post to zigbee and shoot commands
@@ -714,6 +785,8 @@ void update_tracked_transmission(uint8_t param)
 {
     zb_ep.attr<kA2Status1>() = g_radio_error_to_update;
     zb_ep.attr<kA2Status2>() = g_latencies_to_update;
+    zb_ep.attr<kA2Status3>() = g_pre_send_stats_to_update;
+    zb_ep.attr<kA2Status4>() = g_zboss_schedule_delay_to_update;
 }
 
 constexpr uint8_t kOccupancyFromDebug = 0x40;
@@ -737,6 +810,7 @@ void send_on_off_zb(uint8_t val)
     g_radio_errors.s = 0;
     g_measured_latencies.bits.trigger_to_send = (g_send_timestamp - g_trigger_timestamp) / 10;
     g_track_transmission = true;
+    g_track_pre_send = false;
     zb_ep.attr<kAttrOccupancy>() = val == 1;
     if (val == 1)
     {
@@ -770,6 +844,7 @@ void send_on_off_zb_flood_protected(uint8_t val)
 
 void send_on_off(uint8_t val)
 {
+    g_trigger_to_zboss = g_trigger_timestamp - k_uptime_get_32();
     auto prevRegisteredState = g_LastRegisteredOccupancyState;
     if ((val & kOccupancyFromDebug))
     {
@@ -1535,6 +1610,7 @@ int main(void)
 	dev_ctx.occupancy.occupancy = g_presence_state;
     }
     zigbee_enable();
+    g_zboss_thread_id = zigbee_thread_id();
 
     printk("Main: sleep forever\r\n");
     FMT_PRINTLN("-----LD2412 main-----");
