@@ -612,8 +612,8 @@ const orlangurLD2412Extended = {
 
             e.text('status3_pre_send', ea.STATE_GET).withLabel('Pre-Send Stat').withCategory('diagnostic'),
             e.numeric('s2_status3_raw', ea.STATE_GET).withLabel('Status3 Raw').withCategory('diagnostic'),
-            e.text('status4_scheduler_delay', ea.STATE_GET).withLabel('Delays Stat').withCategory('diagnostic'),
-            e.text('status4_tirg_to_zboss', ea.STATE_GET).withLabel('Trig-ZBoss').withCategory('diagnostic'),
+            e.numeric('status4_scheduler_delay', ea.STATE_GET).withLabel('Delays Stat').withCategory('diagnostic'),
+            e.numeric('status4_tirg_to_zboss', ea.STATE_GET).withLabel('Trig-ZBoss').withCategory('diagnostic'),
             e.numeric('s2_status4_raw', ea.STATE_GET).withLabel('Status4 Raw').withCategory('diagnostic'),
         ];
 
