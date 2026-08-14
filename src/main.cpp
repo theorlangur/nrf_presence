@@ -844,7 +844,7 @@ void send_on_off_zb_flood_protected(uint8_t val)
 
 void send_on_off(uint8_t val)
 {
-    g_trigger_to_zboss = g_trigger_timestamp - k_uptime_get_32();
+    g_trigger_to_zboss = k_uptime_get_32() - g_trigger_timestamp;
     auto prevRegisteredState = g_LastRegisteredOccupancyState;
     if ((val & kOccupancyFromDebug))
     {
