@@ -55,7 +55,7 @@ void nrf_flash_skip_sync(bool skip);
 constexpr bool kDebug = false;
 
 #define BREADCRUMBS_PARTITION		breadcrumbs_partition
-#define BREADCRUMBS_PARTITION_ID	FIXED_PARTITION_ID(BREADCRUMBS_PARTITION)
+#define BREADCRUMBS_PARTITION_ID	PARTITION_ID(BREADCRUMBS_PARTITION)
 
 #if !FIXED_PARTITION_EXISTS(BREADCRUMBS_PARTITION)
 #error "Need a fixed partition named 'breadcrumbs-partition'!"

@@ -7,15 +7,27 @@
 		#size-cells = <1>;
 		boot_partition: partition@0 {
 			label = "mcuboot";
-			reg = <0x0 DT_SIZE_K(62)>;
+			reg = <0x0 DT_SIZE_K(68)>;
 		};
-		slot0_partition: partition@f800 {
+		slot0_partition: partition@11000 {
 			label = "image-0";
-			reg = <0xf800 DT_SIZE_K(902)>;
+			reg = <0x11000 DT_SIZE_K(892)>;
 		};
 		coredump_partition: partition@f1000 {
 			label = "coredump-partition";
 			reg = <0xf1000 DT_SIZE_K(256)>;
+		};
+		breadcrumbs_partition: partition@15b800{
+			label = "breadcrumbs-partition";
+			reg = <0x15b800 DT_SIZE_K(2)>;
+		};
+		zboss_nvram: partition@15c000{
+			label = "zboss-nvram";
+			reg = <0x15c000 DT_SIZE_K(32)>;
+		};
+		zboss_product_config: partition@164000{
+			label = "zboss-product-config";
+			reg = <0x164000 DT_SIZE_K(4)>;
 		};
 		/* slot1_partition: partition@8D000 { */
 		/* 	label = "image-1"; */

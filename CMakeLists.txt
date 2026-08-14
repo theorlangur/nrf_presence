@@ -41,6 +41,7 @@ target_link_options(app PUBLIC
 
 if(COMMAND setup_custom_libcxx)
     setup_custom_libcxx(app)
+    target_compile_options(app PUBLIC -Wno-builtin-macro-redefined -Wno-invalid-offsetof -Wno-unused-variable -Wno-missing-braces)
 elseif(ZEPHYR_TOOLCHAIN_VARIANT STREQUAL "cross-compile")
     target_link_libraries(app PRIVATE c stdc++ supc++)
     # target_compile_options(app PRIVATE -fmacro-backtrace-limit=0)

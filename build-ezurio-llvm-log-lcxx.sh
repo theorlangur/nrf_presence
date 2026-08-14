@@ -10,6 +10,4 @@ west build --build-dir build_ezurio_llvm . --pristine \
     -DCONFIG_LLVM_USE_LLD=y \
     -DCONFIG_COMPILER_RT_RTLIB=y \
     -DCMAKE_TOOLCHAIN_FILE=${ZEPHYR_SDK_CMAKE_TOOLCHAIN_LLVM_PICO}
-# /home/orlangur/ncs/toolchains/llvm/nrf_llvm_pico_7cbc0036f4_m33.cmake
-# --toolchain ${ZEPHYR_SDK_CMAKE_TOOLCHAIN_LLVM_PICO}
-# west build --build-dir build_conv . --pristine --board nrf54l15dk/nrf54l15/cpuapp -- -DCONF_FILE=prj.conf
+
