@@ -8,8 +8,6 @@ else()
     set(EXTRA_DTC_OVERLAY_FILE "dts/dts.52840.overlay")
 endif()
 
-set(TOOLCHAIN_HAS_PICOLIBC ON CACHE BOOL "Force toolchain picolibc support" FORCE)
-
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(presence_dfr_c4001)
 
@@ -28,8 +26,6 @@ target_link_libraries(app PUBLIC NrfZBCpp)
 target_link_libraries(app PUBLIC NrfLibUART)
 
 include(cmake/CustomLibcxx.cmake)
-
-target_compile_options(app PRIVATE -fno-omit-frame-pointer)
 
 target_link_options(app PUBLIC
   -Wl,--wrap=nrf_802154_transmitted_raw
