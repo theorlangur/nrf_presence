@@ -9,6 +9,8 @@ west build --build-dir build_ezurio_llvm . --pristine \
     -DZEPHYR_TOOLCHAIN_VARIANT=llvm \
     -DCONFIG_LLVM_USE_LLD=y \
     -DCONFIG_COMPILER_RT_RTLIB=y \
+    -DNCS_TOOLCHAIN_VERSION=3.0.2 \
+    -Dmcuboot_NCS_TOOLCHAIN_VERSION=3.0.2 \
     -DCMAKE_TOOLCHAIN_FILE=${ZEPHYR_SDK_CMAKE_TOOLCHAIN_LLVM_PICO}
 # /home/orlangur/ncs/toolchains/llvm/nrf_llvm_pico_7cbc0036f4_m33.cmake
 # --toolchain ${ZEPHYR_SDK_CMAKE_TOOLCHAIN_LLVM_PICO}
