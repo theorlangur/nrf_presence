@@ -605,15 +605,14 @@ const orlangurLD2412Extended = {
             e.numeric('s2_status1_raw', ea.STATE_GET).withLabel('S2 Status1 Raw').withCategory('diagnostic'),
 
             e.numeric('status2_trigger_to_send', ea.STATE_GET).withLabel('Trig-Send').withCategory('diagnostic'),
-            e.numeric('status2_send_to_start', ea.STATE_GET).withLabel('Send-Start').withCategory('diagnostic'),
-            e.numeric('status2_send_to_trans', ea.STATE_GET).withLabel('Send-Trans').withCategory('diagnostic'),
-            e.numeric('status2_start_attempts', ea.STATE_GET).withLabel('Start Attempts').withCategory('diagnostic'),
+            e.text('status2_rx_err1', ea.STATE_GET).withLabel('RX Err 1').withCategory('diagnostic'),
             e.numeric('s2_status2_raw', ea.STATE_GET).withLabel('Status2 Raw').withCategory('diagnostic'),
 
-            e.text('status3_pre_send', ea.STATE_GET).withLabel('Pre-Send Stat').withCategory('diagnostic'),
+            e.text('status3_rx_err2', ea.STATE_GET).withLabel('RX Err 2').withCategory('diagnostic'),
             e.numeric('s2_status3_raw', ea.STATE_GET).withLabel('Status3 Raw').withCategory('diagnostic'),
-            e.numeric('status4_scheduler_delay', ea.STATE_GET).withLabel('Delays Stat').withCategory('diagnostic'),
-            e.numeric('status4_tirg_to_zboss', ea.STATE_GET).withLabel('Trig-ZBoss').withCategory('diagnostic'),
+
+            e.text('status4_rx_err3', ea.STATE_GET).withLabel('RX Err 3').withCategory('diagnostic'),
+            e.text('status4_stats', ea.STATE_GET).withLabel('RX/TX Stats').withCategory('diagnostic'),
             e.numeric('s2_status4_raw', ea.STATE_GET).withLabel('Status4 Raw').withCategory('diagnostic'),
         ];
 
@@ -658,28 +657,54 @@ const orlangurLD2412Extended = {
 
                     if (data['status2'] !== undefined) {
                         const raw = data['status2'];
-                        const lower = raw & 0x07;
-                        const upper = (raw >> 8) & 0x07;
                         result['status2_trigger_to_send'] = (raw & 0xff) * 10;
-                        result['status2_send_to_start'] = ((raw >> 8) & 0xff) * 10;
-                        result['status2_send_to_trans'] = ((raw >> 16) & 0xff) * 10;
-                        result['status2_start_attempts'] = ((raw >> 24) & 0xff);
+                        const inv_frame_cnt = (raw >> 8) & 0x03f;
+                        const inv_fcs_cnt = (raw >> (8 + 6)) & 0x03f;
+                        const inv_dst_addr_cnt = (raw >> (8 + 6 + 6)) & 0x03f;
+                        var err = '';
+                        if (inv_frame_cnt > 0) err += `i_frm:${inv_frame_cnt};`;
+                        if (inv_fcs_cnt > 0) err += `i_fcs:${inv_fcs_cnt};`;
+                        if (inv_dst_addr_cnt > 0) err += `i_dst_a:${inv_dst_addr_cnt};`;
+                        result['status2_rx_err1'] = err;
                         result['s2_status2_raw'] = raw;
                     }
 
                     if (data['status3'] !== undefined) {
                         const raw = data['status3'];
-                        const stats = `tx_c:${(raw & 0xff)};tx_e:${((raw >> 8) & 0xff)};rx_c:${((raw >> 16) & 0xff)};rx_e:${((raw >> 24) & 0xff)};`;
-                        result['status3_pre_send'] = stats;
+                        const rt_cnt = (raw) & 0x03f;
+                        const ts_ended_cnt = (raw >> (6)) & 0x03f;
+                        const aborted_cnt = (raw >> (6 + 6)) & 0x03f;
+                        const delayed_ts_denied_cnt = (raw >> (6 + 6 + 6)) & 0x03f;
+                        const delayed_timeout_cnt = (raw >> (6 + 6 + 6 + 6)) & 0x03f;
+                        var err = '';
+                        if (rt_cnt > 0) err += `rt:${rt_cnt};`;
+                        if (ts_ended_cnt > 0) err += `ts_end:${ts_ended_cnt};`;
+                        if (aborted_cnt > 0) err += `abrt:${aborted_cnt};`;
+                        if (delayed_ts_denied_cnt > 0) err += `delayed_ts_denied:${delayed_ts_denied_cnt};`;
+                        if (delayed_timeout_cnt > 0) err += `delayed_to:${delayed_timeout_cnt};`;
+
+                        result['status3_rx_err2'] = err;
                         result['s2_status3_raw'] = raw;
                     }
 
                     if (data['status4'] !== undefined) {
                         const raw = data['status4'];
-                        const schedule_delay = raw & 0xffff;
-                        const trigger_to_zboss = (raw >> 16) & 0xffff;
-                        result['status4_scheduler_delay'] = schedule_delay;
-                        result['status4_tirg_to_zboss'] = trigger_to_zboss;
+                        const inv_len_cnt = (raw) & 0x03f;
+                        const delayed_aborted_cnt = (raw >> (6)) & 0x03f;
+                        const no_buf_cnt = (raw >> (6 + 6)) & 0x03f;
+                        const tx_cnt = (raw >> (6 + 6 + 6)) & 0x07f;
+                        const rx_cnt = (raw >> (6 + 6 + 6 + 7)) & 0x07f;
+                        var err = '';
+                        if (inv_len_cnt > 0) err += `i_len:${inv_len_cnt};`;
+                        if (delayed_aborted_cnt > 0) err += `del_abrt:${delayed_aborted_cnt};`;
+                        if (no_buf_cnt > 0) err += `no_buf:${no_buf_cnt};`;
+
+                        var stats = '';
+                        if (tx_cnt > 0) stats += `tx:${tx_cnt};`;
+                        if (rx_cnt > 0) stats += `rx:${rx_cnt};`;
+
+                        result['status4_stats'] = stats;
+                        result['status4_rx_err3'] = err;
                         result['s2_status4_raw'] = raw;
                     }
 
@@ -692,10 +717,10 @@ const orlangurLD2412Extended = {
             {
                 key: [
                     'status1_radio_error', 'status1_registered_fails',
-                    's2_status1_raw', 'status2_trigger_to_send', 'status2_send_to_start',
-                    'status2_send_to_trans', 'status2_start_attempts', 's2_status2_raw',
-                    'status3_pre_send', 's2_status3_raw', 'status4_scheduler_delay',
-                    'status4_tirg_to_zboss', 's2_status4_raw'
+                    's2_status1_raw', 'status2_trigger_to_send', 'status2_rx_err1',
+                    's2_status2_raw', 'status3_rx_err2',
+                    'status3_rx_err2', 's2_status3_raw',
+                    'status4_rx_err3', 'status4_stats', 's2_status4_raw'
                 ],
                 convertSet: async (entity, key, value, meta) => {
                 },
