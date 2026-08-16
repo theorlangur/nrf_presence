@@ -1,0 +1,12 @@
+&cpuapp_rram {
+	partitions {
+		zboss_nvram: partition@15c000{
+			label = "zboss-nvram";
+			reg = <0x15c000 DT_SIZE_K(32)>;
+		};
+		zboss_product_config: partition@164000{
+			label = "zboss-product-config";
+			reg = <0x164000 DT_SIZE_K(4)>;
+		};
+	};
+};
