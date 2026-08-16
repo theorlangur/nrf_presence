@@ -3,9 +3,9 @@
 cmake_minimum_required(VERSION 3.20.0)
 
 if(NOT DEFINED ENV{USE_NRF52})
-    set(EXTRA_DTC_OVERLAY_FILE "dts.overlay")
+    set(EXTRA_DTC_OVERLAY_FILE "dts/dts.overlay")
 else()
-    set(EXTRA_DTC_OVERLAY_FILE "dts.52840.overlay")
+    set(EXTRA_DTC_OVERLAY_FILE "dts/dts.52840.overlay")
 endif()
 
 set(TOOLCHAIN_HAS_PICOLIBC ON CACHE BOOL "Force toolchain picolibc support" FORCE)

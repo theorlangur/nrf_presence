@@ -1,5 +1,5 @@
-#include "../partitions.dtsi"
-#include "../usb_uart.dtsi"
+#include "../dts/partitions.dtsi"
+#include "../dts/usb_uart.dtsi"
 / {
 	chosen {
 		zephyr,code-partition = &boot_partition;
