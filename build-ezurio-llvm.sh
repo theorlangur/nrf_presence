@@ -8,4 +8,6 @@ west build --build-dir build_ezurio_llvm . --pristine \
     -DZEPHYR_TOOLCHAIN_VARIANT=host/llvm \
     -DCONFIG_LLVM_USE_LLD=y \
     -DCONFIG_COMPILER_RT_RTLIB=y \
+    -DNCS_TOOLCHAIN_VERSION=3.4.0 \
+    -Dmcuboot_NCS_TOOLCHAIN_VERSION=3.4.0 \
     -DCMAKE_TOOLCHAIN_FILE=${ZEPHYR_SDK_CMAKE_TOOLCHAIN_LLVM_PICO}

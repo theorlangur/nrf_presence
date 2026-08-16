@@ -5,6 +5,8 @@ west build --build-dir build_ezurio_gcc16_human . --pristine \
     -DBOARD_ROOT=~/myapps/cpp/nrf \
     -DCONF_FILE="prj.conf config/cpp_gcc16.conf config/nrf54l15.conf config/zb.conf config/no_log.conf" \
     -DZEPHYR_TOOLCHAIN_VARIANT=cross-compile \
+    -DNCS_TOOLCHAIN_VERSION=3.4.0 \
+    -Dmcuboot_NCS_TOOLCHAIN_VERSION=3.4.0 \
     -DCMAKE_TOOLCHAIN_FILE=/home/theorlangur/ncs/toolchains/7cbc0036f4/gcc16_cross_compile_human.cmake \
     -DTOOLCHAIN_HAS_PICOLIBC=ON
 
