@@ -34,7 +34,6 @@ target_compile_options(app PRIVATE -fno-omit-frame-pointer)
 target_link_options(app PUBLIC
   -Wl,--wrap=nrf_802154_transmitted_raw
   -Wl,--wrap=nrf_802154_transmit_failed
-  -Wl,--wrap=nrf_802154_tx_started
   -Wl,--wrap=nrf_802154_receive_failed
   -Wl,--wrap=nrf_802154_received_raw
 )

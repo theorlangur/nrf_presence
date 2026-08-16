@@ -21,7 +21,6 @@
 extern "C"{
 #include <nrf_802154.h>
 }
-#include <tracing_user.h>
 
 #include <zephyr/drivers/hwinfo.h>
 #include <zephyr/drivers/watchdog.h>
@@ -413,8 +412,7 @@ union radio_errors_t
 	uint32_t rx_delayed_aborted: 1;
 	uint32_t rx_no_buffer: 1;
 
-	uint32_t registered_fails: 8;
-	uint32_t unused: 4;
+	uint32_t registered_fails: 12;
     }bits;
 };
 
@@ -422,74 +420,63 @@ union measured_latencies_t
 {
     uint32_t s;
     struct{
-	uint32_t trigger_to_send: 8;//1 bit - 10ms
-	uint32_t send_to_start: 8;//1 bit - 10ms
-	uint32_t send_to_transmit: 8;//1 bit - 10ms
-	uint32_t start_attempts: 8;
+	uint32_t trigger_to_transmit: 8;//1 bit - 10ms
+	uint32_t rx_inv_frame_cnt: 6;
+	uint32_t rx_inv_fcs_cnt: 6;
+	uint32_t rx_inv_dst_addr_cnt: 6;
     }bits;
 };
 
-union pre_send_stat_t
+union rx_error_stats2_t
 {
     uint32_t s;
     struct{
-	uint32_t transmit_starts: 8;
-	uint32_t transmit_errors: 8;
-	uint32_t rx_counts: 8;
-	uint32_t rx_errors: 8;
+	uint32_t rx_rt_cnt: 6;
+	uint32_t rx_timeslot_ended_cnt: 6;
+	uint32_t rx_aborted_cnt: 6;
+	uint32_t rx_delayed_timeslot_denied_cnt: 6;
+	uint32_t rx_delayed_timeout_cnt: 6;
+	uint32_t unused: 2;
     }bits;
 };
 
-bool g_track_transmission = false;
+union rx_error_stats3_t
+{
+    uint32_t s;
+    struct{
+	uint32_t rx_invalid_len_cnt: 6;
+	uint32_t rx_delayed_aborted_cnt: 6;
+	uint32_t rx_no_buffer_cnt: 6;
+	uint32_t tx_counts: 7;
+	uint32_t rx_counts: 7;
+    }bits;
+};
+
+constinit bool g_track_errors = false;
+constinit bool g_track_transmission = false;
 constinit uint32_t g_trigger_timestamp = 0;
-constinit uint32_t g_send_timestamp = 0;
-constinit uint32_t g_zboss_ready_timestamp = 0;
-constinit uint16_t g_zboss_schedule_delay = 0;
-constinit uint16_t g_trigger_to_zboss = 0;
+
 constinit measured_latencies_t g_measured_latencies{.s = 0};
 constinit radio_errors_t g_radio_errors{.s = 0};
-
-bool g_track_pre_send = false;
-constinit pre_send_stat_t g_pre_send{.s = 0};
-
-uint32_t g_radio_error_to_update;
-uint32_t g_latencies_to_update;
-uint32_t g_pre_send_stats_to_update;
-uint32_t g_zboss_schedule_delay_to_update;
+constinit rx_error_stats2_t g_radio_errors2{.s = 0};
+constinit rx_error_stats3_t g_radio_errors3{.s = 0};
 
 k_tid_t g_zboss_thread_id{};
 
 void update_tracked_transmission(uint8_t param);
-
-extern "C" void __real_nrf_802154_tx_started(const uint8_t * p_frame);
-extern "C" void __wrap_nrf_802154_tx_started(const uint8_t * p_frame)
-{
-    if (g_track_transmission)
-    {
-	g_measured_latencies.bits.send_to_start = (k_uptime_get_32() - g_send_timestamp) / 10;
-	++g_measured_latencies.bits.start_attempts;
-    }
-    else if (g_track_pre_send)
-    {
-	++g_pre_send.bits.transmit_starts;
-    }
-    return __real_nrf_802154_tx_started(p_frame);
-}
 
 extern "C" void __real_nrf_802154_transmitted_raw(uint8_t                                   * p_frame,
                                        const nrf_802154_transmit_done_metadata_t * p_metadata);
 extern "C" void __wrap_nrf_802154_transmitted_raw(uint8_t                                   * p_frame,
                                        const nrf_802154_transmit_done_metadata_t * p_metadata)
 {
+    if (g_track_errors)
+	++g_radio_errors3.bits.tx_counts;
     if (g_track_transmission)
     {
 	g_track_transmission = false;
-	g_measured_latencies.bits.send_to_transmit = (k_uptime_get_32() - g_send_timestamp) / 10;
-	g_radio_error_to_update = g_radio_errors.s;
-	g_latencies_to_update = g_measured_latencies.s;
-	g_pre_send_stats_to_update = g_pre_send.s;
-	g_zboss_schedule_delay_to_update = g_zboss_schedule_delay;
-	g_zboss_schedule_delay_to_update |= uint32_t(g_trigger_to_zboss) << 16;
+	g_track_errors = false;
+	g_measured_latencies.bits.trigger_to_transmit = (k_uptime_get_32() - g_trigger_timestamp) / 10;
 	zigbee_schedule_callback(&update_tracked_transmission, 0);
     }
 
@@ -504,10 +491,27 @@ extern "C" void __wrap_nrf_802154_transmit_failed(uint8_t                       
                                        nrf_802154_tx_error_t                       error,
                                        const nrf_802154_transmit_done_metadata_t * p_metadata)
 {
-    if (error && g_track_transmission)
-	g_radio_errors.s |= 1 << (error - 1);
-    else if (error && g_track_pre_send)
-	++g_pre_send.bits.transmit_errors;
+    if (error && g_track_errors)
+    {
+	g_radio_errors.s |= uint32_t(1) << (error - 1);
+	++g_radio_errors.bits.registered_fails;
+
+	switch(error)
+	{
+	    case NRF_802154_RX_ERROR_INVALID_FRAME: ++g_measured_latencies.bits.rx_inv_frame_cnt; break;
+	    case NRF_802154_RX_ERROR_INVALID_FCS: ++g_measured_latencies.bits.rx_inv_fcs_cnt; break;
+	    case NRF_802154_RX_ERROR_INVALID_DEST_ADDR: ++g_measured_latencies.bits.rx_inv_dst_addr_cnt; break;
+	    case NRF_802154_RX_ERROR_RUNTIME: ++g_radio_errors2.bits.rx_rt_cnt; break;
+	    case NRF_802154_RX_ERROR_TIMESLOT_ENDED: ++g_radio_errors2.bits.rx_timeslot_ended_cnt; break;
+	    case NRF_802154_RX_ERROR_ABORTED: ++g_radio_errors2.bits.rx_aborted_cnt; break;
+	    case NRF_802154_RX_ERROR_DELAYED_TIMESLOT_DENIED: ++g_radio_errors2.bits.rx_delayed_timeslot_denied_cnt; break;
+	    case NRF_802154_RX_ERROR_DELAYED_TIMEOUT: ++g_radio_errors2.bits.rx_delayed_timeout_cnt; break;
+	    case NRF_802154_RX_ERROR_INVALID_LENGTH: ++g_radio_errors3.bits.rx_invalid_len_cnt; break;
+	    case NRF_802154_RX_ERROR_DELAYED_ABORTED: ++g_radio_errors3.bits.rx_delayed_aborted_cnt; break;
+	    case NRF_802154_RX_ERROR_NO_BUFFER: ++g_radio_errors3.bits.rx_no_buffer_cnt; break;
+	    default: break;
+	}
+    }
 
     return __real_nrf_802154_transmit_failed(p_frame, error, p_metadata);
 }
@@ -515,8 +519,11 @@ extern "C" void __wrap_nrf_802154_transmit_failed(uint8_t                       
 extern "C" void __real_nrf_802154_receive_failed(nrf_802154_rx_error_t error, uint32_t id);
 extern "C" void __wrap_nrf_802154_receive_failed(nrf_802154_rx_error_t error, uint32_t id)
 {
-    if (error && g_track_pre_send)
-	++g_pre_send.bits.rx_errors;
+    if (error && g_track_errors)
+    {
+	g_radio_errors.s |= uint32_t(0x20) << (error - 1);
+	++g_radio_errors.bits.registered_fails;
+    }
     return __real_nrf_802154_receive_failed(error, id);
 }
 
@@ -524,27 +531,9 @@ extern "C" void __wrap_nrf_802154_receive_failed(nrf_802154_rx_error_t error, ui
 extern "C" void __real_nrf_802154_received_raw(uint8_t * p_data, int8_t power, uint8_t lqi);
 extern "C" void __wrap_nrf_802154_received_raw(uint8_t * p_data, int8_t power, uint8_t lqi)
 {
-    if (g_track_pre_send)
-	++g_pre_send.bits.rx_counts;
+    if (g_track_errors)
+	++g_radio_errors3.bits.rx_counts;
     return __real_nrf_802154_received_raw(p_data, power, lqi);
-}
-
-void sys_trace_thread_sched_ready_user(struct k_thread *thread)
-{
-    if (g_track_pre_send && (thread == g_zboss_thread_id))
-    {
-	g_zboss_ready_timestamp = k_uptime_get_32();
-    }
-}
-
-void sys_trace_thread_switched_in_user(struct k_thread *thread)
-{
-    if (g_track_pre_send && (thread == g_zboss_thread_id))
-    {
-	uint32_t delay = k_uptime_get_32() - g_zboss_ready_timestamp;
-	if (delay > g_zboss_schedule_delay)
-	    g_zboss_schedule_delay = delay;
-    }
 }
 
 /**********************************************************************/
@@ -686,9 +675,12 @@ void presence_triggered(const struct device *port,
     if (new_presence_state != g_presence_state)
     {
 	g_presence_state = new_presence_state;
-	g_pre_send.s = 0;
-	g_zboss_schedule_delay = 0;
-	g_track_pre_send = true;
+	g_measured_latencies.s = 0;
+	g_radio_errors.s = 0;
+	g_radio_errors2.s = 0;
+	g_radio_errors3.s = 0;
+	g_track_errors = true;
+	g_track_transmission = false;
 	g_trigger_timestamp = k_uptime_get_32();
 
 	if (g_ZigbeeReady) //post to zigbee and shoot commands
@@ -783,10 +775,10 @@ zb::cmd_handling_result_t on_cmd_do_stat_snapshot()
 
 void update_tracked_transmission(uint8_t param)
 {
-    zb_ep.attr<kA2Status1>() = g_radio_error_to_update;
-    zb_ep.attr<kA2Status2>() = g_latencies_to_update;
-    zb_ep.attr<kA2Status3>() = g_pre_send_stats_to_update;
-    zb_ep.attr<kA2Status4>() = g_zboss_schedule_delay_to_update;
+    zb_ep.attr<kA2Status1>() = g_radio_errors.s;
+    zb_ep.attr<kA2Status2>() = g_measured_latencies.s;
+    zb_ep.attr<kA2Status3>() = g_radio_errors2.s;
+    zb_ep.attr<kA2Status4>() = g_radio_errors3.s;
 }
 
 constexpr uint8_t kOccupancyFromDebug = 0x40;
@@ -805,12 +797,7 @@ void on_occupancy_protection_finished()
 
 void send_on_off_zb(uint8_t val)
 {
-    g_send_timestamp = k_uptime_get_32();
-    g_measured_latencies.s = 0;
-    g_radio_errors.s = 0;
-    g_measured_latencies.bits.trigger_to_send = (g_send_timestamp - g_trigger_timestamp) / 10;
     g_track_transmission = true;
-    g_track_pre_send = false;
     zb_ep.attr<kAttrOccupancy>() = val == 1;
     if (val == 1)
     {
@@ -844,7 +831,6 @@ void send_on_off_zb_flood_protected(uint8_t val)
 
 void send_on_off(uint8_t val)
 {
-    g_trigger_to_zboss = k_uptime_get_32() - g_trigger_timestamp;
     auto prevRegisteredState = g_LastRegisteredOccupancyState;
     if ((val & kOccupancyFromDebug))
     {
