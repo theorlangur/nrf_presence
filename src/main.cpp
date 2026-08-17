@@ -495,7 +495,18 @@ extern "C" void __wrap_nrf_802154_transmit_failed(uint8_t                       
     {
 	g_radio_errors.s |= uint32_t(1) << (error - 1);
 	++g_radio_errors.bits.registered_fails;
+    }
 
+    return __real_nrf_802154_transmit_failed(p_frame, error, p_metadata);
+}
+
+extern "C" void __real_nrf_802154_receive_failed(nrf_802154_rx_error_t error, uint32_t id);
+extern "C" void __wrap_nrf_802154_receive_failed(nrf_802154_rx_error_t error, uint32_t id)
+{
+    if (error && g_track_errors)
+    {
+	g_radio_errors.s |= uint32_t(0x20) << (error - 1);
+	++g_radio_errors.bits.registered_fails;
 	switch(error)
 	{
 	    case NRF_802154_RX_ERROR_INVALID_FRAME: ++g_measured_latencies.bits.rx_inv_frame_cnt; break;
@@ -511,18 +522,6 @@ extern "C" void __wrap_nrf_802154_transmit_failed(uint8_t                       
 	    case NRF_802154_RX_ERROR_NO_BUFFER: ++g_radio_errors3.bits.rx_no_buffer_cnt; break;
 	    default: break;
 	}
-    }
-
-    return __real_nrf_802154_transmit_failed(p_frame, error, p_metadata);
-}
-
-extern "C" void __real_nrf_802154_receive_failed(nrf_802154_rx_error_t error, uint32_t id);
-extern "C" void __wrap_nrf_802154_receive_failed(nrf_802154_rx_error_t error, uint32_t id)
-{
-    if (error && g_track_errors)
-    {
-	g_radio_errors.s |= uint32_t(0x20) << (error - 1);
-	++g_radio_errors.bits.registered_fails;
     }
     return __real_nrf_802154_receive_failed(error, id);
 }
