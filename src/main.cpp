@@ -1025,7 +1025,7 @@ void zboss_signal_handler(zb_bufid_t bufid)
         zb_zdo_app_signal_hdr_t *pHdr;
         auto signalId = zb_get_app_signal(bufid, &pHdr);
 
-	auto ret = zbm::tpl_signal_handler<zb_ctx,
+	auto ret = zbm::tpl_signal_handler<^^dev_ctx, zb_ctx,
 	    zbm::sig_handlers_t{ZB_ZDO_SIGNAL_LEAVE, ^^zb_on_leave},
 	    zbm::sig_handlers_t{ZB_ZDO_SIGNAL_ERROR, ^^zb_on_error},
 	    zbm::sig_handlers_t{ZB_BDB_SIGNAL_DEVICE_REBOOT, ^^on_zigbee_start},
