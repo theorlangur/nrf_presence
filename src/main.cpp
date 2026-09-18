@@ -118,6 +118,8 @@ constexpr uint16_t kDEV_ID = 0xBAAD;
 constexpr uint16_t kInitialMinClearTimeout = 3;//seconds
 constexpr uint32_t kZigbeeFloodProtectionTimeout = 1000;//ms
 constexpr uint32_t kEnvSensorUpdateInterval = 15000;//ms
+						    //
+constexpr uint8_t kPersistentConfigVersion = 1;
 
 struct device_ctx_t{
     zb::zb_zcl_basic_names_t basic_attr;
@@ -194,6 +196,7 @@ constexpr auto kAttrAQI = &zb::zb_zcl_air_q_t::aqi;
 /* Occupancy attribute shortcuts                                      */
 /**********************************************************************/
 constexpr auto kAttrOccupancy = &zb::zb_zcl_occupancy_ultrasonic_t::occupancy;
+constexpr auto kAttrOccupancyToUnoccupancyDelay = &zb::zb_zcl_occupancy_ultrasonic_t::UltrasonicOccupiedToUnoccupiedDelay;
 
 constexpr auto kCmdOn = &zb::zb_zcl_on_off_attrs_client_t::on;
 constexpr auto kCmdOff = &zb::zb_zcl_on_off_attrs_client_t::off;
@@ -582,6 +585,12 @@ int wdt_channel_id = -1;
 int configure_wdt();
 bool has_breadcrumbs_stored();
 void clear_breadcrumbs_stored();
+
+
+/**********************************************************************/
+/* Zigbee Persistence State                                           */
+/**********************************************************************/
+void app_cfg_save_cb(zb_uint8_t unused);
 
 /**********************************************************************/
 /* Presence                                                           */
@@ -1092,6 +1101,23 @@ void on_set_light_sense(zb::zb_zcl_ld2412_t::light_sense_cfg_t const& cfg)
     i.set_light_sense({ .mode = cfg.mode, .threshold = cfg.threshold });
 }
 
+template<ld2412::Instance &i>
+void on_stat_win_size(uint8_t win_sz)
+{
+    i.collect_statistics(win_sz);
+
+    zigbee_schedule_alarm_cancel(app_cfg_save_cb, ZB_ALARM_ANY_PARAM);
+    zigbee_schedule_alarm(app_cfg_save_cb, 0,
+	    ZB_MILLISECONDS_TO_BEACON_INTERVAL(3000));
+}
+
+void on_change_occ_to_unocc(uint16_t delay)
+{
+    zigbee_schedule_alarm_cancel(app_cfg_save_cb, ZB_ALARM_ANY_PARAM);
+    zigbee_schedule_alarm(app_cfg_save_cb, 0,
+	    ZB_MILLISECONDS_TO_BEACON_INTERVAL(3000));
+}
+
 int configure_presence_pins();
 
 struct env_sensors_t
@@ -1482,6 +1508,64 @@ int dump_wdt_snapshot_to_flash()
     return 0;
 }
 
+struct [[gnu::packed]] persistent_cfg_t
+{
+    uint8_t version = kPersistentConfigVersion;
+    uint8_t len = sizeof(persistent_cfg_t);
+    uint8_t statistics_sample_count_window_main = 0;
+    uint8_t statistics_sample_count_window_aux = 0;
+    uint16_t UltrasonicOccupiedToUnoccupiedDelay = 0;
+};
+
+void app_cfg_nvram_read(zb_uint8_t page, zb_uint32_t pos, zb_uint16_t len)
+{
+    persistent_cfg_t ds = { 0 };
+    zb_uint16_t n = (len < sizeof(ds)) ? len : (zb_uint16_t)sizeof(ds);
+    if (zb_nvram_read_data(page, pos, (zb_uint8_t *)&ds, n) != RET_OK) {
+	return; /* keep compiled-in defaults */
+    }
+    switch (ds.version) {
+	case kPersistentConfigVersion:
+	    {
+		dev_ctx.occupancy.UltrasonicOccupiedToUnoccupiedDelay = ds.UltrasonicOccupiedToUnoccupiedDelay;
+		dev_ctx.ld2412_main.statistics_sample_count_window = ds.statistics_sample_count_window_main;
+		dev_ctx.ld2412_aux.statistics_sample_count_window = ds.statistics_sample_count_window_aux;
+	    }
+	    break;
+	    /* case 0: migrate_v0_to_v1(&ds); m_cfg = ds; break; */
+	default:
+	    break; /* unknown version: defaults */
+    }
+}
+
+zb_ret_t app_cfg_nvram_write(zb_uint8_t page, zb_uint32_t pos)
+{
+    persistent_cfg_t ds = {};
+    ds.UltrasonicOccupiedToUnoccupiedDelay = dev_ctx.occupancy.UltrasonicOccupiedToUnoccupiedDelay;
+    ds.statistics_sample_count_window_main = dev_ctx.ld2412_main.statistics_sample_count_window;
+    ds.statistics_sample_count_window_aux = dev_ctx.ld2412_aux.statistics_sample_count_window;
+    return zb_nvram_write_data(page, pos,
+	    (zb_uint8_t *)&ds, sizeof(ds));
+}
+
+zb_uint16_t app_cfg_nvram_size(void)
+{
+    return (zb_uint16_t)sizeof(persistent_cfg_t);
+}
+
+void app_cfg_nvram_register(void)
+{
+    zb_nvram_register_app1_read_cb(app_cfg_nvram_read);
+    zb_nvram_register_app1_write_cb(app_cfg_nvram_write,
+	    app_cfg_nvram_size);
+}
+
+void app_cfg_save_cb(zb_uint8_t unused)
+{
+    ARG_UNUSED(unused);
+    zb_nvram_write_dataset(ZB_NVRAM_APP_DATA1);
+}
+
 int main(void)
 {
     static_assert(atomic_state_t::is_always_lock_free);
@@ -1560,14 +1644,15 @@ int main(void)
 	, zb::handle_set_for<kAttrLightSense,            &on_set_light_sense<ld2412_1>>(zb_ep)
 	, zb::handle_set_for<kAttrStillThr,              method_fwd<ld2412_1, &ld2412::Instance::set_still_thresholds_raw>>(zb_ep)
 	, zb::handle_set_for<kAttrMoveThr,               method_fwd<ld2412_1, &ld2412::Instance::set_move_thresholds_raw>>(zb_ep)
-	, zb::handle_set_for<kAttrStatWinSize,           method_fwd<ld2412_1, &ld2412::Instance::collect_statistics>>(zb_ep)
+	, zb::handle_set_for<kAttrStatWinSize,           on_stat_win_size<ld2412_1>>(zb_ep)
+	, zb::handle_set_for<kAttrOccupancyToUnoccupancyDelay, &on_change_occ_to_unocc>(zb_ep)
 	, zb::handle_set_for<kAttrBT,                    method_fwd<ld2412_1, &ld2412::Instance::switch_bluetooth>>(zb_ep)
 	//aux instance
 	, zb::handle_set_for<kAttrBaseCfg,               &on_set_base_config<ld2412_2>>(zb_ep_aux)
 	, zb::handle_set_for<kAttrLightSense,            &on_set_light_sense<ld2412_2>>(zb_ep_aux)
 	, zb::handle_set_for<kAttrStillThr,              method_fwd<ld2412_2, &ld2412::Instance::set_still_thresholds_raw>>(zb_ep_aux)
 	, zb::handle_set_for<kAttrMoveThr,               method_fwd<ld2412_2, &ld2412::Instance::set_move_thresholds_raw>>(zb_ep_aux)
-	, zb::handle_set_for<kAttrStatWinSize,           method_fwd<ld2412_2, &ld2412::Instance::collect_statistics>>(zb_ep_aux)
+	, zb::handle_set_for<kAttrStatWinSize,           on_stat_win_size<ld2412_2>>(zb_ep_aux)
 	, zb::handle_set_for<kAttrBT,                    method_fwd<ld2412_2, &ld2412::Instance::switch_bluetooth>>(zb_ep_aux)
     >;
 
@@ -1581,6 +1666,8 @@ int main(void)
     //real config from the device takes precedense
     update_dev_ctx_from_ld2412<ld2412_1>();
     update_dev_ctx_from_ld2412<ld2412_2>();
+
+    app_cfg_nvram_register();
 
     if (int err = configure_presence_pins(); err != 0)
     {
