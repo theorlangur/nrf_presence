@@ -298,7 +298,9 @@ union status3_t
 	uint16_t reset_reason_dbg: 1;
 	uint16_t has_breadcrumbs: 1;
 	uint16_t set_tx_error: 1;
-	uint16_t unused: 4;
+	uint16_t incomplete_bread: 1;
+	uint16_t osif_abort: 1;
+	uint16_t unused: 2;
     }bits;
 };
 
@@ -583,13 +585,18 @@ const struct device *const wdt = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 zb::zb_timer_ext_16_t g_WDTFeeder;
 int wdt_channel_id = -1;
 int configure_wdt();
-bool has_breadcrumbs_stored();
+std::optional<uint32_t> has_breadcrumbs_stored();
 void clear_breadcrumbs_stored();
 
 
 /**********************************************************************/
 /* Zigbee Persistence State                                           */
 /**********************************************************************/
+#define CFG_TREE "presence"
+
+constinit bool need_safe_cfg = false;
+
+void app_cfg_mark_dirty();
 void app_cfg_save_cb(zb_uint8_t unused);
 
 /**********************************************************************/
@@ -1106,16 +1113,20 @@ void on_stat_win_size(uint8_t win_sz)
 {
     i.collect_statistics(win_sz);
 
+    need_safe_cfg = true;
+    //app_cfg_mark_dirty();
     zigbee_schedule_alarm_cancel(app_cfg_save_cb, ZB_ALARM_ANY_PARAM);
     zigbee_schedule_alarm(app_cfg_save_cb, 0,
-	    ZB_MILLISECONDS_TO_BEACON_INTERVAL(3000));
+     ZB_MILLISECONDS_TO_BEACON_INTERVAL(3000));
 }
 
 void on_change_occ_to_unocc(uint16_t delay)
 {
+    need_safe_cfg = true;
+    //app_cfg_mark_dirty();
     zigbee_schedule_alarm_cancel(app_cfg_save_cb, ZB_ALARM_ANY_PARAM);
     zigbee_schedule_alarm(app_cfg_save_cb, 0,
-	    ZB_MILLISECONDS_TO_BEACON_INTERVAL(3000));
+     ZB_MILLISECONDS_TO_BEACON_INTERVAL(3000));
 }
 
 int configure_presence_pins();
@@ -1181,6 +1192,9 @@ void update_environment_sensors_task(void *, void *, void *)
     }
 }
 
+static constexpr zephyr::snapshot_cfg_t kSnapshotCfg = {.m_MaxTasks = 12, .m_MaxFrames = 10};
+[[gnu::section("BreadcrumbsMem"),gnu::used]] volatile zephyr::snapshot_factory_t<kSnapshotCfg>::snapshot_t wdt_snapshot;
+
 constinit uint32_t reset_reasons = 0;
 void on_zigbee_start()
 {
@@ -1192,7 +1206,10 @@ void on_zigbee_start()
 
     s.bits.wdt_error = configure_wdt() == -1;
     s.bits.has_coredump = hasCoredump;
-    s.bits.has_breadcrumbs = has_breadcrumbs_stored();
+    auto bread = has_breadcrumbs_stored();
+    s.bits.has_breadcrumbs = bread && *bread == zephyr::kSnapshotMagic;
+    s.bits.incomplete_bread = bread && *bread == zephyr::kSnapshotMagicNotReady;
+    s.bits.osif_abort = wdt_snapshot.is_non_empty() ? wdt_snapshot.flags & 1 : 0;
 
     s.bits.reset_reason_pin = (reset_reasons & RESET_PIN) != 0;
     s.bits.reset_reason_wdt = (reset_reasons & RESET_WATCHDOG) != 0;
@@ -1243,6 +1260,14 @@ void zboss_signal_handler(zb_bufid_t bufid)
 	    //.on_error = []{ led::show_pattern(led::kPATTERN_3_BLIPS_NORMED, 1000); },
 	    .on_dev_reboot = on_zigbee_start,
 	    .on_steering = on_zigbee_start,
+		//   .on_can_sleep = +[]{
+		//if (need_safe_cfg)
+		//{
+		//    need_safe_cfg = false;
+		//    FMT_PRINTLN("can_sleep: writing dataset");
+		//    zb_nvram_write_dataset(ZB_NVRAM_APP_DATA1);
+		//}
+		//   },
 	   }>(bufid);
     const uint32_t LOCAL_ERR_CODE = (uint32_t) (-ret);	
     if (LOCAL_ERR_CODE != RET_OK) {				
@@ -1352,19 +1377,28 @@ zb::cmd_handling_result_t on_cmd_clear_coredump()
     coredump_cmd(COREDUMP_CMD_INVALIDATE_STORED_DUMP, nullptr);
     uint16_t hasCoredump = coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) == 1;
     clear_breadcrumbs_stored();
+    wdt_snapshot.clear();
     reset_reasons = 0;
     status3_t s;
     s.s = dev_ctx.status_attr.status3;
     s.s &= ~(0b111111 << 4);//set all reset_* to 0
     s.bits.has_coredump = hasCoredump;
     s.bits.wdt_error = 0;
-    s.bits.has_breadcrumbs = has_breadcrumbs_stored();
+    auto bread = has_breadcrumbs_stored();
+    s.bits.has_breadcrumbs = bread && *bread == zephyr::kSnapshotMagic;
+    s.bits.incomplete_bread = bread && *bread == zephyr::kSnapshotMagicNotReady;
+    s.bits.osif_abort = false;
     zb_ep.attr<kAttrStatus3>() = s.s;
     return {};
 }
 
-static constexpr zephyr::snapshot_cfg_t kSnapshotCfg = {.m_MaxTasks = 12, .m_MaxFrames = 10};
-[[gnu::section("BreadcrumbsMem"),gnu::used]] volatile zephyr::snapshot_factory_t<kSnapshotCfg>::snapshot_t wdt_snapshot;
+
+extern "C" void __real_zb_osif_abort();
+extern "C" void __wrap_zb_osif_abort()
+{
+    wdt_snapshot.flags |= 1;
+    return __real_zb_osif_abort();
+}
 
 static void wdt_callback(const struct device *dev, int channel_id)
 {
@@ -1408,7 +1442,7 @@ zb::cmd_handling_result_t on_cmd_stop_wd_feeding()
     return {};
 }
 
-int configure_wdt()
+int configure_wdt_only()
 {
     if (!device_is_ready(wdt)) {
 	printk("%s: device not ready.\n", wdt->name);
@@ -1438,7 +1472,11 @@ int configure_wdt()
 	printk("Watchdog setup error\n");
 	return err;
     }
+}
 
+int configure_wdt()
+{
+    configure_wdt_only();
     printk("feeder configured: ch=%d\r\n", wdt_channel_id);
     //starting the feeding sequence
     g_WDTFeeder.Setup([]{ 
@@ -1482,14 +1520,14 @@ void clear_breadcrumbs_stored()
     bc.write(0, uint32_t(0));
 }
 
-bool has_breadcrumbs_stored()
+std::optional<uint32_t> has_breadcrumbs_stored()
 {
     zephyr::partition_basic_t bc(BREADCRUMBS_PARTITION_ID);
     if (!bc)
 	return false;
     uint32_t magic;
     if (bc.read(0, magic) >= 0)
-	return magic == zephyr::kSnapshotMagic;
+	return magic;
     return false;
 }
 
@@ -1515,11 +1553,13 @@ struct [[gnu::packed]] persistent_cfg_t
     uint8_t statistics_sample_count_window_main = 0;
     uint8_t statistics_sample_count_window_aux = 0;
     uint16_t UltrasonicOccupiedToUnoccupiedDelay = 0;
+    uint8_t padding[2];
 };
 
-void app_cfg_nvram_read(zb_uint8_t page, zb_uint32_t pos, zb_uint16_t len)
+extern "C" void app_cfg_nvram_read(zb_uint8_t page, zb_uint32_t pos, zb_uint16_t len)
 {
     persistent_cfg_t ds = { 0 };
+    FMT_PRINTLN("app_cfg_nvram_read: page: {}; pos:{}; len:{}", page, pos, len);
     zb_uint16_t n = (len < sizeof(ds)) ? len : (zb_uint16_t)sizeof(ds);
     if (zb_nvram_read_data(page, pos, (zb_uint8_t *)&ds, n) != RET_OK) {
 	return; /* keep compiled-in defaults */
@@ -1538,17 +1578,22 @@ void app_cfg_nvram_read(zb_uint8_t page, zb_uint32_t pos, zb_uint16_t len)
     }
 }
 
-zb_ret_t app_cfg_nvram_write(zb_uint8_t page, zb_uint32_t pos)
+extern "C" zb_ret_t app_cfg_nvram_write(zb_uint8_t page, zb_uint32_t pos)
 {
+    FMT_PRINTLN("app_cfg_nvram_write page {}, pos {}", page, pos);
     persistent_cfg_t ds = {};
     ds.UltrasonicOccupiedToUnoccupiedDelay = dev_ctx.occupancy.UltrasonicOccupiedToUnoccupiedDelay;
     ds.statistics_sample_count_window_main = dev_ctx.ld2412_main.statistics_sample_count_window;
     ds.statistics_sample_count_window_aux = dev_ctx.ld2412_aux.statistics_sample_count_window;
-    return zb_nvram_write_data(page, pos,
-	    (zb_uint8_t *)&ds, sizeof(ds));
+    FMT_PRINTLN("app_cfg_nvram_write: delay {}, win main {}, win aux {}", ds.UltrasonicOccupiedToUnoccupiedDelay, ds.statistics_sample_count_window_main, ds.statistics_sample_count_window_aux);
+    //return zb_osif_nvram_write(page, pos, (zb_uint8_t *)&ds, sizeof(ds));
+    auto r = zb_nvram_write_data(page, pos,
+     (zb_uint8_t *)&ds, sizeof(ds));
+    FMT_PRINTLN("app_cfg_nvram_write: zb_nvram_write_data returned {}", r);
+    return r;
 }
 
-zb_uint16_t app_cfg_nvram_size(void)
+extern "C" zb_uint16_t app_cfg_nvram_size(void)
 {
     return (zb_uint16_t)sizeof(persistent_cfg_t);
 }
@@ -1562,8 +1607,75 @@ void app_cfg_nvram_register(void)
 
 void app_cfg_save_cb(zb_uint8_t unused)
 {
+    FMT_PRINTLN("app_cfg_save_cb");
     ARG_UNUSED(unused);
     zb_nvram_write_dataset(ZB_NVRAM_APP_DATA1);
+}
+
+int cfg_set(const char *key, size_t len, settings_read_cb read_cb, void *cb_arg)
+{
+    const char *next;
+    if (settings_name_steq(key, "cfg", &next) && !next)
+    {
+	persistent_cfg_t ds = {};
+	int rc = read_cb(cb_arg, &ds, sizeof(ds));
+	if (rc < 0)
+	    return rc;
+
+	switch (ds.version) {
+	    case kPersistentConfigVersion:
+		{
+		    FMT_PRINTLN("cfg_set: reading stored settings");
+		    dev_ctx.occupancy.UltrasonicOccupiedToUnoccupiedDelay = ds.UltrasonicOccupiedToUnoccupiedDelay;
+		    dev_ctx.ld2412_main.statistics_sample_count_window = ds.statistics_sample_count_window_main;
+		    dev_ctx.ld2412_aux.statistics_sample_count_window = ds.statistics_sample_count_window_aux;
+		}
+		break;
+		/* case 0: migrate_v0_to_v1(&ds); m_cfg = ds; break; */
+	    default:
+		break; /* unknown version: defaults */
+	}
+	return 0;
+    }
+    FMT_PRINTLN("cfg_set: don't know {}", key);
+    return -ENOENT;
+}
+
+static int cfg_export(int (*cb) (const char *name, const void *value, size_t len))
+{
+    persistent_cfg_t ds = {};
+    ds.UltrasonicOccupiedToUnoccupiedDelay = dev_ctx.occupancy.UltrasonicOccupiedToUnoccupiedDelay;
+    ds.statistics_sample_count_window_main = dev_ctx.ld2412_main.statistics_sample_count_window;
+    ds.statistics_sample_count_window_aux = dev_ctx.ld2412_aux.statistics_sample_count_window;
+    FMT_PRINTLN("cfg_export");
+    return cb(CFG_TREE "/cfg", &ds, sizeof(ds));
+}
+
+int cfg_commit()
+{
+    return 0;
+}
+
+SETTINGS_STATIC_HANDLER_DEFINE(app_cfg, CFG_TREE, NULL, cfg_set, cfg_commit, cfg_export);
+
+static void cfg_save_work_fn(struct k_work *work) 
+{ 
+    int err; 
+    ARG_UNUSED(work); 
+    FMT_PRINTLN("cfg_save_work_fn saving...");
+    err = settings_save_subtree(CFG_TREE); 
+    if (err) 
+    { 
+	FMT_PRINTLN("cfg_save_work_fn failed with {}", err);
+	//LOG_ERR("settings_save_subtree failed (%d)", err); 
+    } 
+}
+static K_WORK_DELAYABLE_DEFINE(cfg_save_work, cfg_save_work_fn);
+
+void app_cfg_mark_dirty(void)
+{
+    /* Re-arms the timer; a burst of writes costs one flash write. */
+    k_work_reschedule(&cfg_save_work, K_SECONDS(3));
 }
 
 int main(void)
