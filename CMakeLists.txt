@@ -32,6 +32,7 @@ target_link_options(app PUBLIC
   -Wl,--wrap=nrf_802154_transmit_failed
   -Wl,--wrap=nrf_802154_receive_failed
   -Wl,--wrap=nrf_802154_received_raw
+  -Wl,--wrap=zb_osif_abort
 )
 
 if(COMMAND setup_custom_libcxx)
