@@ -32,8 +32,14 @@ app:
 
 coredump_partition:
   address: 0x11c000
+  end_address: 0x15b000
+  size: 0x3f000
+  region: flash_primary
+
+storage_partition:
+  address: 0x15b000
   end_address: 0x15b800
-  size: 0x3f800
+  size: 0x800
   region: flash_primary
 
 breadcrumbs_partition:
