@@ -64,7 +64,7 @@ namespace zephyr
             uint32_t magic;
             uint16_t total_size;
             uint8_t  total_tasks;
-            uint8_t  unused;
+            uint8_t  flags;
             thread_t tasks[cfg.m_MaxTasks];
 
             inline static uintptr_t reg_fp;
@@ -127,11 +127,17 @@ namespace zephyr
             void clear() volatile
             {
                 magic = 0;
+                flags = 0;
             }
 
             bool is_valid() volatile const
             {
                 return magic == kSnapshotMagic;
+            }
+
+            bool is_non_empty() volatile const
+            {
+                return magic != 0;
             }
         };
     };
