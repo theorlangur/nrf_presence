@@ -1,4 +1,5 @@
 #include "ld2412_task.hpp"
+#include "activity_tracker.hpp"
 #include <lib_misc_helpers.hpp>
 #include <nrf_uart/periphery/lib_ld2412_formatters.hpp>
 
@@ -12,8 +13,10 @@ namespace ld2412
     {
     }
 
-    hlk::LD2412* Instance::setup(err_callback_t err, notify_callback_t notification)
+    hlk::LD2412* Instance::setup(err_callback_t err, notify_callback_t notification, uint8_t idx, volatile uint8_t &flags)
     {
+	m_Idx = idx;
+	m_pFlags = &flags;
 	m_ThreadID = {};
 	if (!device_is_ready(m_pUART))
 	{
@@ -21,6 +24,7 @@ namespace ld2412
 	    return {};
 	}
 
+	zephyr::activity_rt_t track(*m_pFlags, zephyr::kLD2412_Back_Main << m_Idx);
 	auto r = m_Sensor.Init();
 	if (!r)
 	    return {};
@@ -217,6 +221,7 @@ namespace ld2412
 
 	    if (readFrameNow)
 	    {
+		zephyr::activity_rt_t track(*m_pFlags, zephyr::kLD2412_Back_Main << m_Idx);
 		auto r = m_Sensor.TryReadSingleFrame(3, hlk::LD2412::Drain::Try);
 		if (r)
 		{
@@ -235,6 +240,7 @@ namespace ld2412
 
 	    if (processMessage)
 	    {
+		zephyr::activity_rt_t track(*m_pFlags, zephyr::kLD2412_Back_Main << m_Idx);
 		std::visit(
 		    overloaded{
 			[&](restart_cfg_t const&)

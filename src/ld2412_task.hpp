@@ -99,7 +99,7 @@ namespace ld2412
 
         Instance(Queue &q, const struct device *uart, const char* thread_name);
 
-        hlk::LD2412* setup(err_callback_t err, notify_callback_t notification);
+        hlk::LD2412* setup(err_callback_t err, notify_callback_t notification, uint8_t idx, volatile uint8_t &flags);
         hlk::LD2412* sensor();
 
         void restart();
@@ -177,6 +177,8 @@ namespace ld2412
 
         AnalysisState m_Analysis = AnalysisState::Stopped;
         hlk::LD2412::gate_array_t m_AnalysisStillEnergies;
+        uint8_t m_Idx = 0;
+        volatile uint8_t *m_pFlags = nullptr;
     };
 }
 #endif

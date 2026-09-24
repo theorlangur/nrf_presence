@@ -27,6 +27,7 @@ extern "C"{
 #include <zephyr/storage/flash_map.h>
 #include "threads_snapshot.hpp"
 #include "partition_basic.hpp"
+#include "activity_tracker.hpp"
 /**********************************************************************/
 /* Zigbee                                                             */
 /**********************************************************************/
@@ -293,14 +294,15 @@ union status3_t
 	uint16_t reset_reason_pin: 1;
 	uint16_t reset_reason_wdt: 1;
 	uint16_t reset_reason_sw: 1;
-	uint16_t reset_reason_cpu_lockup: 1;
-	uint16_t reset_reason_low_power_wake: 1;
-	uint16_t reset_reason_dbg: 1;
+	uint16_t state_ld2412_back_main: 1;
+	uint16_t state_ld2412_back_aux: 1;
+	uint16_t state_ld2412_front_main: 1;
+	uint16_t state_ld2412_front_aux: 1;
+	uint16_t state_env: 1;
 	uint16_t has_breadcrumbs: 1;
 	uint16_t set_tx_error: 1;
 	uint16_t incomplete_bread: 1;
 	uint16_t osif_abort: 1;
-	uint16_t unused: 2;
     }bits;
 };
 
@@ -333,6 +335,15 @@ const char* get_name_for_ld2412()
 	return "main";
     else if constexpr (&i == &ld2412_2)
 	return "aux";
+}
+
+template<ld2412::Instance &i>
+constexpr uint8_t get_ld2412_idx()
+{
+    if constexpr (&i == &ld2412_1)
+	return 0;
+    else if constexpr (&i == &ld2412_2)
+	return 1;
 }
 
 /**********************************************************************/
@@ -387,6 +398,11 @@ auto as_print_dest(zb::zigbee_str_t<N> &str)
 {
     return tools::BufferFormatter(str.name + 1, str.capacity());
 }
+
+template<uint8_t kFlag>
+using activity_t = zephyr::activity_t<kFlag>;
+using zephyr::kLD2412_Front_Main;
+using zephyr::kEnv;
 
 /**********************************************************************/
 /* Time measurements                                                  */
@@ -599,6 +615,14 @@ constinit bool need_safe_cfg = false;
 void app_cfg_mark_dirty();
 void app_cfg_save_cb(zb_uint8_t unused);
 
+
+/**********************************************************************/
+/* Snapshot                                                           */
+/**********************************************************************/
+
+static constexpr zephyr::snapshot_cfg_t kSnapshotCfg = {.m_MaxTasks = 12, .m_MaxFrames = 10};
+[[gnu::section("BreadcrumbsMem"),gnu::used]] volatile zephyr::snapshot_factory_t<kSnapshotCfg>::snapshot_t wdt_snapshot;
+
 /**********************************************************************/
 /* Presence                                                           */
 /**********************************************************************/
@@ -715,6 +739,7 @@ void presence_triggered(const struct device *port,
 template<ld2412::Instance &i>
 zb::cmd_handling_result_t on_cmd_restart()
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     printk("ld2412::restart\r\n");
     i.restart();
     return {};
@@ -723,6 +748,7 @@ zb::cmd_handling_result_t on_cmd_restart()
 template<ld2412::Instance &i>
 zb::cmd_handling_result_t on_cmd_factory_reset()
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     printk("ld2412::factory_reset\r\n");
     i.factory_reset();
     return {};
@@ -731,6 +757,7 @@ zb::cmd_handling_result_t on_cmd_factory_reset()
 template<ld2412::Instance &i>
 void on_back_analysis_done(ld2412::run_background_analysis_t::Result result)
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     auto &d = get_data_for_ld2412<i>();
     auto &ep = get_zb_ep_for_ld2412<i>();
     auto flags = d.flags;
@@ -743,6 +770,7 @@ void on_back_analysis_done(ld2412::run_background_analysis_t::Result result)
 template<ld2412::Instance &i>
 zb::cmd_handling_result_t on_cmd_run_back_analysis()
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     printk("ld2412::run_back_analysis\r\n");
     i.run_back_analysis({&on_back_analysis_done<i>});
 
@@ -760,6 +788,7 @@ zb::cmd_handling_result_t on_cmd_run_back_analysis()
 template<ld2412::Instance &i>
 void on_get_stat_snapshot(hlk::LD2412::energy_stat_array_t const& still, hlk::LD2412::energy_stat_array_t const& move)
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     auto &d = get_data_for_ld2412<i>();
     auto &ep = get_zb_ep_for_ld2412<i>();
     printk("stats for  %s:\r\n", get_name_for_ld2412<i>());
@@ -782,6 +811,7 @@ void on_get_stat_snapshot(hlk::LD2412::energy_stat_array_t const& still, hlk::LD
 template<ld2412::Instance &i>
 zb::cmd_handling_result_t on_cmd_do_stat_snapshot()
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     printk("(%s)ld2412::do_stat_snapshot\r\n", get_name_for_ld2412<i>());
     i.take_statistic_snapshot({&on_get_stat_snapshot<i>});
     return {};
@@ -911,6 +941,7 @@ void on_dev_cb_error(int err)
 template<ld2412::Instance &i>
 void zb_ld2412_update_light_sense()
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     auto &ep = get_zb_ep_for_ld2412<i>();
     auto *pLD2412 = i.sensor();
     zb::zb_zcl_ld2412_t::light_sense_cfg_t l;
@@ -922,6 +953,7 @@ void zb_ld2412_update_light_sense()
 template<ld2412::Instance &i>
 void zb_ld2412_update_thresholds()
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     auto &ep = get_zb_ep_for_ld2412<i>();
     auto *pLD2412 = i.sensor();
     auto const& still = pLD2412->GetAllStillThresholds();
@@ -935,6 +967,7 @@ void zb_ld2412_update_thresholds()
 template<ld2412::Instance &i>
 void zb_ld2412_update_flags()
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     auto &ep = get_zb_ep_for_ld2412<i>();
     auto &d = get_data_for_ld2412<i>();
     auto *pLD2412 = i.sensor();
@@ -947,6 +980,7 @@ void zb_ld2412_update_flags()
 template<ld2412::Instance &i>
 void zb_ld2412_update_stat_collection()
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     auto &ep = get_zb_ep_for_ld2412<i>();
     auto &d = get_data_for_ld2412<i>();
     ep.template attr<kAttrStatWinSize>() = i.get_stat_collect_window_size();
@@ -955,6 +989,7 @@ void zb_ld2412_update_stat_collection()
 template<ld2412::Instance &i>
 void zb_ld2412_update_base_config()
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     auto &ep = get_zb_ep_for_ld2412<i>();
     auto &d = get_data_for_ld2412<i>();
     auto *pLD2412 = i.sensor();
@@ -1022,6 +1057,7 @@ void on_ld2412_error(ld2412::err_t e)
 template<ld2412::Instance &i>
 void zb_ld2412_notify(uint8_t id)
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     auto &ep = get_zb_ep_for_ld2412<i>();
     auto &d = get_data_for_ld2412<i>();
     auto *pLD2412 = i.sensor();
@@ -1066,6 +1102,7 @@ void on_ld2412_notify(ld2412::notification_id_t id)
 template<ld2412::Instance &i>
 void update_dev_ctx_from_ld2412()
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     auto &ep = get_zb_ep_for_ld2412<i>();
     auto &d = get_data_for_ld2412<i>();
     auto *pLD2412 = i.sensor();
@@ -1094,6 +1131,7 @@ void update_dev_ctx_from_ld2412()
 template<ld2412::Instance &i>
 void on_set_base_config(zb::zb_zcl_ld2412_t::base_cfg_t const& cfg)
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     i.set_basic_config({
 	    .resolution = cfg.distance_resolution
 	    , .gate_from = hlk::LD2412::GetGateFromDistanceCM(cfg.range_min * 100.f, cfg.distance_resolution)
@@ -1105,12 +1143,14 @@ void on_set_base_config(zb::zb_zcl_ld2412_t::base_cfg_t const& cfg)
 template<ld2412::Instance &i>
 void on_set_light_sense(zb::zb_zcl_ld2412_t::light_sense_cfg_t const& cfg)
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     i.set_light_sense({ .mode = cfg.mode, .threshold = cfg.threshold });
 }
 
 template<ld2412::Instance &i>
 void on_stat_win_size(uint8_t win_sz)
 {
+    activity_t<kLD2412_Front_Main << get_ld2412_idx<i>()> track(wdt_snapshot.flags);
     i.collect_statistics(win_sz);
 
     need_safe_cfg = true;
@@ -1167,6 +1207,7 @@ void update_environment_sensors_task(void *, void *, void *)
     {
 	if (device_is_ready(rht2sensor))
 	{
+	    activity_t<kEnv> track(wdt_snapshot.flags);
 	    sensor_sample_fetch(rht2sensor);
 	    sensor_value v;
 	    sensor_channel_get(rht2sensor, sensor_channel::SENSOR_CHAN_AMBIENT_TEMP, &v);
@@ -1192,9 +1233,6 @@ void update_environment_sensors_task(void *, void *, void *)
     }
 }
 
-static constexpr zephyr::snapshot_cfg_t kSnapshotCfg = {.m_MaxTasks = 12, .m_MaxFrames = 10};
-[[gnu::section("BreadcrumbsMem"),gnu::used]] volatile zephyr::snapshot_factory_t<kSnapshotCfg>::snapshot_t wdt_snapshot;
-
 constinit uint32_t reset_reasons = 0;
 void on_zigbee_start()
 {
@@ -1209,14 +1247,17 @@ void on_zigbee_start()
     auto bread = has_breadcrumbs_stored();
     s.bits.has_breadcrumbs = bread && *bread == zephyr::kSnapshotMagic;
     s.bits.incomplete_bread = bread && *bread == zephyr::kSnapshotMagicNotReady;
-    s.bits.osif_abort = wdt_snapshot.is_non_empty() ? wdt_snapshot.flags & 1 : 0;
+    uint8_t flags = wdt_snapshot.is_non_empty() ? wdt_snapshot.flags : 0;
+    s.bits.osif_abort = bool(flags & zephyr::kOSIF);
+    s.bits.state_ld2412_back_main = bool(flags & zephyr::kLD2412_Back_Main);
+    s.bits.state_ld2412_back_aux = bool(flags & zephyr::kLD2412_Back_Aux);
+    s.bits.state_ld2412_front_main = bool(flags & zephyr::kLD2412_Front_Main);
+    s.bits.state_ld2412_front_aux = bool(flags & zephyr::kLD2412_Front_Aux);
+    s.bits.state_env = bool(flags & zephyr::kEnv);
 
     s.bits.reset_reason_pin = (reset_reasons & RESET_PIN) != 0;
     s.bits.reset_reason_wdt = (reset_reasons & RESET_WATCHDOG) != 0;
     s.bits.reset_reason_sw = (reset_reasons & RESET_SOFTWARE) != 0;
-    s.bits.reset_reason_cpu_lockup = (reset_reasons & RESET_CPU_LOCKUP) != 0;
-    s.bits.reset_reason_low_power_wake = (reset_reasons & RESET_LOW_POWER_WAKE) != 0;
-    s.bits.reset_reason_dbg = (reset_reasons & RESET_DEBUG) != 0;
     zb_ep.attr<kAttrStatus3>() = s.s;
 
     if (s.bits.reset_reason_wdt)
@@ -1716,7 +1757,7 @@ int main(void)
 
     printk("main\r\n");
 
-    pLD2412_1 = ld2412_1.setup(&on_ld2412_error<ld2412_1>, &on_ld2412_notify<ld2412_1>);
+    pLD2412_1 = ld2412_1.setup(&on_ld2412_error<ld2412_1>, &on_ld2412_notify<ld2412_1>, 0, wdt_snapshot.flags);
     if(!pLD2412_1)
     {
 	printk("LD2412 not found\r\n");
@@ -1731,7 +1772,7 @@ int main(void)
 	return 0;
     }
 
-    pLD2412_2 = ld2412_2.setup(&on_ld2412_error<ld2412_2>, &on_ld2412_notify<ld2412_2>);
+    pLD2412_2 = ld2412_2.setup(&on_ld2412_error<ld2412_2>, &on_ld2412_notify<ld2412_2>, 1, wdt_snapshot.flags);
     if (!pLD2412_2)
     {
 	printk("LD2412(aux) not found\r\n");
